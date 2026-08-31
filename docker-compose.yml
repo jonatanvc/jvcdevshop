@@ -1,0 +1,48 @@
+version: "3.8"
+
+services:
+  db:
+    image: postgres:16-alpine
+    container_name: services_bot_db
+    restart: always
+    environment:
+      POSTGRES_USER: ${POSTGRES_USER:-postgres}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-postgres_secure_pass}
+      POSTGRES_DB: ${POSTGRES_DB:-services_bot}
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-postgres} -d ${POSTGRES_DB:-services_bot}"]
+      interval: 5s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bot_network
+
+  bot:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: services_telegram_bot
+    restart: always
+    depends_on:
+      db:
+        condition: service_healthy
+    env_file:
+      - .env
+    environment:
+      DATABASE_URL: postgresql+asyncpg://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres_secure_pass}@db:5432/${POSTGRES_DB:-services_bot}
+    volumes:
+      - bot_sessions:/app/sessions
+    networks:
+      - bot_network
+
+volumes:
+  postgres_data:
+    driver: local
+  bot_sessions:
+    driver: local
+
+networks:
+  bot_network:
+    driver: bridge

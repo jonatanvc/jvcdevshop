@@ -1,0 +1,222 @@
+import asyncio
+from typing import Dict, Any
+from pyrogram import Client, filters
+from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from sqlalchemy import select, func
+from bot.config import settings
+from bot.database.session import async_session
+from bot.database.models import User, Order, Deposit, DepositStatus, Setting
+from bot.services.bunai_client import bunai_api
+from bot.services.pricing import pricing_service
+from bot.services.backup_service import backup_service
+from bot.utils.navigation import render_screen
+
+ADMIN_STATES: Dict[int, Dict[str, Any]] = {}
+
+def is_admin(user_id: int) -> bool:
+    return user_id in settings.admin_ids
+
+def register_admin_handlers(app: Client):
+
+    @app.on_callback_query(filters.regex("^admin:menu$"))
+    async def cb_admin_menu(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            await callback.answer("⛔ Acceso denegado.", show_alert=True)
+            return
+
+        async with async_session() as session:
+            users_res = await session.execute(select(func.count(User.telegram_id)))
+            total_users = users_res.scalar() or 0
+
+            orders_res = await session.execute(select(func.count(Order.id), func.sum(Order.total_price)))
+            total_orders, total_sales = orders_res.first()
+            total_sales = float(total_sales or 0.0)
+
+            dep_res = await session.execute(
+                select(func.sum(Deposit.exact_amount)).where(Deposit.status == DepositStatus.CONFIRMED)
+            )
+            total_deposited = float(dep_res.scalar() or 0.0)
+
+            global_margin = await pricing_service.get_global_margin(session)
+
+            m_res = await session.execute(select(Setting).where(Setting.key == "maintenance_mode"))
+            m_setting = m_res.scalar_one_or_none()
+            maintenance_active = m_setting.value == "true" if m_setting else False
+
+        bunai_profile = await bunai_api.get_me()
+        bunai_balance = float(bunai_profile.get("balance", 0.0))
+        bunai_spent = float(bunai_profile.get("api_spent", 0.0))
+
+        balance_alert = " ⚠️ <i>¡Recarga recomendada!</i>" if bunai_balance < 10.0 else " ✅"
+
+        text = (
+            f"⚙️ <b>PANEL DE ADMINISTRACIÓN & MÉTRICAS</b>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"👥 <b>Usuarios Totales:</b> <code>{total_users}</code>\n"
+            f"💳 <b>Total Depositado (USDT):</b> <code>${total_deposited:.2f}</code>\n"
+            f"🛍️ <b>Ventas Realizadas:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"🏢 <b>Saldo en BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
+            f"📉 <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n"
+            f"📈 <b>Margen de Ganancia Global:</b> <code>+{global_margin:.1f}%</code>\n"
+            f"🛠️ <b>Modo Mantenimiento:</b> <code>{'🔴 ACTIVADO' if maintenance_active else '🟢 DESACTIVADO'}</code>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"<i>Selecciona una acción administrativa:</i>"
+        )
+
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton(f"🛠️ {'Desactivar' if maintenance_active else 'Activar'} Mantenimiento", callback_data="admin:toggle_maintenance"),
+                InlineKeyboardButton("📈 Cambiar Margen", callback_data="admin:change_margin")
+            ],
+            [
+                InlineKeyboardButton("📢 Enviar Difusión (Broadcast)", callback_data="admin:broadcast"),
+                InlineKeyboardButton("💾 Backup BD", callback_data="admin:download_backup")
+            ],
+            [
+                InlineKeyboardButton("🔄 Limpiar Caché Catálogo", callback_data="admin:clear_cache"),
+                InlineKeyboardButton("Volver", callback_data="menu_main")
+            ]
+        ])
+
+        await render_screen(client, callback, text, keyboard)
+
+    @app.on_callback_query(filters.regex("^admin:download_backup$"))
+    async def cb_download_backup(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            return
+
+        await callback.answer("⏳ Generando backup...")
+        await backup_service.send_automated_backup(client, chat_id=user_id)
+        await callback.answer("✅ Backup enviado a tu chat privado.", show_alert=True)
+
+    @app.on_callback_query(filters.regex("^admin:toggle_maintenance$"))
+    async def cb_toggle_maintenance(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            return
+
+        async with async_session() as session:
+            stmt = select(Setting).where(Setting.key == "maintenance_mode")
+            res = await session.execute(stmt)
+            setting = res.scalar_one_or_none()
+
+            if not setting:
+                setting = Setting(key="maintenance_mode", value="true")
+                session.add(setting)
+                new_state = True
+            else:
+                new_state = setting.value != "true"
+                setting.value = "true" if new_state else "false"
+
+            await session.commit()
+
+        await callback.answer(f"Mantenimiento {'activado' if new_state else 'desactivado'}.")
+        await cb_admin_menu(client, callback)
+
+    @app.on_callback_query(filters.regex("^admin:clear_cache$"))
+    async def cb_clear_cache(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            return
+
+        bunai_api.invalidate_cache()
+        await callback.answer("✅ Caché del catálogo limpiada. Sincronización inmediata.", show_alert=True)
+        await cb_admin_menu(client, callback)
+
+    @app.on_callback_query(filters.regex("^admin:change_margin$"))
+    async def cb_change_margin(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            return
+
+        ADMIN_STATES[user_id] = {"action": "waiting_margin"}
+        text = (
+            "📈 <b>CONFIGURAR MARGEN GLOBAL DE GANANCIA</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Escribe el nuevo porcentaje de ganancia que se aplicará a los precios de costo de BunaiStore.\n\n"
+            "<i>Ejemplo: Envía <code>30</code> para 30%, o <code>50</code> para 50%.</i>"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Volver", callback_data="admin:menu")]
+        ])
+        await render_screen(client, callback, text, keyboard)
+
+    @app.on_callback_query(filters.regex("^admin:broadcast$"))
+    async def cb_broadcast_prompt(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            return
+
+        ADMIN_STATES[user_id] = {"action": "waiting_broadcast"}
+        text = (
+            "📢 <b>DIFUSIÓN MASIVA (BROADCAST)</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "Envía a continuación el mensaje que deseas transmitir a <b>todos los usuarios registrados</b> en el bot.\n\n"
+            "<i>Puedes usar formato HTML (negritas, enlaces, etc).</i>"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("Volver", callback_data="admin:menu")]
+        ])
+        await render_screen(client, callback, text, keyboard)
+
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "buscar"]))
+    async def handle_admin_text(client: Client, message: Message):
+        user_id = message.from_user.id
+        if not is_admin(user_id):
+            return
+
+        state = ADMIN_STATES.get(user_id)
+        if not state:
+            return
+
+        action = state.get("action")
+
+        if action == "waiting_margin":
+            text_val = message.text.strip().replace("%", "").replace(",", ".")
+            try:
+                margin_val = float(text_val)
+            except ValueError:
+                await message.reply_text("❌ Por favor escribe un número válido (ej: <code>35.0</code>).")
+                return
+
+            ADMIN_STATES.pop(user_id, None)
+            async with async_session() as session:
+                await pricing_service.set_global_margin(session, margin_val)
+                bunai_api.invalidate_cache()
+
+            await message.reply_text(
+                f"✅ <b>Margen de ganancia global actualizado a +{margin_val:.1f}%</b>\nLos precios del catálogo han sido recalculados.",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Volver al Panel", callback_data="admin:menu")]])
+            )
+
+        elif action == "waiting_broadcast":
+            ADMIN_STATES.pop(user_id, None)
+            broadcast_text = message.text
+
+            status_msg = await message.reply_text("⏳ <b>Iniciando difusión masiva...</b>")
+
+            async with async_session() as session:
+                users_res = await session.execute(select(User.telegram_id))
+                user_ids = users_res.scalars().all()
+
+            sent_count = 0
+            fail_count = 0
+
+            for uid in user_ids:
+                try:
+                    await client.send_message(chat_id=uid, text=broadcast_text)
+                    sent_count += 1
+                    await asyncio.sleep(0.05)
+                except Exception:
+                    fail_count += 1
+
+            await status_msg.edit_text(
+                f"✅ <b>DIFUSIÓN COMPLETADA</b>\n"
+                f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"• <b>Entregados:</b> {sent_count}\n"
+                f"• <b>Fallidos/Bloqueados:</b> {fail_count}",
+                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Volver al Panel", callback_data="admin:menu")]])
+            )
