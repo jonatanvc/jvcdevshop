@@ -289,6 +289,30 @@ def register_start_handlers(app: Client):
         except Exception as e:
             print(f"[Error in cb_set_language]: {e}")
 
+    @app.on_message(filters.command(["soporte", "support", "ayuda", "help"]) & filters.private)
+    async def cmd_support(client: Client, message: Message):
+        user_id = message.from_user.id
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        try:
+            async with async_session() as session:
+                stmt = select(User).where(User.telegram_id == user_id)
+                result = await session.execute(stmt)
+                user = result.scalar_one_or_none()
+                lang = getattr(user, "language", "es") or "es"
+
+            text = t("support_text", lang)
+            admin_tg_url = f"tg://user?id={settings.admin_ids[0]}" if settings.admin_ids else "https://t.me/telegram"
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton(t("btn_contact_admin", lang), url=admin_tg_url)],
+                [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
+            ])
+            await render_screen(client, user_id, text, keyboard)
+        except Exception as e:
+            print(f"[Error in cmd_support]: {e}")
+
     @app.on_callback_query(filters.regex("^support:view$"))
     async def cb_support_view(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id

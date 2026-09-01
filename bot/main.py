@@ -104,6 +104,21 @@ async def main():
     bot_info = await app.get_me()
     print(f"🤖 Bot iniciado con éxito como @{bot_info.username} (ID: {bot_info.id})")
 
+    # Registrar comandos en la interfaz de Telegram
+    try:
+        from pyrogram.types import BotCommand
+        await app.set_bot_commands([
+            BotCommand("start", "💎 Menú Principal"),
+            BotCommand("catalogo", "🛒 Ver Catálogo de Servicios"),
+            BotCommand("buscar", "🔍 Buscar un Servicio"),
+            BotCommand("pedidos", "💼 Mis Pedidos y Licencias"),
+            BotCommand("depositar", "💳 Recargar Saldo USDT"),
+            BotCommand("soporte", "🆘 Ayuda y Contacto Admin"),
+            BotCommand("admin", "⚙️ Panel de Control (Admins)")
+        ])
+    except Exception as e:
+        print(f"[SetBotCommands Warning]: {e}")
+
     # 5. Notificar inicio al canal de auditoría
     await audit_logger.log_system_alert(
         client=app,

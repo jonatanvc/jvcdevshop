@@ -343,7 +343,45 @@ def register_wallet_handlers(app: Client):
         await callback.answer("Solicitud cancelada.")
         await render_screen(client, callback, cancel_text, keyboard)
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar"]), group=2)
+    @app.on_message(filters.command(["depositar", "deposit", "saldo", "wallet"]) & filters.private)
+    async def cmd_deposit(client: Client, message: Message):
+        user_id = message.from_user.id
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        async with async_session() as session:
+            stmt = select(User).where(User.telegram_id == user_id)
+            res = await session.execute(stmt)
+            user = res.scalar_one_or_none()
+            balance = float(user.balance) if user else 0.0
+            lang = getattr(user, "language", "es") or "es"
+
+            now = datetime.utcnow()
+            active_stmt = select(Deposit).where(
+                Deposit.user_id == user_id,
+                Deposit.status == DepositStatus.PENDING,
+                Deposit.expires_at > now
+            )
+            active_res = await session.execute(active_stmt)
+            active_dep = active_res.scalar_one_or_none()
+
+            if active_dep:
+                exact_val = float(active_dep.exact_amount)
+                invoice_text = t(
+                    "invoice_title",
+                    lang,
+                    exact_val=f"{exact_val:.4f}",
+                    wallet=settings.ADMIN_WALLET_BSC
+                )
+                await render_screen(client, user_id, invoice_text, get_invoice_keyboard(active_dep.id, lang))
+                return
+
+        text = t("wallet_title", lang, balance=f"{balance:.4f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}")
+        await render_screen(client, user_id, text, get_deposit_menu_keyboard(lang))
+
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help"]), group=2)
     async def handle_text_inputs(client: Client, message: Message):
         user_id = message.from_user.id
         state = USER_STATES.get(user_id)

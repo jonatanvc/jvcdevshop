@@ -16,7 +16,80 @@ ADMIN_STATES: Dict[int, Dict[str, Any]] = {}
 def is_admin(user_id: int) -> bool:
     return user_id in settings.admin_ids
 
+async def show_admin_panel(client: Client, target: Any, user_id: int):
+    async with async_session() as session:
+        users_res = await session.execute(select(func.count(User.telegram_id)))
+        total_users = users_res.scalar() or 0
+
+        orders_res = await session.execute(select(func.count(Order.id), func.sum(Order.total_price)))
+        total_orders, total_sales = orders_res.first()
+        total_sales = float(total_sales or 0.0)
+
+        dep_res = await session.execute(
+            select(func.sum(Deposit.exact_amount)).where(Deposit.status == DepositStatus.CONFIRMED)
+        )
+        total_deposited = float(dep_res.scalar() or 0.0)
+
+        m_res = await session.execute(select(Setting).where(Setting.key == "maintenance_mode"))
+        m_setting = m_res.scalar_one_or_none()
+        maintenance_active = m_setting.value == "true" if m_setting else False
+
+    bunai_profile = await bunai_api.get_me()
+    bunai_balance = float(bunai_profile.get("balance", 0.0))
+    bunai_spent = float(bunai_profile.get("api_spent", 0.0))
+
+    balance_alert = " ⚠️ <i>¡Recarga recomendada!</i>" if bunai_balance < 10.0 else " ✅"
+
+    text = (
+        f"⚙️ <b>PANEL DE ADMINISTRACIÓN & MÉTRICAS</b>\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"👥 <b>Usuarios Totales:</b> <code>{total_users}</code>\n"
+        f"💳 <b>Total Depositado (USDT):</b> <code>${total_deposited:.2f}</code>\n"
+        f"🛍️ <b>Ventas Realizadas:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"🏢 <b>Saldo en BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
+        f"📉 <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"📈 <b>ESTRATEGIA DE PRECIOS ACTIVA:</b>\n"
+        f"• <b>Costo &lt; $0.50:</b> <code>x7.0 (+600%)</code>\n"
+        f"• <b>Costo $0.50 - $0.99:</b> <code>x4.0 (+300%)</code>\n"
+        f"• <b>Costo $1.00 - $2.99:</b> <code>x2.5 (+150%)</code>\n"
+        f"• <b>Costo &ge; $3.00:</b> <code>x2.0 (+100%)</code>\n"
+        f"🛡️ <b>Garantías:</b> <code>50% de BunaiStore</code>\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"🛠️ <b>Modo Mantenimiento:</b> <code>{'🔴 ACTIVADO' if maintenance_active else '🟢 DESACTIVADO'}</code>\n"
+        f"━━━━━━━━━━━━━━━\n"
+        f"<i>Selecciona una acción administrativa:</i>"
+    )
+
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton(f"🛠️ {'Desactivar' if maintenance_active else 'Activar'} Mantenimiento", callback_data="admin:toggle_maintenance"),
+            InlineKeyboardButton("🔄 Sincronizar Catálogo", callback_data="admin:clear_cache")
+        ],
+        [
+            InlineKeyboardButton("📢 Enviar Difusión (Broadcast)", callback_data="admin:broadcast"),
+            InlineKeyboardButton("💾 Backup BD", callback_data="admin:download_backup")
+        ],
+        [
+            InlineKeyboardButton("Volver", callback_data="menu_main")
+        ]
+    ])
+
+    await render_screen(client, target, text, keyboard)
+
 def register_admin_handlers(app: Client):
+
+    @app.on_message(filters.command("admin") & filters.private)
+    async def cmd_admin(client: Client, message: Message):
+        user_id = message.from_user.id
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        if not is_admin(user_id):
+            return
+        await show_admin_panel(client, user_id, user_id)
 
     @app.on_callback_query(filters.regex("^admin:menu$"))
     async def cb_admin_menu(client: Client, callback: CallbackQuery):
@@ -24,67 +97,7 @@ def register_admin_handlers(app: Client):
         if not is_admin(user_id):
             await callback.answer("⛔ Acceso denegado.", show_alert=True)
             return
-
-        async with async_session() as session:
-            users_res = await session.execute(select(func.count(User.telegram_id)))
-            total_users = users_res.scalar() or 0
-
-            orders_res = await session.execute(select(func.count(Order.id), func.sum(Order.total_price)))
-            total_orders, total_sales = orders_res.first()
-            total_sales = float(total_sales or 0.0)
-
-            dep_res = await session.execute(
-                select(func.sum(Deposit.exact_amount)).where(Deposit.status == DepositStatus.CONFIRMED)
-            )
-            total_deposited = float(dep_res.scalar() or 0.0)
-
-            m_res = await session.execute(select(Setting).where(Setting.key == "maintenance_mode"))
-            m_setting = m_res.scalar_one_or_none()
-            maintenance_active = m_setting.value == "true" if m_setting else False
-
-        bunai_profile = await bunai_api.get_me()
-        bunai_balance = float(bunai_profile.get("balance", 0.0))
-        bunai_spent = float(bunai_profile.get("api_spent", 0.0))
-
-        balance_alert = " ⚠️ <i>¡Recarga recomendada!</i>" if bunai_balance < 10.0 else " ✅"
-
-        text = (
-            f"⚙️ <b>PANEL DE ADMINISTRACIÓN & MÉTRICAS</b>\n"
-            f"━━━━━━━━━━━━━━━\n"
-            f"👥 <b>Usuarios Totales:</b> <code>{total_users}</code>\n"
-            f"💳 <b>Total Depositado (USDT):</b> <code>${total_deposited:.2f}</code>\n"
-            f"🛍️ <b>Ventas Realizadas:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n"
-            f"━━━━━━━━━━━━━━━\n"
-            f"🏢 <b>Saldo en BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
-            f"📉 <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n"
-            f"━━━━━━━━━━━━━━━\n"
-            f"📈 <b>ESTRATEGIA DE PRECIOS ACTIVA:</b>\n"
-            f"• <b>Costo &lt; $0.50:</b> <code>x7.0 (+600%)</code>\n"
-            f"• <b>Costo $0.50 - $0.99:</b> <code>x4.0 (+300%)</code>\n"
-            f"• <b>Costo $1.00 - $2.99:</b> <code>x2.5 (+150%)</code>\n"
-            f"• <b>Costo &ge; $3.00:</b> <code>x2.0 (+100%)</code>\n"
-            f"🛡️ <b>Garantías:</b> <code>50% de BunaiStore</code>\n"
-            f"━━━━━━━━━━━━━━━\n"
-            f"🛠️ <b>Modo Mantenimiento:</b> <code>{'🔴 ACTIVADO' if maintenance_active else '🟢 DESACTIVADO'}</code>\n"
-            f"━━━━━━━━━━━━━━━\n"
-            f"<i>Selecciona una acción administrativa:</i>"
-        )
-
-        keyboard = InlineKeyboardMarkup([
-            [
-                InlineKeyboardButton(f"🛠️ {'Desactivar' if maintenance_active else 'Activar'} Mantenimiento", callback_data="admin:toggle_maintenance"),
-                InlineKeyboardButton("🔄 Sincronizar Catálogo", callback_data="admin:clear_cache")
-            ],
-            [
-                InlineKeyboardButton("📢 Enviar Difusión (Broadcast)", callback_data="admin:broadcast"),
-                InlineKeyboardButton("💾 Backup BD", callback_data="admin:download_backup")
-            ],
-            [
-                InlineKeyboardButton("Volver", callback_data="menu_main")
-            ]
-        ])
-
-        await render_screen(client, callback, text, keyboard)
+        await show_admin_panel(client, callback, user_id)
 
     @app.on_callback_query(filters.regex("^admin:download_backup$"))
     async def cb_download_backup(client: Client, callback: CallbackQuery):

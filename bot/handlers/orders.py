@@ -12,6 +12,63 @@ ORDERS_PER_PAGE = 6
 
 def register_orders_handlers(app: Client):
 
+    @app.on_message(filters.command(["pedidos", "orders"]) & filters.private)
+    async def cmd_orders(client: Client, message: Message):
+        user_id = message.from_user.id
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
+            stmt = select(Order).where(Order.user_id == user_id).order_by(desc(Order.created_at))
+            result = await session.execute(stmt)
+            all_orders = result.scalars().all()
+
+            if not all_orders:
+                text = t("orders_empty", lang)
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
+                    [InlineKeyboardButton(t("btn_back", lang), callback_data="account:view")]
+                ])
+                await render_screen(client, user_id, text, keyboard)
+                return
+
+            total_orders = len(all_orders)
+            total_pages = (total_orders + ORDERS_PER_PAGE - 1) // ORDERS_PER_PAGE
+            page = 1
+
+            start_idx = 0
+            end_idx = ORDERS_PER_PAGE
+            orders_page = all_orders[start_idx:end_idx]
+
+            text = t("orders_title", lang, count=total_orders)
+
+            buttons = []
+            for ord in orders_page:
+                date_str = format_dt(ord.created_at, "%d/%m/%Y")
+                btn_text = f"🛍️ #{ord.id} - {ord.product_name[:24]} (${float(ord.total_price):.2f}) [{date_str}]"
+                buttons.append([
+                    InlineKeyboardButton(btn_text, callback_data=f"order:view:{ord.id}:{page}")
+                ])
+
+            if total_pages > 1:
+                nav = [InlineKeyboardButton("⏺️", callback_data="noop"), InlineKeyboardButton(f"1/{total_pages}", callback_data="noop")]
+                if total_pages > 1:
+                    nav.append(InlineKeyboardButton("▶️", callback_data="orders:page:2"))
+                buttons.append(nav)
+
+            buttons.append([
+                InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1"),
+                InlineKeyboardButton(t("btn_back", lang), callback_data="account:view")
+            ])
+
+            await render_screen(client, user_id, text, InlineKeyboardMarkup(buttons))
+
     @app.on_callback_query(filters.regex(r"^orders:page:(\d+)$"))
     async def cb_orders_list(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id

@@ -269,7 +269,30 @@ def register_catalog_handlers(app: Client):
         ])
         await render_screen(client, callback, text, keyboard)
 
-    @app.on_message(filters.command("buscar") & filters.private)
+    @app.on_message(filters.command(["catalogo", "catalog"]) & filters.private)
+    async def cmd_catalog(client: Client, message: Message):
+        user_id = message.from_user.id
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = getattr(user, "language", "es") or "es"
+
+            products = await pricing_service.get_processed_catalog(session, filter_mode="disponibles", force_refresh=False)
+            items_page, total_pages, current_page = pricing_service.paginate(products, page=1, page_size=PAGE_SIZE)
+
+            header_text = f"{t('catalog_header_disponibles', lang, count=len(products))}\n━━━━━━━━━━━━━━━\n"
+            if not items_page:
+                header_text += f"<i>{t('catalog_empty', lang)}</i>\n"
+
+            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, "disponibles", lang)
+            await render_screen(client, user_id, header_text, keyboard)
+
+    @app.on_message(filters.command(["buscar", "search"]) & filters.private)
     async def cmd_search(client: Client, message: Message):
         user_id = message.from_user.id
         try:
@@ -291,7 +314,7 @@ def register_catalog_handlers(app: Client):
         query = " ".join(message.command[1:]).lower()
         await execute_search(client, user_id, query, lang)
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar"]), group=1)
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help"]), group=1)
     async def handle_search_text(client: Client, message: Message):
         user_id = message.from_user.id
         if not SEARCH_STATES.get(user_id):
