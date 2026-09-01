@@ -39,7 +39,7 @@ def get_deposit_menu_keyboard(lang: str = "es") -> InlineKeyboardMarkup:
     ])
 
 def get_invoice_keyboard(deposit_id: int, lang: str = "es") -> InlineKeyboardMarkup:
-    """Botonera de la pantalla de pago traducida"""
+    """Botonera de la pantalla de pago: NO permite salir al menú principal sin cancelar primero"""
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(t("btn_show_qr", lang), callback_data=f"deposit:show_qr:{deposit_id}")
@@ -51,16 +51,23 @@ def get_invoice_keyboard(deposit_id: int, lang: str = "es") -> InlineKeyboardMar
             InlineKeyboardButton(t("btn_verify_payment", lang), callback_data=f"deposit:submit_hash:{deposit_id}")
         ],
         [
-            InlineKeyboardButton(t("btn_cancel_request", lang), callback_data=f"deposit:cancel:{deposit_id}"),
-            InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")
+            InlineKeyboardButton(t("btn_cancel_request", lang), callback_data=f"deposit:cancel:{deposit_id}")
         ]
     ])
 
 async def create_deposit_invoice(client: Client, user_id: int, username: str, first_name: str, base_amount: float, target, lang: str = "es") -> None:
-    """Crea la solicitud de depósito con fracción decimal única y renderiza la pantalla de pago traducida"""
+    """Crea la solicitud de depósito con fracción decimal única y renderiza la pantalla de pago bloqueada hasta pago o cancelación"""
     async with async_session() as session:
         now = datetime.utcnow()
         expires_at = now + timedelta(minutes=30)
+
+        # Si ya existe una solicitud PENDING activa previa, la marcamos como expirada para evitar bloqueos
+        cancel_old_stmt = (
+            update(Deposit)
+            .where(Deposit.user_id == user_id, Deposit.status == DepositStatus.PENDING)
+            .values(status=DepositStatus.EXPIRED)
+        )
+        await session.execute(cancel_old_stmt)
 
         for _ in range(50):
             rand_suffix = random.randint(100, 999) / 10000.0
@@ -123,6 +130,28 @@ def register_wallet_handlers(app: Client):
             user = res.scalar_one_or_none()
             balance = float(user.balance) if user else 0.0
             lang = getattr(user, "language", "es") or "es"
+
+            # Comprobar si el usuario tiene una solicitud de depósito activa pendiente
+            now = datetime.utcnow()
+            active_stmt = select(Deposit).where(
+                Deposit.user_id == user_id,
+                Deposit.status == DepositStatus.PENDING,
+                Deposit.expires_at > now
+            )
+            active_res = await session.execute(active_stmt)
+            active_dep = active_res.scalar_one_or_none()
+
+            # Si tiene una solicitud activa, mostrarle la factura para que pague o cancele antes de continuar
+            if active_dep:
+                exact_val = float(active_dep.exact_amount)
+                invoice_text = t(
+                    "invoice_title",
+                    lang,
+                    exact_val=f"{exact_val:.4f}",
+                    wallet=settings.ADMIN_WALLET_BSC
+                )
+                await render_screen(client, callback, invoice_text, get_invoice_keyboard(active_dep.id, lang))
+                return
 
         text = t("wallet_title", lang, balance=f"{balance:.4f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}")
         await render_screen(client, callback, text, get_deposit_menu_keyboard(lang))
@@ -265,13 +294,13 @@ def register_wallet_handlers(app: Client):
 
         text = t("submit_hash_prompt", lang)
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(t("btn_back", lang), callback_data=f"deposit:view_inv:{deposit_id}")]
+            [InlineKeyboardButton(t("btn_back_to_invoice", lang), callback_data=f"deposit:view_inv:{deposit_id}")]
         ])
         await render_screen(client, callback, text, keyboard)
 
     @app.on_callback_query(filters.regex(r"^deposit:cancel:(\d+)$"))
     async def cb_deposit_cancel(client: Client, callback: CallbackQuery):
-        """Cancela la solicitud de depósito, notifica en logs y edita la pantalla del usuario en su idioma"""
+        """Cancela la solicitud de depósito, notifica en logs y ahora sí permite al usuario volver al menú principal"""
         user_id = callback.from_user.id
         deposit_id = int(callback.matches[0].group(1))
         USER_STATES.pop(user_id, None)
@@ -309,7 +338,7 @@ def register_wallet_handlers(app: Client):
             [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
         ])
 
-        await callback.answer()
+        await callback.answer("Solicitud cancelada.")
         await render_screen(client, callback, cancel_text, keyboard)
 
     @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar"]))
@@ -378,21 +407,21 @@ def register_wallet_handlers(app: Client):
                 deposit = res.scalar_one_or_none()
 
                 if not deposit or deposit.status != DepositStatus.PENDING:
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
                     await render_screen(client, user_id, "❌ Error / Expired", kb)
                     return
 
                 if datetime.utcnow() > deposit.expires_at:
                     deposit.status = DepositStatus.EXPIRED
                     await session.commit()
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
                     await render_screen(client, user_id, "❌ Time Expired", kb)
                     return
 
                 dup_stmt = select(Deposit).where(Deposit.tx_hash == tx_hash, Deposit.status == DepositStatus.CONFIRMED).with_for_update()
                 dup_res = await session.execute(dup_stmt)
                 if dup_res.scalar_one_or_none():
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
                     await render_screen(client, user_id, "❌ Hash already claimed.", kb)
                     return
 
@@ -402,7 +431,7 @@ def register_wallet_handlers(app: Client):
                     err_msg = val_res.get("error", "Invalid Tx")
                     retry_kb = InlineKeyboardMarkup([
                         [InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")],
-                        [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
+                        [InlineKeyboardButton(t("btn_cancel_request", lang), callback_data=f"deposit:cancel:{deposit_id}")]
                     ])
                     await render_screen(client, user_id, f"❌ <b>Error:</b>\n{err_msg}", retry_kb)
                     return
@@ -442,6 +471,6 @@ def register_wallet_handlers(app: Client):
             success_text = t("deposit_success_title", lang, amount=f"{float(credited_amount):.4f}", balance=f"{new_balance:.4f}")
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
-                [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
+                [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
             ])
             await render_screen(client, user_id, success_text, keyboard)
