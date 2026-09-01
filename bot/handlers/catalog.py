@@ -11,18 +11,11 @@ from bot.utils.i18n import t
 
 SEARCH_STATES = {}
 
-FILTER_KEYS = {
-    "disponibles": "catalog_title_disponibles",
-    "agotados": "catalog_title_agotados",
-    "ofertas": "catalog_title_ofertas",
-    "todos": "catalog_title_todos"
-}
-
 FILTER_SHORT_KEYS = {
-    "disponibles": "filter_short_disponibles",
-    "agotados": "filter_short_agotados",
-    "ofertas": "filter_short_ofertas",
-    "todos": "filter_short_todos"
+    "disponibles": "filter_name_disponibles",
+    "ofertas": "filter_name_ofertas",
+    "agotados": "filter_name_agotados",
+    "todos": "filter_name_todos"
 }
 
 FILTER_ROTATION = ["disponibles", "ofertas", "agotados", "todos"]
@@ -59,7 +52,7 @@ def get_product_icon(name: str) -> str:
     return "🏷️"
 
 def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode: str, lang: str = "es") -> InlineKeyboardMarkup:
-    """Construye la botonera inline del catálogo limpia con 1 solo botón de cambio de categoría"""
+    """Construye la botonera inline del catálogo limpia y con botón de cambio con texto de acción claro"""
     buttons = []
 
     # 1. Botones de cada producto
@@ -90,14 +83,15 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
         
         buttons.append(nav_row)
 
-    # 3. Fila de controles: Actualizar y Cambiar Categoría
+    # 3. Fila de controles: Actualizar y Cambiar Categoría (con texto explícito de acción '➡️ Ver: Ofertas')
     current_idx = FILTER_ROTATION.index(filter_mode) if filter_mode in FILTER_ROTATION else 0
     next_filter = FILTER_ROTATION[(current_idx + 1) % len(FILTER_ROTATION)]
-    next_filter_short = t(FILTER_SHORT_KEYS.get(next_filter, "filter_short_disponibles"), lang)
+    next_filter_name = t(FILTER_SHORT_KEYS.get(next_filter, "filter_name_disponibles"), lang)
+    btn_switch_label = t("btn_switch_to", lang, name=next_filter_name)
 
     buttons.append([
         InlineKeyboardButton(t("btn_refresh", lang), callback_data=f"catalog_refresh:{filter_mode}:{page}"),
-        InlineKeyboardButton(f"📂 {next_filter_short}", callback_data=f"catalog:{next_filter}:1")
+        InlineKeyboardButton(btn_switch_label, callback_data=f"catalog:{next_filter}:1")
     ])
 
     # 4. Buscador y Volver
@@ -201,11 +195,12 @@ def register_catalog_handlers(app: Client):
             products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=False)
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
-            filter_title = t(FILTER_KEYS.get(filter_mode, "catalog_title_disponibles"), lang)
-            header_text = f"<b>{filter_title}:</b>\n"
+            filter_header_key = f"catalog_header_{filter_mode}"
+            filter_title = t(filter_header_key, lang)
+            header_text = f"{filter_title}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
             if not items_page:
-                header_text += f"\n<i>{t('catalog_empty', lang)}</i>"
+                header_text += f"<i>{t('catalog_empty', lang)}</i>\n"
 
             keyboard = build_catalog_keyboard(items_page, current_page, total_pages, filter_mode, lang)
             await render_screen(client, callback, header_text, keyboard)
@@ -229,11 +224,12 @@ def register_catalog_handlers(app: Client):
             products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=True)
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
-            filter_title = t(FILTER_KEYS.get(filter_mode, "catalog_title_disponibles"), lang)
-            header_text = f"<b>{filter_title}:</b>\n"
+            filter_header_key = f"catalog_header_{filter_mode}"
+            filter_title = t(filter_header_key, lang)
+            header_text = f"{filter_title}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
             if not items_page:
-                header_text += f"\n<i>{t('catalog_empty', lang)}</i>"
+                header_text += f"<i>{t('catalog_empty', lang)}</i>\n"
 
             keyboard = build_catalog_keyboard(items_page, current_page, total_pages, filter_mode, lang)
             await render_screen(client, callback, header_text, keyboard)
