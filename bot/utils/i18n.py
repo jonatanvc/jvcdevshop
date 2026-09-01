@@ -37,16 +37,17 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "lang_select_title": "🌐 <b>SELECCIONA TU IDIOMA PREFERIDO</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Elige el idioma con el que deseas utilizar el bot:</i>",
         "lang_changed": "✅ Idioma actualizado a: {lang_name}",
 
-        # Catálogo
-        "catalog_header_disponibles": "📂 <b>CATEGORÍA: PRODUCTOS DISPONIBLES</b>",
-        "catalog_header_agotados": "📂 <b>CATEGORÍA: PRODUCTOS AGOTADOS</b>",
-        "catalog_header_ofertas": "📂 <b>CATEGORÍA: PRODUCTOS EN OFERTA</b>",
-        "catalog_header_todos": "📂 <b>CATEGORÍA: TODOS LOS SERVICIOS</b>",
-        "filter_name_disponibles": "Disponibles",
-        "filter_name_agotados": "Agotados",
-        "filter_name_ofertas": "Ofertas",
-        "filter_name_todos": "Todos",
-        "btn_switch_to": "➡️ Ver: {name}",
+        # Catálogo y Selector de Categorías
+        "catalog_header_disponibles": "🟢 <b>PRODUCTOS DISPONIBLES</b> ({count})",
+        "catalog_header_agotados": "🔴 <b>PRODUCTOS AGOTADOS</b> ({count})",
+        "catalog_header_ofertas": "🎁 <b>PRODUCTOS EN OFERTA</b> ({count})",
+        "catalog_header_todos": "📋 <b>TODOS LOS SERVICIOS</b> ({count})",
+        "btn_categories": "📂 Categorías",
+        "cat_picker_title": "📂 <b>SELECCIONA UNA CATEGORÍA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Elige la categoría del catálogo que deseas ver:</i>",
+        "cat_opt_disponibles": "🟢 Disponibles ({count})",
+        "cat_opt_ofertas": "🎁 En Oferta ({count})",
+        "cat_opt_agotados": "🔴 Agotados ({count})",
+        "cat_opt_todos": "📋 Todos ({count})",
         "catalog_empty": "No hay productos en esta categoría por el momento.",
         "stock_unlimited": "Ilimitado (∞)",
         "stock_out": "Agotado",
@@ -144,16 +145,17 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "lang_select_title": "🌐 <b>SELECT YOUR PREFERRED LANGUAGE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Choose the language you want to use with the bot:</i>",
         "lang_changed": "✅ Language updated to: {lang_name}",
 
-        # Catalog
-        "catalog_header_disponibles": "📂 <b>CATEGORY: AVAILABLE PRODUCTS</b>",
-        "catalog_header_agotados": "📂 <b>CATEGORY: OUT OF STOCK PRODUCTS</b>",
-        "catalog_header_ofertas": "📂 <b>CATEGORY: SPECIAL OFFERS</b>",
-        "catalog_header_todos": "📂 <b>CATEGORY: ALL SERVICES</b>",
-        "filter_name_disponibles": "Available",
-        "filter_name_agotados": "Sold Out",
-        "filter_name_ofertas": "Offers",
-        "filter_name_todos": "All",
-        "btn_switch_to": "➡️ View: {name}",
+        # Catalog and Category Picker
+        "catalog_header_disponibles": "🟢 <b>AVAILABLE PRODUCTS</b> ({count})",
+        "catalog_header_agotados": "🔴 <b>OUT OF STOCK PRODUCTS</b> ({count})",
+        "catalog_header_ofertas": "🎁 <b>SPECIAL OFFERS</b> ({count})",
+        "catalog_header_todos": "📋 <b>ALL SERVICES</b> ({count})",
+        "btn_categories": "📂 Categories",
+        "cat_picker_title": "📂 <b>SELECT A CATEGORY</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Choose the catalog category you wish to view:</i>",
+        "cat_opt_disponibles": "🟢 Available ({count})",
+        "cat_opt_ofertas": "🎁 Special Offers ({count})",
+        "cat_opt_agotados": "🔴 Out of Stock ({count})",
+        "cat_opt_todos": "📋 All Services ({count})",
         "catalog_empty": "There are no products in this category at the moment.",
         "stock_unlimited": "Unlimited (∞)",
         "stock_out": "Out of Stock",
@@ -187,7 +189,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # Wallet and Deposits
         "wallet_title": "💳 <b>WALLET & USDT DEPOSITS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Current Balance:</b> <code>${balance} USDT</code>\n🌐 <b>Accepted Network:</b> <code>BNB Smart Chain (BEP-20)</code>\n🔒 <b>Minimum Deposit:</b> <code>${min_dep} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Select an amount to top up or tap 'Enter Other Amount':</i>",
         "btn_custom_amount": "✍️ Enter Other Amount",
-        "invoice_title": "💳 <b>USDT (BEP-20) DEPOSIT INVOICE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANT:</b> Send <b>EXACTELY</b> the amount shown below for automatic crediting.\n\n🎯 <b>Exact Amount to Send:</b>\n<code>{exact_val}</code> USDT\n\n📬 <b>Wallet Address (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Time Limit:</b> <code>30 minutes</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Tap '📱 View QR Code' to scan from your app or transfer and tap 'Submit Hash / TxID'.</i>",
+        "invoice_title": "💳 <b>USDT (BEP-20) DEPOSIT INVOICE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANT:</b> Send <b>EXACTLY</b> the amount shown below for automatic crediting.\n\n🎯 <b>Exact Amount to Send:</b>\n<code>{exact_val}</code> USDT\n\n📬 <b>Wallet Address (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Time Limit:</b> <code>30 minutes</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Tap '📱 View QR Code' to scan from your app or transfer and tap 'Submit Hash / TxID'.</i>",
         "btn_show_qr": "📱 View QR Code",
         "btn_submit_hash": "🔗 Submit Hash / TxID",
         "btn_verify_payment": "🔄 Verify Payment",
@@ -251,16 +253,17 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "lang_select_title": "🌐 <b>SELECIONE SEU IDIOMA PREFERIDO</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Escolha o idioma que deseja usar no bot:</i>",
         "lang_changed": "✅ Idioma atualizado para: {lang_name}",
 
-        # Catálogo
-        "catalog_header_disponibles": "📂 <b>CATEGORIA: PRODUTOS DISPONÍVEIS</b>",
-        "catalog_header_agotados": "📂 <b>CATEGORIA: PRODUTOS ESGOTADOS</b>",
-        "catalog_header_ofertas": "📂 <b>CATEGORIA: OFERTAS ESPECIAIS</b>",
-        "catalog_header_todos": "📂 <b>CATEGORIA: TODOS OS SERVIÇOS</b>",
-        "filter_name_disponibles": "Disponíveis",
-        "filter_name_agotados": "Esgotados",
-        "filter_name_ofertas": "Ofertas",
-        "filter_name_todos": "Todos",
-        "btn_switch_to": "➡️ Ver: {name}",
+        # Catálogo e Seletor de Categorias
+        "catalog_header_disponibles": "🟢 <b>PRODUTOS DISPONÍVEIS</b> ({count})",
+        "catalog_header_agotados": "🔴 <b>PRODUTOS ESGOTADOS</b> ({count})",
+        "catalog_header_ofertas": "🎁 <b>OFERTAS ESPECIAIS</b> ({count})",
+        "catalog_header_todos": "📋 <b>TODOS OS SERVIÇOS</b> ({count})",
+        "btn_categories": "📂 Categorias",
+        "cat_picker_title": "📂 <b>SELECIONE UMA CATEGORIA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Escolha a categoria do catálogo que deseja visualizar:</i>",
+        "cat_opt_disponibles": "🟢 Disponíveis ({count})",
+        "cat_opt_ofertas": "🎁 Em Oferta ({count})",
+        "cat_opt_agotados": "🔴 Esgotados ({count})",
+        "cat_opt_todos": "📋 Todos ({count})",
         "catalog_empty": "Não há produtos nesta categoria no momento.",
         "stock_unlimited": "Ilimitado (∞)",
         "stock_out": "Esgotado",
@@ -294,7 +297,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # Carteira e Depósitos
         "wallet_title": "💳 <b>CARTEIRA & DEPÓSITOS USDT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Saldo Atual:</b> <code>${balance} USDT</code>\n🌐 <b>Rede Aceita:</b> <code>BNB Smart Chain (BEP-20)</code>\n🔒 <b>Depósito Mínimo:</b> <code>${min_dep} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Selecione o valor que deseja recarregar ou toque em 'Digitar Outro Valor':</i>",
         "btn_custom_amount": "✍️ Digitar Outro Valor",
-        "invoice_title": "💳 <b>SOLICITAÇÃO DE RECARGA USDT (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANTE:</b> Envie <b>EXATAMENTE</b> o valor indicado abaixo para que a confirmação seja automática.\n\n🎯 <b>Valor Exato a Enviar:</b>\n<code>{exact_val}</code> USDT\n\n📬 <b>Endereço da Carteira (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Tempo Limite:</b> <code>30 minutos</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Toque em '📱 Ver Código QR' para escanear no seu app ou transfira e toque em 'Informar Hash / TxID'.</i>",
+        "invoice_title": "💳 <b>SOLICITAÇÃO DE RECARGA USDT (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANTE:</b> Envie <b>EXACTAMENTE</b> o valor indicado abaixo para que a confirmação seja automática.\n\n🎯 <b>Valor Exato a Enviar:</b>\n<code>{exact_val}</code> USDT\n\n📬 <b>Endereço da Carteira (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Tempo Limite:</b> <code>30 minutos</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Toque em '📱 Ver Código QR' para escanear no seu app ou transfira e toque em 'Informar Hash / TxID'.</i>",
         "btn_show_qr": "📱 Ver Código QR",
         "btn_submit_hash": "🔗 Informar Hash / TxID",
         "btn_verify_payment": "🔄 Verificar Pagamento",
@@ -325,7 +328,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_share_ref": "📢 Compartilhar Link de Indicação",
 
         # Suporte
-        "support_text": "🆘 <b>SUPORTE & AJUDA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nTem dúvidas sobre compras, depósitos ou precisa de assistência?\n\n• <b>Garantia:</b> Se algum serviço com garantia apresentar problemas durante o período ativo, entre em contato imediatamente com o seu <b>ID de Pedido</b>.\n• <b>Depósitos:</b> Os depósitos em USDT BEP-20 são creditados automaticamente após a confirmação da rede.\n\n💬 <i>Para falar directamente com um administrador toque no botão abaixo:</i>"
+        "support_text": "🆘 <b>SUPORTE & AJUDA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nTem dúvidas sobre compras, depósitos ou precisa de assistência?\n\n• <b>Garantia:</b> Se algum servicio com garantia apresentar problemas durante o período ativo, entre em contato imediatamente com o seu <b>ID de Pedido</b>.\n• <b>Depósitos:</b> Os depósitos em USDT BEP-20 são creditados automaticamente após a confirmação da rede.\n\n💬 <i>Para falar directamente com um administrador toque no botão abaixo:</i>"
     }
 }
 

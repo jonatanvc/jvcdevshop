@@ -12,7 +12,7 @@ class PricingService:
     def __init__(self):
         self._cached_catalog: List[Dict[str, Any]] = []
         self._last_fetch_time: float = 0.0
-        self._cache_ttl: float = 10.0  # 10 segundos de TTL para actualización casi instantánea de stock
+        self._cache_ttl: float = 10.0  # 10 segundos de TTL para sincronización en tiempo real
 
     async def get_global_margin(self, session) -> float:
         """Obtiene el margen global configurado en la base de datos"""
@@ -87,8 +87,11 @@ class PricingService:
         force_refresh: bool = False
     ) -> List[Dict[str, Any]]:
         """
-        Obtiene y procesa el catálogo de BunaiStore con los precios y garantías ajustadas
-        Filtra estrictamente productos disponibles solo si tienen stock > 0 o infinite_stock == True
+        Obtiene y procesa el catálogo de BunaiStore con precios y filtros estrictos.
+        - disponibles: Productos con stock > 0 o infinitos.
+        - agotados: Productos con stock == 0 y no infinitos.
+        - ofertas: Productos con promo/descuento que además tengan stock.
+        - todos: Todos los productos activos.
         """
         now = time.time()
         if force_refresh or (now - self._last_fetch_time > self._cache_ttl) or not self._cached_catalog:
@@ -119,7 +122,7 @@ class PricingService:
                     stock_count = 0
 
                 infinite_stock = bool(p.get("infinite_stock", False))
-                # Estricto: Tiene stock SOLO si infinite_stock es True o stock_count > 0
+                # Tiene stock estrictamente si infinite_stock es True o stock_count > 0
                 has_stock = infinite_stock or (stock_count > 0)
                 has_promo = bool(p.get("has_promo", False))
                 bunai_warranty = int(p.get("warranty_hours", 0))
@@ -144,16 +147,29 @@ class PricingService:
             self._cached_catalog = processed
             self._last_fetch_time = now
 
-        # Aplicar filtros estrictos (disponibles, agotados, ofertas, todos)
+        # Aplicar filtros estrictos
         if filter_mode == "disponibles":
             return [p for p in self._cached_catalog if p["has_stock"] is True]
         elif filter_mode == "agotados":
             return [p for p in self._cached_catalog if p["has_stock"] is False]
         elif filter_mode == "ofertas":
-            return [p for p in self._cached_catalog if p["has_promo"] is True]
+            return [p for p in self._cached_catalog if p["has_promo"] is True and p["has_stock"] is True]
         elif filter_mode == "todos":
             return self._cached_catalog
         return [p for p in self._cached_catalog if p["has_stock"] is True]
+
+    async def get_category_counts(self, session) -> Dict[str, int]:
+        """Obtiene el conteo exacto de productos en cada categoría"""
+        all_prods = await self.get_processed_catalog(session, filter_mode="todos", force_refresh=False)
+        disp_count = sum(1 for p in all_prods if p["has_stock"] is True)
+        agot_count = sum(1 for p in all_prods if p["has_stock"] is False)
+        ofer_count = sum(1 for p in all_prods if p["has_promo"] is True and p["has_stock"] is True)
+        return {
+            "disponibles": disp_count,
+            "agotados": agot_count,
+            "ofertas": ofer_count,
+            "todos": len(all_prods)
+        }
 
     def paginate(
         self,

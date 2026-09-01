@@ -11,15 +11,6 @@ from bot.utils.i18n import t
 
 SEARCH_STATES = {}
 
-FILTER_SHORT_KEYS = {
-    "disponibles": "filter_name_disponibles",
-    "ofertas": "filter_name_ofertas",
-    "agotados": "filter_name_agotados",
-    "todos": "filter_name_todos"
-}
-
-FILTER_ROTATION = ["disponibles", "ofertas", "agotados", "todos"]
-
 def get_product_icon(name: str) -> str:
     """Asigna un icono representativo según el nombre del servicio"""
     name_lower = name.lower()
@@ -52,7 +43,7 @@ def get_product_icon(name: str) -> str:
     return "🏷️"
 
 def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode: str, lang: str = "es") -> InlineKeyboardMarkup:
-    """Construye la botonera inline del catálogo limpia y con botón de cambio con texto de acción claro"""
+    """Construye la botonera inline del catálogo ultra limpia con botón de categorías dedicado"""
     buttons = []
 
     # 1. Botones de cada producto
@@ -83,18 +74,13 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
         
         buttons.append(nav_row)
 
-    # 3. Fila de controles: Actualizar y Cambiar Categoría (con texto explícito de acción '➡️ Ver: Ofertas')
-    current_idx = FILTER_ROTATION.index(filter_mode) if filter_mode in FILTER_ROTATION else 0
-    next_filter = FILTER_ROTATION[(current_idx + 1) % len(FILTER_ROTATION)]
-    next_filter_name = t(FILTER_SHORT_KEYS.get(next_filter, "filter_name_disponibles"), lang)
-    btn_switch_label = t("btn_switch_to", lang, name=next_filter_name)
-
+    # 3. Fila de Controles: Actualizar y Selector Directo de Categorías
     buttons.append([
         InlineKeyboardButton(t("btn_refresh", lang), callback_data=f"catalog_refresh:{filter_mode}:{page}"),
-        InlineKeyboardButton(btn_switch_label, callback_data=f"catalog:{next_filter}:1")
+        InlineKeyboardButton(t("btn_categories", lang), callback_data=f"catalog:picker:{filter_mode}:{page}")
     ])
 
-    # 4. Buscador y Volver
+    # 4. Buscador y Volver al Menú Principal
     buttons.append([
         InlineKeyboardButton(t("btn_search_service", lang), callback_data="catalog:search_prompt"),
         InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")
@@ -177,6 +163,40 @@ def build_product_calculator_keyboard(
 
 def register_catalog_handlers(app: Client):
 
+    @app.on_callback_query(filters.regex(r"^catalog:picker:([a-z_]+):(\d+)$"))
+    async def cb_catalog_picker(client: Client, callback: CallbackQuery):
+        """Muestra el menú selector directo de categorías con conteo en tiempo real"""
+        user_id = callback.from_user.id
+        if rate_limiter.is_rate_limited(user_id):
+            await callback.answer()
+            return
+
+        current_filter = callback.matches[0].group(1)
+        current_page = int(callback.matches[0].group(2))
+
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = getattr(user, "language", "es") or "es"
+
+            counts = await pricing_service.get_category_counts(session)
+
+            text = t("cat_picker_title", lang)
+            keyboard = InlineKeyboardMarkup([
+                [
+                    InlineKeyboardButton(t("cat_opt_disponibles", lang, count=counts["disponibles"]), callback_data="catalog:disponibles:1"),
+                    InlineKeyboardButton(t("cat_opt_ofertas", lang, count=counts["ofertas"]), callback_data="catalog:ofertas:1")
+                ],
+                [
+                    InlineKeyboardButton(t("cat_opt_agotados", lang, count=counts["agotados"]), callback_data="catalog:agotados:1"),
+                    InlineKeyboardButton(t("cat_opt_todos", lang, count=counts["todos"]), callback_data="catalog:todos:1")
+                ],
+                [
+                    InlineKeyboardButton(t("btn_back", lang), callback_data=f"catalog:{current_filter}:{current_page}")
+                ]
+            ])
+            await render_screen(client, callback, text, keyboard)
+
     @app.on_callback_query(filters.regex(r"^catalog:([a-z_]+):(\d+)$"))
     async def cb_catalog(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
@@ -195,9 +215,8 @@ def register_catalog_handlers(app: Client):
             products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=False)
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
-            filter_header_key = f"catalog_header_{filter_mode}"
-            filter_title = t(filter_header_key, lang)
-            header_text = f"{filter_title}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            header_key = f"catalog_header_{filter_mode}"
+            header_text = f"{t(header_key, lang, count=len(products))}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
             if not items_page:
                 header_text += f"<i>{t('catalog_empty', lang)}</i>\n"
@@ -224,9 +243,8 @@ def register_catalog_handlers(app: Client):
             products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=True)
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
-            filter_header_key = f"catalog_header_{filter_mode}"
-            filter_title = t(filter_header_key, lang)
-            header_text = f"{filter_title}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            header_key = f"catalog_header_{filter_mode}"
+            header_text = f"{t(header_key, lang, count=len(products))}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
 
             if not items_page:
                 header_text += f"<i>{t('catalog_empty', lang)}</i>\n"
