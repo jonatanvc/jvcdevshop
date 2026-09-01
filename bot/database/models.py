@@ -31,6 +31,7 @@ class User(Base):
     first_name = Column(String(128), nullable=True)
     balance = Column(Numeric(12, 4), default=0.0000, nullable=False)
     total_spent = Column(Numeric(12, 4), default=0.0000, nullable=False)
+    language = Column(String(5), default="es", nullable=False)
     referred_by = Column(BigInteger, nullable=True)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)

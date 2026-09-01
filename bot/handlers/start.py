@@ -7,37 +7,39 @@ from bot.database.models import User, Order, Setting
 from bot.services.bunai_client import bunai_api
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
+from bot.utils.i18n import t, LANGUAGES
 from bot.services.audit_logger import audit_logger
 
-def get_main_menu_keyboard(user_id: int) -> InlineKeyboardMarkup:
-    """Genera la botonera inline del menú principal"""
+def get_main_menu_keyboard(user_id: int, lang: str = "es") -> InlineKeyboardMarkup:
+    """Genera la botonera inline del menú principal traducida"""
     buttons = [
         [
-            InlineKeyboardButton("🛒 Catálogo de Servicios", callback_data="catalog:disponibles:1")
+            InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")
         ],
         [
-            InlineKeyboardButton("💳 Depositar USDT", callback_data="wallet:deposit_menu"),
-            InlineKeyboardButton("💼 Mis Pedidos", callback_data="orders:page:1")
+            InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:deposit_menu"),
+            InlineKeyboardButton(t("btn_my_orders", lang), callback_data="orders:page:1")
         ],
         [
-            InlineKeyboardButton("🔗 Referidos & Ganar", callback_data="referrals:view"),
-            InlineKeyboardButton("👤 Mi Perfil", callback_data="account:view")
+            InlineKeyboardButton(t("btn_referrals", lang), callback_data="referrals:view"),
+            InlineKeyboardButton(t("btn_profile", lang), callback_data="account:view")
         ],
         [
-            InlineKeyboardButton("🆘 Soporte & Ayuda", callback_data="support:view")
+            InlineKeyboardButton(t("btn_support", lang), callback_data="support:view")
         ]
     ]
 
     # Botón exclusivo para administradores
     if user_id in settings.admin_ids:
         buttons.append([
-            InlineKeyboardButton("⚙️ Panel de Administración", callback_data="admin:menu")
+            InlineKeyboardButton(t("btn_admin", lang), callback_data="admin:menu")
         ])
 
     return InlineKeyboardMarkup(buttons)
 
 async def build_main_menu_text(user: User, orders_count: int, session) -> str:
-    """Genera el texto de bienvenida del menú principal"""
+    """Genera el texto de bienvenida del menú principal traducido"""
+    lang = user.language or "es"
     m_stmt = select(Setting).where(Setting.key == "maintenance_mode")
     m_res = await session.execute(m_stmt)
     m_setting = m_res.scalar_one_or_none()
@@ -52,21 +54,34 @@ async def build_main_menu_text(user: User, orders_count: int, session) -> str:
     if user.telegram_id in settings.admin_ids:
         bunai_data = await bunai_api.get_me()
         bunai_balance = float(bunai_data.get("balance", 0.0))
-        bunai_line = f"🏢 <b>Saldo Proveedor (Bunai):</b> <code>${bunai_balance:.2f} USD</code>\n"
+        bunai_line = f"🏢 <b>{t('balance_provider', lang)}:</b> <code>${bunai_balance:.2f} USD</code>\n"
 
     text = (
         f"{maintenance_banner}"
-        f"💎 <b>BIENVENIDO A SERVICIOS DIGITALES</b> 💎\n"
+        f"{t('welcome_header', lang)}\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"👤 <b>Usuario:</b> {user_name}\n"
+        f"👤 <b>{t('user_label', lang)}:</b> {user_name}\n"
         f"🆔 <b>ID:</b> <code>{user.telegram_id}</code>\n"
-        f"💰 <b>Saldo en Bot:</b> <code>${float(user.balance):.2f} USDT</code>\n"
+        f"💰 <b>{t('balance_bot', lang)}:</b> <code>${float(user.balance):.2f} USDT</code>\n"
         f"{bunai_line}"
-        f"🛍️ <b>Compras Realizadas:</b> <code>{orders_count}</code>\n"
+        f"🛍️ <b>{t('orders_made', lang)}:</b> <code>{orders_count}</code>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"<i>Selecciona una opción del menú inferior para comenzar:</i>"
+        f"<i>{t('select_option', lang)}</i>"
     )
     return text
+
+def build_language_picker_keyboard(current_lang: str) -> InlineKeyboardMarkup:
+    """Construye la botonera para seleccionar idioma con marca activa"""
+    buttons = []
+    for code, name in LANGUAGES.items():
+        is_active = "✅ " if code == current_lang else ""
+        buttons.append([
+            InlineKeyboardButton(f"{is_active}{name} ({code.upper()})", callback_data=f"account:set_lang:{code}")
+        ])
+    buttons.append([
+        InlineKeyboardButton(t("btn_back", current_lang), callback_data="account:view")
+    ])
+    return InlineKeyboardMarkup(buttons)
 
 def register_start_handlers(app: Client):
 
@@ -102,6 +117,7 @@ def register_start_handlers(app: Client):
                     username=username,
                     first_name=first_name,
                     balance=0.0000,
+                    language="es",
                     referred_by=referrer_id
                 )
                 session.add(user)
@@ -119,7 +135,7 @@ def register_start_handlers(app: Client):
             orders_count = order_count_res.scalar() or 0
 
             text = await build_main_menu_text(user, orders_count, session)
-            keyboard = get_main_menu_keyboard(user_id)
+            keyboard = get_main_menu_keyboard(user_id, user.language)
 
             await render_screen(client, user_id, text, keyboard)
 
@@ -140,7 +156,8 @@ def register_start_handlers(app: Client):
                     telegram_id=user_id,
                     username=callback.from_user.username,
                     first_name=callback.from_user.first_name or "Usuario",
-                    balance=0.0000
+                    balance=0.0000,
+                    language="es"
                 )
                 session.add(user)
                 await session.commit()
@@ -151,13 +168,13 @@ def register_start_handlers(app: Client):
             orders_count = order_count_res.scalar() or 0
 
             text = await build_main_menu_text(user, orders_count, session)
-            keyboard = get_main_menu_keyboard(user_id)
+            keyboard = get_main_menu_keyboard(user_id, user.language)
 
             await render_screen(client, callback, text, keyboard)
 
     @app.on_callback_query(filters.regex("^account:view$"))
     async def cb_account_view(client: Client, callback: CallbackQuery):
-        """Pantalla de Perfil de Usuario idéntica a la Foto 1 de referencia"""
+        """Pantalla de Perfil de Usuario con soporte de idioma"""
         user_id = callback.from_user.id
         async with async_session() as session:
             stmt = select(User).where(User.telegram_id == user_id)
@@ -167,6 +184,7 @@ def register_start_handlers(app: Client):
             if not user:
                 return
 
+            lang = user.language or "es"
             reg_date = user.created_at.strftime("%Y-%m-%d")
 
             bunai_owner_line = ""
@@ -176,22 +194,22 @@ def register_start_handlers(app: Client):
                 bunai_owner_line = f"🏢 <b>Saldo BunaiStore:</b> <code>${bunai_bal:.2f} USD</code>\n"
 
             text = (
-                f"👤 <b>Perfil de Usuario</b>\n\n"
+                f"{t('profile_title', lang)}\n\n"
                 f"👤 <b>ID:</b> <code>{user.telegram_id}</code>\n"
-                f"👛 <b>Saldo en Bot:</b> <code>{float(user.balance):.2f} USDT</code>\n"
+                f"👛 <b>{t('balance_bot', lang)}:</b> <code>{float(user.balance):.2f} USDT</code>\n"
                 f"{bunai_owner_line}"
-                f"🗣️ <b>Idioma:</b> <code>ES</code>\n"
+                f"🗣️ <b>{t('lang_label', lang)}:</b> <code>{lang.upper()}</code> ({LANGUAGES.get(lang, 'Español')})\n"
                 f"🌐 <b>Timezone:</b> <code>UTC+00:00</code>\n"
-                f"📅 <b>Registro:</b> <code>{reg_date}</code>"
+                f"📅 <b>{t('registered', lang)}:</b> <code>{reg_date}</code>"
             )
 
             keyboard = InlineKeyboardMarkup([
                 [
-                    InlineKeyboardButton("💼 Mis Pedidos", callback_data="orders:page:1"),
-                    InlineKeyboardButton("🗣️ Idioma", callback_data="account:language")
+                    InlineKeyboardButton(t("btn_my_orders", lang), callback_data="orders:page:1"),
+                    InlineKeyboardButton(t("btn_language", lang), callback_data="account:language")
                 ],
                 [
-                    InlineKeyboardButton("Volver", callback_data="menu_main")
+                    InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")
                 ]
             ])
 
@@ -199,12 +217,48 @@ def register_start_handlers(app: Client):
 
     @app.on_callback_query(filters.regex("^account:language$"))
     async def cb_account_language(client: Client, callback: CallbackQuery):
-        await callback.answer("🗣️ Idioma actual: Español (ES)", show_alert=True)
+        """Muestra el menú interactivo para elegir idioma (ES, EN, PT)"""
+        user_id = callback.from_user.id
+        async with async_session() as session:
+            stmt = select(User).where(User.telegram_id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+            current_lang = user.language if user else "es"
+
+        text = t("lang_select_title", current_lang)
+        keyboard = build_language_picker_keyboard(current_lang)
+        await render_screen(client, callback, text, keyboard)
+
+    @app.on_callback_query(filters.regex(r"^account:set_lang:(es|en|pt)$"))
+    async def cb_set_language(client: Client, callback: CallbackQuery):
+        """Actualiza el idioma del usuario en la base de datos"""
+        new_lang = callback.matches[0].group(1)
+        user_id = callback.from_user.id
+
+        async with async_session() as session:
+            stmt = select(User).where(User.telegram_id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+            if user:
+                user.language = new_lang
+                await session.commit()
+
+        lang_name = LANGUAGES.get(new_lang, new_lang.upper())
+        await callback.answer(t("lang_changed", new_lang, lang_name=lang_name), show_alert=True)
+        # Re-renderizar el perfil con el nuevo idioma seleccionado
+        await cb_account_view(client, callback)
 
     @app.on_callback_query(filters.regex("^support:view$"))
     async def cb_support_view(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        async with async_session() as session:
+            stmt = select(User).where(User.telegram_id == user_id)
+            result = await session.execute(stmt)
+            user = result.scalar_one_or_none()
+            lang = user.language if user else "es"
+
         text = (
-            f"🆘 <b>SOPORTE & AYUDA</b>\n"
+            f"🆘 <b>SOPORTE & AYUDA / SUPPORT</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"¿Tienes alguna duda sobre tus compras, depósitos o necesitas asistencia?\n\n"
             f"• <b>Garantía:</b> Si algún servicio con garantía presenta inconvenientes durante el período activo, contáctanos inmediatamente con tu <b>ID de Orden</b>.\n"
@@ -213,6 +267,6 @@ def register_start_handlers(app: Client):
         )
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("💬 Contactar Administrador", url=f"tg://user?id={settings.admin_ids[0]}" if settings.admin_ids else "https://t.me/telegram")],
-            [InlineKeyboardButton("Volver", callback_data="menu_main")]
+            [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
         ])
         await render_screen(client, callback, text, keyboard)
