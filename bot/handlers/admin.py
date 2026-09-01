@@ -38,8 +38,6 @@ def register_admin_handlers(app: Client):
             )
             total_deposited = float(dep_res.scalar() or 0.0)
 
-            global_margin = await pricing_service.get_global_margin(session)
-
             m_res = await session.execute(select(Setting).where(Setting.key == "maintenance_mode"))
             m_setting = m_res.scalar_one_or_none()
             maintenance_active = m_setting.value == "true" if m_setting else False
@@ -59,7 +57,14 @@ def register_admin_handlers(app: Client):
             f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🏢 <b>Saldo en BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
             f"📉 <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n"
-            f"📈 <b>Margen de Ganancia Global:</b> <code>+{global_margin:.1f}%</code>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"📈 <b>ESTRATEGIA DE PRECIOS ACTIVA:</b>\n"
+            f"• <b>Costo &lt; $0.50:</b> <code>x7.0 (+600%)</code>\n"
+            f"• <b>Costo $0.50 - $0.99:</b> <code>x4.0 (+300%)</code>\n"
+            f"• <b>Costo $1.00 - $2.99:</b> <code>x2.5 (+150%)</code>\n"
+            f"• <b>Costo &ge; $3.00:</b> <code>x2.0 (+100%)</code>\n"
+            f"🛡️ <b>Garantías:</b> <code>50% de BunaiStore</code>\n"
+            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"🛠️ <b>Modo Mantenimiento:</b> <code>{'🔴 ACTIVADO' if maintenance_active else '🟢 DESACTIVADO'}</code>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
             f"<i>Selecciona una acción administrativa:</i>"
@@ -68,14 +73,13 @@ def register_admin_handlers(app: Client):
         keyboard = InlineKeyboardMarkup([
             [
                 InlineKeyboardButton(f"🛠️ {'Desactivar' if maintenance_active else 'Activar'} Mantenimiento", callback_data="admin:toggle_maintenance"),
-                InlineKeyboardButton("📈 Cambiar Margen", callback_data="admin:change_margin")
+                InlineKeyboardButton("🔄 Sincronizar Catálogo", callback_data="admin:clear_cache")
             ],
             [
                 InlineKeyboardButton("📢 Enviar Difusión (Broadcast)", callback_data="admin:broadcast"),
                 InlineKeyboardButton("💾 Backup BD", callback_data="admin:download_backup")
             ],
             [
-                InlineKeyboardButton("🔄 Limpiar Caché Catálogo", callback_data="admin:clear_cache"),
                 InlineKeyboardButton("Volver", callback_data="menu_main")
             ]
         ])
@@ -123,26 +127,9 @@ def register_admin_handlers(app: Client):
             return
 
         bunai_api.invalidate_cache()
-        await callback.answer("✅ Caché del catálogo limpiada. Sincronización inmediata.", show_alert=True)
+        pricing_service.invalidate_cache()
+        await callback.answer("✅ Catálogo sincronizado con BunaiStore.", show_alert=True)
         await cb_admin_menu(client, callback)
-
-    @app.on_callback_query(filters.regex("^admin:change_margin$"))
-    async def cb_change_margin(client: Client, callback: CallbackQuery):
-        user_id = callback.from_user.id
-        if not is_admin(user_id):
-            return
-
-        ADMIN_STATES[user_id] = {"action": "waiting_margin"}
-        text = (
-            "📈 <b>CONFIGURAR MARGEN GLOBAL DE GANANCIA</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "Escribe el nuevo porcentaje de ganancia que se aplicará a los precios de costo de BunaiStore.\n\n"
-            "<i>Ejemplo: Envía <code>30</code> para 30%, o <code>50</code> para 50%.</i>"
-        )
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Volver", callback_data="admin:menu")]
-        ])
-        await render_screen(client, callback, text, keyboard)
 
     @app.on_callback_query(filters.regex("^admin:broadcast$"))
     async def cb_broadcast_prompt(client: Client, callback: CallbackQuery):
@@ -172,31 +159,19 @@ def register_admin_handlers(app: Client):
         if not state:
             return
 
+        # Borrar el texto del administrador para mantener limpia la pantalla única
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
         action = state.get("action")
 
-        if action == "waiting_margin":
-            text_val = message.text.strip().replace("%", "").replace(",", ".")
-            try:
-                margin_val = float(text_val)
-            except ValueError:
-                await message.reply_text("❌ Por favor escribe un número válido (ej: <code>35.0</code>).")
-                return
-
-            ADMIN_STATES.pop(user_id, None)
-            async with async_session() as session:
-                await pricing_service.set_global_margin(session, margin_val)
-                bunai_api.invalidate_cache()
-
-            await message.reply_text(
-                f"✅ <b>Margen de ganancia global actualizado a +{margin_val:.1f}%</b>\nLos precios del catálogo han sido recalculados.",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Volver al Panel", callback_data="admin:menu")]])
-            )
-
-        elif action == "waiting_broadcast":
+        if action == "waiting_broadcast":
             ADMIN_STATES.pop(user_id, None)
             broadcast_text = message.text
 
-            status_msg = await message.reply_text("⏳ <b>Iniciando difusión masiva...</b>")
+            status_msg = await render_screen(client, user_id, "⏳ <b>Iniciando difusión masiva...</b>", None)
 
             async with async_session() as session:
                 users_res = await session.execute(select(User.telegram_id))
@@ -213,10 +188,11 @@ def register_admin_handlers(app: Client):
                 except Exception:
                     fail_count += 1
 
-            await status_msg.edit_text(
+            result_text = (
                 f"✅ <b>DIFUSIÓN COMPLETADA</b>\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
                 f"• <b>Entregados:</b> {sent_count}\n"
-                f"• <b>Fallidos/Bloqueados:</b> {fail_count}",
-                reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("Volver al Panel", callback_data="admin:menu")]])
+                f"• <b>Fallidos/Bloqueados:</b> {fail_count}"
             )
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Volver al Panel", callback_data="admin:menu")]])
+            await render_screen(client, user_id, result_text, keyboard)

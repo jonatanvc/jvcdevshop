@@ -32,13 +32,33 @@ class BunaiAPIClient:
         self._cache.clear()
 
     async def get_me(self) -> Dict[str, Any]:
-        """Consulta el perfil del desarrollador y el saldo en tiempo real de BunaiStore"""
-        url = f"{self.base_url}/me"
+        """Consulta el saldo real del desarrollador/owner en BunaiStore"""
+        cached = self._get_from_cache("bunai_me")
+        if cached is not None:
+            return cached
+
         async with httpx.AsyncClient(timeout=10.0) as client:
-            res = await client.get(url, headers=self.headers)
-            if res.status_code == 200:
-                return res.json()
-            return {"error": f"HTTP {res.status_code}", "balance": 0.0}
+            # 1. Probar endpoint /developer/me
+            try:
+                res_dev = await client.get(f"{self.base_url}/developer/me", headers=self.headers)
+                if res_dev.status_code == 200:
+                    data = res_dev.json()
+                    self._set_cache("bunai_me", data, ttl=15)
+                    return data
+            except Exception:
+                pass
+
+            # 2. Fallback a endpoint /me
+            try:
+                res = await client.get(f"{self.base_url}/me", headers=self.headers)
+                if res.status_code == 200:
+                    data = res.json()
+                    self._set_cache("bunai_me", data, ttl=15)
+                    return data
+            except Exception:
+                pass
+
+        return {"balance": 0.0, "api_spent": 0.0}
 
     async def get_products(self, view: str = "variants", limit: int = 100, force_refresh: bool = False) -> List[Dict[str, Any]]:
         """Obtiene la lista de productos/variantes disponibles"""
@@ -115,6 +135,8 @@ class BunaiAPIClient:
                 res = await client.post(url, headers=self.headers, json=payload)
                 data = res.json()
                 if res.status_code in (200, 201):
+                    # Invalidar caché de saldo para reflejar el nuevo saldo tras la compra
+                    self._cache.pop("bunai_me", None)
                     return {
                         "success": True,
                         "data": data.get("order", data),

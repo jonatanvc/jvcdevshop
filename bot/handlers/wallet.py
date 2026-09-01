@@ -98,7 +98,7 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
         exact_amount=float(exact_dec)
     )
 
-    # Renderizar pantalla de pago
+    # Renderizar pantalla de pago (solo texto, sin foto para mantener el diseño limpio)
     invoice_text = (
         f"💳 <b>SOLICITUD DE RECARGA USDT (BEP-20)</b>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -172,7 +172,7 @@ def register_wallet_handlers(app: Client):
 
     @app.on_callback_query(filters.regex(r"^deposit:show_qr:(\d+)$"))
     async def cb_show_qr(client: Client, callback: CallbackQuery):
-        """Envía la imagen QR oficial de la billetera o el código generado"""
+        """Envía la imagen QR oficial de la billetera SOLO cuando se presiona este botón"""
         user_id = callback.from_user.id
         deposit_id = int(callback.matches[0].group(1))
 
@@ -268,20 +268,47 @@ def register_wallet_handlers(app: Client):
 
     @app.on_callback_query(filters.regex(r"^deposit:cancel:(\d+)$"))
     async def cb_deposit_cancel(client: Client, callback: CallbackQuery):
+        """Cancela la solicitud de depósito, notifica en el canal de logs y edita la pantalla del usuario"""
         user_id = callback.from_user.id
         deposit_id = int(callback.matches[0].group(1))
         USER_STATES.pop(user_id, None)
 
+        amount_cancelled = 0.0
         async with async_session() as session:
             stmt = select(Deposit).where(Deposit.id == deposit_id, Deposit.user_id == user_id)
             res = await session.execute(stmt)
             dep = res.scalar_one_or_none()
             if dep and dep.status == DepositStatus.PENDING:
                 dep.status = DepositStatus.EXPIRED
+                amount_cancelled = float(dep.exact_amount)
                 await session.commit()
 
+        # 1. Notificar en el canal de auditoría / log group
+        username_str = f"@{callback.from_user.username}" if callback.from_user.username else callback.from_user.first_name
+        await audit_logger.log_system_alert(
+            client=client,
+            title="SOLICITUD DE DEPÓSITO CANCELADA",
+            details=(
+                f"👤 <b>Usuario:</b> {username_str} (<code>{user_id}</code>)\n"
+                f"💰 <b>Monto Cancelado:</b> <code>${amount_cancelled:.4f} USDT</code>\n"
+                f"🆔 <b>ID Depósito:</b> <code>DEP_{deposit_id}</code>"
+            )
+        )
+
+        # 2. Editar el mensaje en el chat del usuario a estado cancelado
+        cancel_text = (
+            "❌ <b>SOLICITUD DE RECARGA CANCELADA</b>\n"
+            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"La solicitud por <b>${amount_cancelled:.4f} USDT</b> ha sido cancelada correctamente.\n\n"
+            "<i>Puedes generar una nueva solicitud cuando desees.</i>"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("💳 Nueva Recarga", callback_data="wallet:deposit_menu")],
+            [InlineKeyboardButton("🔙 Menú Principal", callback_data="menu_main")]
+        ])
+
         await callback.answer("Solicitud cancelada.")
-        await cb_deposit_menu(client, callback)
+        await render_screen(client, callback, cancel_text, keyboard)
 
     @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar"]))
     async def handle_text_inputs(client: Client, message: Message):

@@ -4,6 +4,7 @@ from sqlalchemy import select, func
 from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, Order, Setting
+from bot.services.bunai_client import bunai_api
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.services.audit_logger import audit_logger
@@ -46,13 +47,21 @@ async def build_main_menu_text(user: User, orders_count: int, session) -> str:
 
     user_name = user.first_name or user.username or f"Usuario {user.telegram_id}"
 
+    # Si es el Owner / Admin, mostramos su saldo de usuario y también su saldo real en BunaiStore
+    bunai_line = ""
+    if user.telegram_id in settings.admin_ids:
+        bunai_data = await bunai_api.get_me()
+        bunai_balance = float(bunai_data.get("balance", 0.0))
+        bunai_line = f"🏢 <b>Saldo Proveedor (Bunai):</b> <code>${bunai_balance:.2f} USD</code>\n"
+
     text = (
         f"{maintenance_banner}"
         f"💎 <b>BIENVENIDO A SERVICIOS DIGITALES</b> 💎\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"👤 <b>Usuario:</b> {user_name}\n"
         f"🆔 <b>ID:</b> <code>{user.telegram_id}</code>\n"
-        f"💰 <b>Saldo Disponible:</b> <code>${float(user.balance):.2f} USDT</code>\n"
+        f"💰 <b>Saldo en Bot:</b> <code>${float(user.balance):.2f} USDT</code>\n"
+        f"{bunai_line}"
         f"🛍️ <b>Compras Realizadas:</b> <code>{orders_count}</code>\n"
         f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
         f"<i>Selecciona una opción del menú inferior para comenzar:</i>"
@@ -160,10 +169,17 @@ def register_start_handlers(app: Client):
 
             reg_date = user.created_at.strftime("%Y-%m-%d")
 
+            bunai_owner_line = ""
+            if user_id in settings.admin_ids:
+                bunai_data = await bunai_api.get_me()
+                bunai_bal = float(bunai_data.get("balance", 0.0))
+                bunai_owner_line = f"🏢 <b>Saldo BunaiStore:</b> <code>${bunai_bal:.2f} USD</code>\n"
+
             text = (
                 f"👤 <b>Perfil de Usuario</b>\n\n"
                 f"👤 <b>ID:</b> <code>{user.telegram_id}</code>\n"
-                f"👛 <b>Saldo:</b> <code>{float(user.balance):.2f} USDT</code>\n"
+                f"👛 <b>Saldo en Bot:</b> <code>{float(user.balance):.2f} USDT</code>\n"
+                f"{bunai_owner_line}"
                 f"🗣️ <b>Idioma:</b> <code>ES</code>\n"
                 f"🌐 <b>Timezone:</b> <code>UTC+00:00</code>\n"
                 f"📅 <b>Registro:</b> <code>{reg_date}</code>"
