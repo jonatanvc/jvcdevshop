@@ -84,6 +84,10 @@ async def main():
         print(f"❌ Error al conectar con la base de datos PostgreSQL: {e}")
 
     # 2. Inicializar Cliente Pyrogram
+    import os
+    os.makedirs("sessions", exist_ok=True)
+    os.makedirs("assets", exist_ok=True)
+
     app = Client(
         name="services_bot_session",
         api_id=settings.API_ID,

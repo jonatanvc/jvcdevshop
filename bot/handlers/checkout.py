@@ -132,6 +132,15 @@ def register_checkout_handlers(app: Client):
         # 6. Compra exitosa
         order_data = order_res.get("data", {})
         provider_order_id = order_data.get("order_id")
+        
+        raw_items_data = order_data.get("items", [])
+        if isinstance(raw_items_data, str):
+            raw_items = [raw_items_data]
+        elif isinstance(raw_items_data, list):
+            raw_items = [str(x.get("content", x)) if isinstance(x, dict) else str(x) for x in raw_items_data]
+        else:
+            raw_items = []
+
         raw_after_note = order_data.get("after_note", "")
         if raw_after_note and raw_after_note.strip():
             after_note = await translate_text(raw_after_note, lang)

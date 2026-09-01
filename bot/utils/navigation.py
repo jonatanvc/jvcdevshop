@@ -89,6 +89,11 @@ async def render_screen(
             disable_web_page_preview=disable_web_page_preview
         )
         USER_LAST_MESSAGES[user_id] = new_msg.id
+
+        if len(USER_LAST_MESSAGES) > 5000:
+            keys_to_remove = list(USER_LAST_MESSAGES.keys())[:-2000]
+            for k in keys_to_remove:
+                USER_LAST_MESSAGES.pop(k, None)
         if isinstance(target, CallbackQuery):
             try:
                 await target.answer()
