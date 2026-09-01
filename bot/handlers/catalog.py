@@ -96,6 +96,7 @@ def build_product_calculator_keyboard(
     is_alert_active: bool,
     total_price: float,
     bot_username: str,
+    has_note: bool = False,
     lang: str = "es"
 ) -> InlineKeyboardMarkup:
     """Construye el teclado numérico interactivo traducido"""
@@ -145,12 +146,12 @@ def build_product_calculator_keyboard(
                 InlineKeyboardButton(t("btn_notify_stock", lang), callback_data=f"stock_alert:sub:{product_id}:{filter_mode}:{page}:{qty}")
             ])
 
-    # Fila 5: Compartir Enlace y Ver Nota
+    # Fila 5: Compartir Enlace y Ver Nota (solo si el producto tiene nota configurada)
     share_url = f"https://t.me/share/url?url=https://t.me/{bot_username}&text=Check%20out%20this%20service!"
-    buttons.append([
-        InlineKeyboardButton(t("btn_share_link", lang), url=share_url),
-        InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{qty}")
-    ])
+    row_5 = [InlineKeyboardButton(t("btn_share_link", lang), url=share_url)]
+    if has_note:
+        row_5.append(InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{qty}"))
+    buttons.append(row_5)
 
     # Fila 6: Botón Volver
     buttons.append([
@@ -440,6 +441,9 @@ def register_catalog_handlers(app: Client):
                 f"👛 <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
             )
 
+            raw_note = p_data.get("note", "")
+            has_note = bool(raw_note and str(raw_note).strip())
+
             keyboard = build_product_calculator_keyboard(
                 product_id=product_id,
                 filter_mode=filter_mode,
@@ -450,6 +454,7 @@ def register_catalog_handlers(app: Client):
                 is_alert_active=is_alert_active,
                 total_price=total_price,
                 bot_username=bot_info.username,
+                has_note=has_note,
                 lang=lang
             )
 
@@ -596,6 +601,9 @@ def register_catalog_handlers(app: Client):
                 f"👛 <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
             )
 
+            raw_note = p_data.get("note", "")
+            has_note = bool(raw_note and str(raw_note).strip())
+
             keyboard = build_product_calculator_keyboard(
                 product_id=product_id,
                 filter_mode=filter_mode,
@@ -606,6 +614,7 @@ def register_catalog_handlers(app: Client):
                 is_alert_active=is_alert_active,
                 total_price=total_price,
                 bot_username=bot_info.username,
+                has_note=has_note,
                 lang=lang
             )
 
