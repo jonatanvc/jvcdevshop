@@ -47,13 +47,10 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
     """Construye la botonera inline del catálogo ultra limpia con botón de categorías dedicado"""
     buttons = []
 
-    # 1. Botones de cada producto
+    # 1. Botones de cada producto (solo nombre e icono)
     for p in items:
         icon = get_product_icon(p["name"])
-        stock_str = t("stock_unlimited", lang) if p["infinite_stock"] else (str(p["stock_count"]) if p["stock_count"] > 0 else t("stock_out", lang))
-        price_str = f"{p['user_price']:.2f}".rstrip("0").rstrip(".") if p["user_price"] % 1 != 0 else f"{int(p['user_price'])}"
-        
-        btn_text = f"{icon} {p['name']} - {price_str} USDT (Stock: {stock_str})"
+        btn_text = f"{icon} {p['name']}"
         buttons.append([
             InlineKeyboardButton(btn_text, callback_data=f"product:view:{p['product_id']}:{filter_mode}:{page}:0")
         ])
