@@ -19,7 +19,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_catalog": "🛒 Catálogo de Servicios",
         "btn_deposit": "💳 Depositar USDT",
         "btn_my_orders": "💼 Mis Pedidos",
-        "btn_referrals": "🔗 Referidos & Ganar",
+        "btn_referrals": "🔗 Referidos",
         "btn_profile": "👤 Mi Perfil",
         "btn_support": "🆘 Soporte & Ayuda",
         "btn_admin": "⚙️ Panel de Administración",
@@ -122,7 +122,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_catalog": "🛒 Service Catalog",
         "btn_deposit": "💳 Deposit USDT",
         "btn_my_orders": "💼 My Orders",
-        "btn_referrals": "🔗 Referrals & Earn",
+        "btn_referrals": "🔗 Referrals",
         "btn_profile": "👤 My Profile",
         "btn_support": "🆘 Support & Help",
         "btn_admin": "⚙️ Admin Panel",
@@ -186,7 +186,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_cancel_request": "❌ Cancel Request",
         "btn_back_to_invoice": "🔙 Back to Invoice",
         "qr_caption": "📱 <b>BSC (BEP-20) PAYMENT QR CODE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 <b>Amount to send:</b> <code>{exact_val}</code> USDT\n📬 <b>Wallet:</b> <code>{wallet}</code>\n\n<i>Scan this code directly from Trust Wallet, Binance or MetaMask.</i>",
-        "custom_amount_prompt": "✍️ <b>ENTER AMOUNT TO DEPOSIT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nType the amount of USDT you wish to add to your balance.\n\n⚠️ <b>Minimum Amount:</b> <code>${min_dep} USDT</code>\n\n<i>Example: Send a message typing <code>15</code> or <code>25.5</code></i>",
+        "custom_amount_prompt": "✍️ <b>ENTER AMOUNT TO DEPOSIT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nType the amount of USDT you wish to add to your balance.\n\n⚠️ <b>Minimum Amount:</b> <code>{min_dep} USDT</code>\n\n<i>Example: Send a message typing <code>15</code> or <code>25.5</code></i>",
         "submit_hash_prompt": "🔗 <b>SUBMIT TRANSACTION HASH / TXID</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nPaste below the transaction Hash (TxID) from your wallet (Trust Wallet, Binance, MetaMask, etc).\n\n<i>Example: <code>0x4a8c9b...</code></i>",
         "deposit_cancelled_screen": "❌ <b>DEPOSIT REQUEST CANCELLED</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nThe deposit request for <b>${amount} USDT</b> has been cancelled.\n\n<i>You can generate a new request whenever you wish.</i>",
         "btn_new_deposit": "💳 New Deposit",
@@ -225,7 +225,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_catalog": "🛒 Catálogo de Serviços",
         "btn_deposit": "💳 Depositar USDT",
         "btn_my_orders": "💼 Meus Pedidos",
-        "btn_referrals": "🔗 Indicar & Ganhar",
+        "btn_referrals": "🔗 Referidos",
         "btn_profile": "👤 Meu Perfil",
         "btn_support": "🆘 Suporte & Ajuda",
         "btn_admin": "⚙️ Painel de Administração",
@@ -289,7 +289,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_cancel_request": "❌ Cancelar Solicitação",
         "btn_back_to_invoice": "🔙 Voltar à Solicitação",
         "qr_caption": "📱 <b>CÓDIGO QR DE PAGAMENTO BSC (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 <b>Valor a transferir:</b> <code>{exact_val}</code> USDT\n📬 <b>Carteira:</b> <code>{wallet}</code>\n\n<i>Escaneie este código diretamente na Trust Wallet, Binance ou MetaMask.</i>",
-        "custom_amount_prompt": "✍️ <b>DIGITE O VALOR DO DEPÓSITO</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nDigite a quantidade de USDT que deseja adicionar ao seu saldo.\n\n⚠️ <b>Valor Mínimo:</b> <code>${min_dep} USDT</code>\n\n<i>Exemplo: Envie uma mensagem digitando <code>15</code> ou <code>25.5</code></i>",
+        "custom_amount_prompt": "✍️ <b>DIGITE O VALOR DO DEPÓSITO</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nDigite a quantidade de USDT que deseja adicionar ao seu saldo.\n\n⚠️ <b>Valor Mínimo:</b> <code>{min_dep} USDT</code>\n\n<i>Exemplo: Envie uma mensagem digitando <code>15</code> ou <code>25.5</code></i>",
         "submit_hash_prompt": "🔗 <b>ENVIE O HASH / TXID DA TRANSAÇÃO</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nCole abaixo o Hash (TxID) da transferência realizada da sua carteira (Trust Wallet, Binance, MetaMask, etc).\n\n<i>Exemplo: <code>0x4a8c9b...</code></i>",
         "deposit_cancelled_screen": "❌ <b>SOLICITAÇÃO DE RECARGA CANCELADA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nA solicitação de <b>${amount} USDT</b> foi cancelada com sucesso.\n\n<i>Você pode gerar uma nova solicitação quando quiser.</i>",
         "btn_new_deposit": "💳 Nova Recarga",
@@ -309,8 +309,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "order_detail_title": "🛍️ <b>DETALHES DO PEDIDO #ORD_{order_id}</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Produto:</b> <code>{product}</code> (x{qty})\n💰 <b>Preço Pago:</b> <code>${total} USDT</code>\n🛡️ <b>Garantia:</b> <code>{warranty}</code>\n📅 <b>Data:</b> <code>{date}</code>\n🆔 <b>ID Provedor:</b> <code>{prov_id}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>CREDENCIAS ENTREGUES:</b>\n<pre>{items}</pre>",
 
         # Indicações
-        "referrals_title": "🔗 <b>SISTEMA DE INDICAÇÕES & AFILIADOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nConvide seus amigos e ganhe <b>{percent}% de comissão</b> automática sobre cada recarga de saldo que eles fizerem!\n\n👥 <b>Seus Indicados Registrados:</b> <code>{count} usuários</code>\n💰 <b>Comissões Ganhas:</b> <code>${earnings} USDT</code>\n\n🎯 <b>Seu Link Exclusivo de Convite:</b>\n<code>{ref_link}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Compartilhe seu link e comece a gerar renda passiva.</i>",
-        "btn_share_ref": "📢 Compartilhar Link de Indicação",
+        "referrals_title": "🔗 <b>SISTEMA DE REFERIDOS & AFILIADOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n¡Invita a tus amigos y gana el <b>{percent}% de comisión</b> automática sobre cada recarga de saldo que realicen!\n\n👥 <b>Tus Referidos Registrados:</b> <code>{count} usuarios</code>\n💰 <b>Comisiones Ganadas:</b> <code>${earnings} USDT</code>\n\n🎯 <b>Tu Enlace Exclusivo de Invitación:</b>\n<code>{ref_link}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Comparte tu enlace y empieza a generar ingresos pasivos.</i>",
+        "btn_share_ref": "📢 Compartir Enlace de Referido",
 
         # Suporte
         "support_text": "🆘 <b>SUPORTE & AJUDA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nTem dúvidas sobre compras, depósitos ou precisa de assistência?\n\n• <b>Garantia:</b> Se algum serviço com garantia apresentar problemas durante o período ativo, entre em contato imediatamente com o seu <b>ID de Pedido</b>.\n• <b>Depósitos:</b> Os depósitos em USDT BEP-20 são creditados automaticamente após a confirmação da rede.\n\n💬 <i>Para falar diretamente com um administrador toque no botão abaixo:</i>"
@@ -326,11 +326,9 @@ def t(key: str, lang: str = "es", **kwargs) -> str:
     text = TRANSLATIONS[lang_code].get(key, TRANSLATIONS["es"].get(key, key))
     if kwargs:
         try:
-            # Convertir todos los argumentos kwargs a strings seguros
             safe_kwargs = {k: str(v) for k, v in kwargs.items()}
             return text.format(**safe_kwargs)
-        except Exception as e:
-            # Reemplazo manual seguro si str.format falla
+        except Exception:
             result = text
             for k, v in kwargs.items():
                 result = result.replace(f"{{{k}}}", str(v))
