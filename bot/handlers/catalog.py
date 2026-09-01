@@ -63,7 +63,7 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
     # 1. Botones de cada producto
     for p in items:
         icon = get_product_icon(p["name"])
-        stock_str = "∞" if p["infinite_stock"] else str(p["stock_count"])
+        stock_str = "∞" if p["infinite_stock"] else (str(p["stock_count"]) if p["stock_count"] > 0 else "Agotado")
         price_str = f"{p['user_price']:.2f}".rstrip("0").rstrip(".") if p["user_price"] % 1 != 0 else f"{int(p['user_price'])}"
         
         btn_text = f"{icon} {p['name']} - {price_str} USDT (Stock: {stock_str})"
@@ -95,7 +95,7 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
 
     buttons.append([
         InlineKeyboardButton("🔄 Actualizar", callback_data=f"catalog_refresh:{filter_mode}:{page}"),
-        InlineKeyboardButton(f"Ordenar: {next_filter_name}", callback_data=f"catalog:{next_filter}:1")
+        InlineKeyboardButton(f"Cambiar a: {next_filter_name}", callback_data=f"catalog:{next_filter}:1")
     ])
 
     # 4. Buscador y Volver
@@ -246,20 +246,33 @@ def register_catalog_handlers(app: Client):
 
     @app.on_message(filters.command("buscar") & filters.private)
     async def cmd_search(client: Client, message: Message):
+        user_id = message.from_user.id
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
         if len(message.command) < 2:
-            await message.reply_text("🔍 Uso: <code>/buscar netflix</code> o <code>/buscar gemini</code>")
+            text = "🔍 Por favor escribe el nombre a buscar (ej: <code>/buscar netflix</code> o <code>/buscar gemini</code>)."
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="catalog:disponibles:1")]])
+            await render_screen(client, user_id, text, keyboard)
             return
+
         query = " ".join(message.command[1:]).lower()
-        await execute_search(client, message.chat.id, query)
+        await execute_search(client, user_id, query)
 
     @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar"]))
     async def handle_search_text(client: Client, message: Message):
         user_id = message.from_user.id
         if SEARCH_STATES.pop(user_id, None):
+            try:
+                await message.delete()
+            except Exception:
+                pass
             query = message.text.strip().lower()
-            await execute_search(client, message.chat.id, query)
+            await execute_search(client, user_id, query)
 
-    async def execute_search(client: Client, chat_id: int, query: str):
+    async def execute_search(client: Client, user_id: int, query: str):
         async with async_session() as session:
             products = await pricing_service.get_processed_catalog(session, filter_mode="todos", force_refresh=False)
             results = [p for p in products if query in p["name"].lower() or query in p["product_id"].lower()]
@@ -274,13 +287,13 @@ def register_catalog_handlers(app: Client):
                     [InlineKeyboardButton("🛒 Volver al Catálogo", callback_data="catalog:disponibles:1")],
                     [InlineKeyboardButton("Volver", callback_data="menu_main")]
                 ])
-                await client.send_message(chat_id=chat_id, text=text, reply_markup=keyboard)
+                await render_screen(client, user_id, text, keyboard)
                 return
 
             items_page, total_pages, current_page = pricing_service.paginate(results, page=1, page_size=PAGE_SIZE)
             text = f"🔍 <b>Resultados para:</b> <i>'{query}'</i> ({len(results)} encontrados):\n"
             keyboard = build_catalog_keyboard(items_page, current_page, total_pages, "todos")
-            await client.send_message(chat_id=chat_id, text=text, reply_markup=keyboard)
+            await render_screen(client, user_id, text, keyboard)
 
     @app.on_callback_query(filters.regex(r"^product:view:([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))
     async def cb_product_view(client: Client, callback: CallbackQuery):
@@ -329,7 +342,7 @@ def register_catalog_handlers(app: Client):
             has_promo = bool(p_data.get("has_promo", False))
             has_stock = infinite_stock or stock_count > 0
 
-            stock_display = "Ilimitado (∞)" if infinite_stock else str(stock_count)
+            stock_display = "Ilimitado (∞)" if infinite_stock else (f"{stock_count}" if stock_count > 0 else "0 (Agotado)")
             warranty_display = "Sin Garantía" if adjusted_warranty == 0 else (f"{adjusted_warranty // 24} Días" if adjusted_warranty >= 24 and adjusted_warranty % 24 == 0 else f"{adjusted_warranty} Horas")
 
             offer_line = ""
@@ -474,7 +487,7 @@ def register_catalog_handlers(app: Client):
             has_promo = bool(p_data.get("has_promo", False))
             has_stock = infinite_stock or stock_count > 0
 
-            stock_display = "Ilimitado (∞)" if infinite_stock else str(stock_count)
+            stock_display = "Ilimitado (∞)" if infinite_stock else (f"{stock_count}" if stock_count > 0 else "0 (Agotado)")
             warranty_display = "Sin Garantía" if adjusted_warranty == 0 else (f"{adjusted_warranty // 24} Días" if adjusted_warranty >= 24 and adjusted_warranty % 24 == 0 else f"{adjusted_warranty} Horas")
 
             offer_line = ""

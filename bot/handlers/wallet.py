@@ -290,6 +290,12 @@ def register_wallet_handlers(app: Client):
         if not state:
             return
 
+        # Borrar el mensaje de texto del usuario para mantener la pantalla única limpia
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
         action = state.get("action")
 
         # 1. Esperando monto personalizado
@@ -298,11 +304,21 @@ def register_wallet_handlers(app: Client):
             try:
                 amount = float(text_val)
             except ValueError:
-                await message.reply_text("❌ Por favor ingresa un número válido (ejemplo: <code>5</code> o <code>12.5</code>).")
+                err_text = (
+                    "❌ Por favor ingresa un número válido (ejemplo: <code>5</code> o <code>12.5</code>).\n\n"
+                    f"⚠️ <b>Monto Mínimo:</b> <code>{settings.MIN_DEPOSIT_USDT:.2f} USDT</code>"
+                )
+                kb = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="wallet:deposit_menu")]])
+                await render_screen(client, user_id, err_text, kb)
                 return
 
             if amount < settings.MIN_DEPOSIT_USDT:
-                await message.reply_text(f"⚠️ El monto mínimo de recarga es de <b>${settings.MIN_DEPOSIT_USDT:.2f} USDT</b>. Ingresa un monto mayor:")
+                err_text = (
+                    f"⚠️ El monto mínimo de recarga es de <b>${settings.MIN_DEPOSIT_USDT:.2f} USDT</b>.\n"
+                    "Por favor ingresa un monto mayor:"
+                )
+                kb = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="wallet:deposit_menu")]])
+                await render_screen(client, user_id, err_text, kb)
                 return
 
             USER_STATES.pop(user_id, None)
@@ -312,7 +328,7 @@ def register_wallet_handlers(app: Client):
                 username=message.from_user.username or "",
                 first_name=message.from_user.first_name or "Usuario",
                 base_amount=amount,
-                target=message.chat.id
+                target=user_id
             )
 
         # 2. Esperando TxHash
@@ -321,7 +337,12 @@ def register_wallet_handlers(app: Client):
             tx_hash = message.text.strip()
 
             USER_STATES.pop(user_id, None)
-            verifying_msg = await message.reply_text("⏳ <b>Verificando transacción en la blockchain BSC...</b>\n<i>Consultando nodos de red y confirmaciones.</i>")
+            await render_screen(
+                client,
+                user_id,
+                "⏳ <b>Verificando transacción en la blockchain BSC...</b>\n<i>Consultando nodos de red y confirmaciones.</i>",
+                None
+            )
 
             async with async_session() as session:
                 # Bloqueo atómico a nivel de fila (Anti Race-Condition)
@@ -330,20 +351,23 @@ def register_wallet_handlers(app: Client):
                 deposit = res.scalar_one_or_none()
 
                 if not deposit or deposit.status != DepositStatus.PENDING:
-                    await verifying_msg.edit_text("❌ Esta solicitud de depósito ya expiró o fue procesada.")
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="wallet:deposit_menu")]])
+                    await render_screen(client, user_id, "❌ Esta solicitud de depósito ya expiró o fue procesada.", kb)
                     return
 
                 if datetime.utcnow() > deposit.expires_at:
                     deposit.status = DepositStatus.EXPIRED
                     await session.commit()
-                    await verifying_msg.edit_text("❌ El tiempo límite de 30 minutos para este depósito ha expirado. Genera una nueva solicitud.")
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="wallet:deposit_menu")]])
+                    await render_screen(client, user_id, "❌ El tiempo límite de 30 minutos para este depósito ha expirado. Genera una nueva solicitud.", kb)
                     return
 
                 # Comprobar si el hash ya fue usado antes (Anti-Replay Attack)
                 dup_stmt = select(Deposit).where(Deposit.tx_hash == tx_hash, Deposit.status == DepositStatus.CONFIRMED).with_for_update()
                 dup_res = await session.execute(dup_stmt)
                 if dup_res.scalar_one_or_none():
-                    await verifying_msg.edit_text("❌ <b>Este Hash de transacción ya fue reclamado y acreditado previamente.</b>")
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="wallet:deposit_menu")]])
+                    await render_screen(client, user_id, "❌ <b>Este Hash de transacción ya fue reclamado y acreditado previamente.</b>", kb)
                     return
 
                 # Validar On-Chain con Multi-RPC y Confirmaciones
@@ -355,7 +379,7 @@ def register_wallet_handlers(app: Client):
                         [InlineKeyboardButton("🔄 Reintentar Ingresar Hash", callback_data=f"deposit:submit_hash:{deposit_id}")],
                         [InlineKeyboardButton("Volver", callback_data="menu_main")]
                     ])
-                    await verifying_msg.edit_text(f"❌ <b>Verificación Fallida:</b>\n{err_msg}", reply_markup=retry_kb)
+                    await render_screen(client, user_id, f"❌ <b>Verificación Fallida:</b>\n{err_msg}", retry_kb)
                     return
 
                 # Acreditación Exitosa
@@ -393,7 +417,7 @@ def register_wallet_handlers(app: Client):
                 new_balance=new_balance
             )
 
-            # Notificar al usuario
+            # Notificar al usuario editando la pantalla única
             success_text = (
                 f"🎉 <b>¡DEPÓSITO ACREDITADO CON ÉXITO!</b>\n"
                 f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
@@ -406,4 +430,4 @@ def register_wallet_handlers(app: Client):
                 [InlineKeyboardButton("🛒 Ir al Catálogo de Servicios", callback_data="catalog:disponibles:1")],
                 [InlineKeyboardButton("Volver", callback_data="menu_main")]
             ])
-            await verifying_msg.edit_text(success_text, reply_markup=keyboard)
+            await render_screen(client, user_id, success_text, keyboard)

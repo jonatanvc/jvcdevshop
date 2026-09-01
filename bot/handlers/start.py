@@ -67,6 +67,12 @@ def register_start_handlers(app: Client):
         username = message.from_user.username
         first_name = message.from_user.first_name or "Usuario"
 
+        # Borrar el comando /start del usuario para mantener 1 solo mensaje
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
         # Procesar código de referido si existe (/start ref_123456)
         referrer_id = None
         if len(message.command) > 1:
@@ -106,7 +112,7 @@ def register_start_handlers(app: Client):
             text = await build_main_menu_text(user, orders_count, session)
             keyboard = get_main_menu_keyboard(user_id)
 
-            await render_screen(client, message.chat.id, text, keyboard)
+            await render_screen(client, user_id, text, keyboard)
 
     @app.on_callback_query(filters.regex("^menu_main$"))
     async def cb_main_menu(client: Client, callback: CallbackQuery):
@@ -163,7 +169,6 @@ def register_start_handlers(app: Client):
                 f"📅 <b>Registro:</b> <code>{reg_date}</code>"
             )
 
-            # Botones solicitados en la Foto 1 (Mis Pedidos, Idioma y Volver)
             keyboard = InlineKeyboardMarkup([
                 [
                     InlineKeyboardButton("💼 Mis Pedidos", callback_data="orders:page:1"),
