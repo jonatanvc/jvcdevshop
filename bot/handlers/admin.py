@@ -50,23 +50,23 @@ def register_admin_handlers(app: Client):
 
         text = (
             f"⚙️ <b>PANEL DE ADMINISTRACIÓN & MÉTRICAS</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━\n"
             f"👥 <b>Usuarios Totales:</b> <code>{total_users}</code>\n"
             f"💳 <b>Total Depositado (USDT):</b> <code>${total_deposited:.2f}</code>\n"
             f"🛍️ <b>Ventas Realizadas:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━\n"
             f"🏢 <b>Saldo en BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
             f"📉 <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━\n"
             f"📈 <b>ESTRATEGIA DE PRECIOS ACTIVA:</b>\n"
             f"• <b>Costo &lt; $0.50:</b> <code>x7.0 (+600%)</code>\n"
             f"• <b>Costo $0.50 - $0.99:</b> <code>x4.0 (+300%)</code>\n"
             f"• <b>Costo $1.00 - $2.99:</b> <code>x2.5 (+150%)</code>\n"
             f"• <b>Costo &ge; $3.00:</b> <code>x2.0 (+100%)</code>\n"
             f"🛡️ <b>Garantías:</b> <code>50% de BunaiStore</code>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━\n"
             f"🛠️ <b>Modo Mantenimiento:</b> <code>{'🔴 ACTIVADO' if maintenance_active else '🟢 DESACTIVADO'}</code>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            f"━━━━━━━━━━━━━━━\n"
             f"<i>Selecciona una acción administrativa:</i>"
         )
 
@@ -140,7 +140,7 @@ def register_admin_handlers(app: Client):
         ADMIN_STATES[user_id] = {"action": "waiting_broadcast"}
         text = (
             "📢 <b>DIFUSIÓN MASIVA (BROADCAST)</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            "━━━━━━━━━━━━━━━\n"
             "Envía a continuación el mensaje que deseas transmitir a <b>todos los usuarios registrados</b> en el bot.\n\n"
             "<i>Puedes usar formato HTML (negritas, enlaces, etc).</i>"
         )
@@ -192,7 +192,7 @@ def register_admin_handlers(app: Client):
 
             result_text = (
                 f"✅ <b>DIFUSIÓN COMPLETADA</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+                f"━━━━━━━━━━━━━━━\n"
                 f"• <b>Entregados:</b> {sent_count}\n"
                 f"• <b>Fallidos/Bloqueados:</b> {fail_count}"
             )

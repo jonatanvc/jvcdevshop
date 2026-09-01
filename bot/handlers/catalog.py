@@ -217,7 +217,7 @@ def register_catalog_handlers(app: Client):
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
             header_key = f"catalog_header_{filter_mode}"
-            header_text = f"{t(header_key, lang, count=len(products))}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            header_text = f"{t(header_key, lang, count=len(products))}\n━━━━━━━━━━━━━━━\n"
 
             if not items_page:
                 header_text += f"<i>{t('catalog_empty', lang)}</i>\n"
@@ -245,7 +245,7 @@ def register_catalog_handlers(app: Client):
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
             header_key = f"catalog_header_{filter_mode}"
-            header_text = f"{t(header_key, lang, count=len(products))}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n"
+            header_text = f"{t(header_key, lang, count=len(products))}\n━━━━━━━━━━━━━━━\n"
 
             if not items_page:
                 header_text += f"<i>{t('catalog_empty', lang)}</i>\n"
