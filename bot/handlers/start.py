@@ -9,6 +9,7 @@ from bot.services.bunai_client import bunai_api
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t, LANGUAGES
+from bot.utils.time_utils import format_dt
 from bot.services.audit_logger import audit_logger
 
 def get_main_menu_keyboard(user_id: int, lang: str = "es") -> InlineKeyboardMarkup:
@@ -214,7 +215,7 @@ def register_start_handlers(app: Client):
                     return
 
                 lang = getattr(user, "language", "es") or "es"
-                reg_date = user.created_at.strftime("%Y-%m-%d")
+                reg_date = format_dt(user.created_at, "%Y-%m-%d")
 
                 bunai_owner_line = ""
                 if user_id in settings.admin_ids:
@@ -231,7 +232,7 @@ def register_start_handlers(app: Client):
                     f"👛 <b>{t('balance_bot', lang)}:</b> <code>{float(user.balance):.2f} USDT</code>\n"
                     f"{bunai_owner_line}"
                     f"🗣️ <b>{t('lang_label', lang)}:</b> <code>{lang.upper()}</code> ({LANGUAGES.get(lang, 'Español')})\n"
-                    f"🌐 <b>Timezone:</b> <code>UTC+00:00</code>\n"
+                    f"🌐 <b>Timezone:</b> <code>{settings.TIMEZONE}</code>\n"
                     f"📅 <b>{t('registered', lang)}:</b> <code>{reg_date}</code>"
                 )
 

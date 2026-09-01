@@ -9,6 +9,8 @@ from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, Deposit, Order, Setting, CustomPricing
 
+from bot.utils.time_utils import get_now_str
+
 class BackupService:
     async def generate_backup_file(self) -> io.BytesIO:
         """Exporta toda la base de datos a un archivo comprimido JSON.GZ"""
@@ -99,7 +101,7 @@ class BackupService:
         with gzip.GzipFile(fileobj=compressed_io, mode="wb") as gz:
             gz.write(json_bytes)
         
-        now_str = datetime.utcnow().strftime("%Y%m%d_%H%M%S")
+        now_str = get_now_str("%Y%m%d_%H%M%S")
         compressed_io.name = f"database_backup_{now_str}.json.gz"
         compressed_io.seek(0)
         return compressed_io
@@ -115,7 +117,7 @@ class BackupService:
             caption = (
                 f"💾 <b>COPIA DE SEGURIDAD AUTOMÁTICA DE BASE DE DATOS</b>\n"
                 f"━━━━━━━━━━━━━━━\n"
-                f"📅 <b>Fecha:</b> <code>{datetime.utcnow().strftime('%Y-%m-%d %H:%M:%S UTC')}</code>\n"
+                f"📅 <b>Fecha:</b> <code>{get_now_str('%Y-%m-%d %H:%M:%S')}</code>\n"
                 f"🔒 <i>Guarda este archivo. Contiene todos los usuarios, órdenes, compras y balances.</i>"
             )
             await client.send_document(

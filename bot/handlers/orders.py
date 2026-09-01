@@ -6,6 +6,7 @@ from bot.database.models import User, Order
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
+from bot.utils.time_utils import format_dt
 
 ORDERS_PER_PAGE = 6
 
@@ -50,7 +51,7 @@ def register_orders_handlers(app: Client):
 
             buttons = []
             for ord in orders_page:
-                date_str = ord.created_at.strftime("%d/%m/%Y")
+                date_str = format_dt(ord.created_at, "%d/%m/%Y")
                 btn_text = f"🛍️ #{ord.id} - {ord.product_name[:24]} (${float(ord.total_price):.2f}) [{date_str}]"
                 buttons.append([
                     InlineKeyboardButton(btn_text, callback_data=f"order:view:{ord.id}:{page}")
@@ -102,7 +103,7 @@ def register_orders_handlers(app: Client):
             else:
                 warranty_str = t("warranty_hours", lang, hours=order.warranty_hours)
 
-            date_str = order.created_at.strftime("%Y-%m-%d %H:%M:%S UTC")
+            date_str = format_dt(order.created_at, "%Y-%m-%d %H:%M:%S")
 
             text = t(
                 "order_detail_title",

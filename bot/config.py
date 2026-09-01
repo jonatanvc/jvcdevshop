@@ -29,6 +29,7 @@ class Settings(BaseSettings):
     REFERRAL_COMMISSION_PERCENT: float = 5.0
     QR_IMAGE_PATH: str = "assets/TrustWalletQR.jpg"
     AUTO_BACKUP_HOURS: int = 24
+    TIMEZONE: str = "America/Santo_Domingo"
     
     # Base de Datos
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres_secure_pass@localhost:5432/services_bot"

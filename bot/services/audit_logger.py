@@ -1,8 +1,8 @@
-from datetime import datetime
 from typing import Optional, Any
 from pyrogram import Client
 from pyrogram.enums import ParseMode
 from bot.config import settings
+from bot.utils.time_utils import get_now_str
 
 class AuditLogger:
     def __init__(self):
@@ -37,9 +37,9 @@ class AuditLogger:
         provider_order_id: Optional[str],
         delivered_items: str
     ):
-        """Registra una compra exitosa en el canal de auditoría"""
+        """Registra una compra exitosa en el canal de auditoría con la hora local exacta"""
         user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
             f"🛍️ <b>NUEVA COMPRA REALIZADA #ORD_{order_id}</b>\n"
@@ -67,7 +67,7 @@ class AuditLogger:
     ) -> Optional[int]:
         """Registra una nueva solicitud de depósito y retorna el ID del mensaje para editarlo si cambia de estado"""
         user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
             f"📥 <b>NUEVA SOLICITUD DE DEPÓSITO</b>\n"
@@ -92,7 +92,7 @@ class AuditLogger:
     ):
         """Edita el mismo mensaje original de la solicitud de depósito en el canal de logs indicando que fue cancelada"""
         user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
             f"❌ <b>SOLICITUD DE DEPÓSITO CANCELADA</b>\n"
@@ -137,7 +137,7 @@ class AuditLogger:
         """Edita el mismo mensaje original de la solicitud en el canal de logs indicando confirmación en blockchain"""
         user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
         bsc_link = f"https://bscscan.com/tx/{tx_hash}"
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
             f"✅ <b>DEPÓSITO CONFIRMADO EN BLOCKCHAIN</b>\n"
@@ -207,8 +207,8 @@ class AuditLogger:
         await self._send_log(client, msg)
 
     async def log_system_alert(self, client: Client, title: str, details: str):
-        """Envía una alerta del sistema"""
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        """Envía una alerta del sistema con hora local exacta"""
+        now = get_now_str("%Y-%m-%d %H:%M:%S")
         msg = (
             f"⚠️ <b>ALERTA DEL SISTEMA: {title}</b>\n"
             f"━━━━━━━━━━━━━━━\n"
@@ -218,9 +218,9 @@ class AuditLogger:
         await self._send_log(client, msg)
 
     async def log_new_user(self, client: Client, user_id: int, username: Optional[str], first_name: str):
-        """Registra un nuevo usuario en el bot"""
+        """Registra un nuevo usuario en el bot con fecha y hora local"""
         user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
-        now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
+        now = get_now_str("%Y-%m-%d %H:%M:%S")
         msg = (
             f"👤 <b>NUEVO USUARIO REGISTRADO</b>\n"
             f"━━━━━━━━━━━━━━━\n"
