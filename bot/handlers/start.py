@@ -45,11 +45,10 @@ async def build_main_menu_text(user: User, orders_count: int, session) -> str:
     m_setting = m_res.scalar_one_or_none()
     maintenance_banner = ""
     if m_setting and m_setting.value == "true":
-        maintenance_banner = "⚠️ <i>El bot está en modo mantenimiento. Las compras están pausadas temporalmente.</i>\n\n"
+        maintenance_banner = t("maintenance_banner", lang)
 
     user_name = user.first_name or user.username or f"Usuario {user.telegram_id}"
 
-    # Si es el Owner / Admin, mostramos su saldo de usuario y también su saldo real en BunaiStore
     bunai_line = ""
     if user.telegram_id in settings.admin_ids:
         bunai_data = await bunai_api.get_me()
@@ -143,7 +142,7 @@ def register_start_handlers(app: Client):
     async def cb_main_menu(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
-            await callback.answer("⏳ Por favor espera un momento...", show_alert=False)
+            await callback.answer("⏳ ...", show_alert=False)
             return
 
         async with async_session() as session:
@@ -191,7 +190,7 @@ def register_start_handlers(app: Client):
             if user_id in settings.admin_ids:
                 bunai_data = await bunai_api.get_me()
                 bunai_bal = float(bunai_data.get("balance", 0.0))
-                bunai_owner_line = f"🏢 <b>Saldo BunaiStore:</b> <code>${bunai_bal:.2f} USD</code>\n"
+                bunai_owner_line = f"🏢 <b>{t('balance_provider', lang)}:</b> <code>${bunai_bal:.2f} USD</code>\n"
 
             text = (
                 f"{t('profile_title', lang)}\n\n"
@@ -257,16 +256,10 @@ def register_start_handlers(app: Client):
             user = result.scalar_one_or_none()
             lang = user.language if user else "es"
 
-        text = (
-            f"🆘 <b>SOPORTE & AYUDA / SUPPORT</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"¿Tienes alguna duda sobre tus compras, depósitos o necesitas asistencia?\n\n"
-            f"• <b>Garantía:</b> Si algún servicio con garantía presenta inconvenientes durante el período activo, contáctanos inmediatamente con tu <b>ID de Orden</b>.\n"
-            f"• <b>Depósitos:</b> Los depósitos en USDT BEP-20 se acreditan automáticamente tras la confirmación de la red.\n\n"
-            f"💬 <i>Para contactar directamente a un administrador pulsa el botón inferior:</i>"
-        )
+        text = t("support_text", lang)
+        admin_tg_url = f"tg://user?id={settings.admin_ids[0]}" if settings.admin_ids else "https://t.me/telegram"
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💬 Contactar Administrador", url=f"tg://user?id={settings.admin_ids[0]}" if settings.admin_ids else "https://t.me/telegram")],
+            [InlineKeyboardButton(t("btn_contact_admin", lang), url=admin_tg_url)],
             [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
         ])
         await render_screen(client, callback, text, keyboard)

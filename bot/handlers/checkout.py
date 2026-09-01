@@ -9,6 +9,7 @@ from bot.services.pricing import pricing_service
 from bot.services.audit_logger import audit_logger
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
+from bot.utils.i18n import t
 
 def register_checkout_handlers(app: Client):
 
@@ -16,7 +17,7 @@ def register_checkout_handlers(app: Client):
     async def cb_checkout_confirm(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
-            await callback.answer("⏳ Procesando...", show_alert=False)
+            await callback.answer("⏳ ...", show_alert=False)
             return
 
         product_id = callback.matches[0].group(1)
@@ -25,18 +26,22 @@ def register_checkout_handlers(app: Client):
             qty = 1
 
         async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
             # 1. Comprobar modo mantenimiento
             m_stmt = select(Setting).where(Setting.key == "maintenance_mode")
             m_res = await session.execute(m_stmt)
             m_setting = m_res.scalar_one_or_none()
             if m_setting and m_setting.value == "true":
-                await callback.answer("⚠️ El bot está en modo mantenimiento temporal. Compras pausadas.", show_alert=True)
+                await callback.answer("⚠️ Maintenance Mode Active / Modo Mantenimiento", show_alert=True)
                 return
 
             # 2. Obtener producto y calcular precio total con posibles descuentos
             p_data = await bunai_api.get_product(product_id)
             if not p_data:
-                await callback.answer("❌ El producto no se encuentra disponible.", show_alert=True)
+                await callback.answer("❌ Error / Not available", show_alert=True)
                 return
 
             base_price = float(p_data.get("price", 0.0))
@@ -79,25 +84,21 @@ def register_checkout_handlers(app: Client):
             remaining_balance = deduct_res.scalar()
 
             if remaining_balance is None:
-                await callback.answer("❌ Saldo insuficiente para completar la compra.", show_alert=True)
+                await callback.answer("❌ Saldo insuficiente / Insufficient balance", show_alert=True)
                 return
 
             await session.commit()
 
-        # 4. Mensaje temporal de procesamiento
-        await render_screen(
-            client,
-            callback,
-            f"⏳ <b>Procesando tu orden de {qty}x {product_name}...</b>\n<i>Por favor espera unos segundos.</i>",
-            None
-        )
+        # 4. Mensaje temporal de procesamiento traducido
+        proc_text = t("processing_order", lang, qty=qty, product=product_name)
+        await render_screen(client, callback, proc_text, None)
 
         # 5. Ejecutar compra en BunaiStore API
         order_res = await bunai_api.create_order(product_id, qty=qty)
 
         if not order_res.get("success"):
-            # === ROLLBACK AUTOMÁTICO DE SALDO ===
-            error_msg = order_res.get("error", "Error desconocido en el proveedor")
+            # Rollback automático de saldo
+            error_msg = order_res.get("error", "Error desconocido")
             async with async_session() as session:
                 rollback_stmt = (
                     update(User)
@@ -116,23 +117,18 @@ def register_checkout_handlers(app: Client):
                 f"👤 <b>Usuario:</b> <code>{user_id}</code>\n"
                 f"📦 <b>Producto:</b> <code>{product_name}</code> (Cant: {qty})\n"
                 f"💰 <b>Monto Reembolsado:</b> <code>${total_price:.2f} USDT</code>\n"
-                f"❌ <b>Razón del Proveedor:</b> <code>{error_msg}</code>"
+                f"❌ <b>Razón:</b> <code>{error_msg}</code>"
             )
 
-            fail_text = (
-                "❌ <b>NO SE PUDO COMPLETAR LA COMPRA</b>\n"
-                "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"El proveedor rechazó la solicitud (posiblemente sin stock suficiente).\n\n"
-                f"🛡️ <b>Tu saldo de ${total_price:.2f} USDT ha sido reembolsado intacto a tu cuenta.</b>"
-            )
+            fail_text = t("purchase_fail_title", lang, total=total_price)
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🛒 Volver al Catálogo", callback_data="catalog:disponibles:1")],
-                [InlineKeyboardButton("🔙 Menú Principal", callback_data="menu_main")]
+                [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
+                [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
             ])
             await render_screen(client, callback, fail_text, keyboard)
             return
 
-        # 6. Compra exitosa: Procesar datos entregados
+        # 6. Compra exitosa
         order_data = order_res.get("data", {})
         provider_order_id = order_data.get("order_id")
         raw_items = order_data.get("items", [])
@@ -144,7 +140,7 @@ def register_checkout_handlers(app: Client):
         elif after_note:
             delivered_text = after_note
         else:
-            delivered_text = "Orden registrada exitosamente para entrega manual."
+            delivered_text = "OK"
 
         # Guardar en Base de Datos
         async with async_session() as session:
@@ -164,7 +160,7 @@ def register_checkout_handlers(app: Client):
             await session.refresh(new_order)
             internal_order_id = new_order.id
 
-        # 7. Notificar en el canal de auditoría del Owner
+        # Notificar en el canal de auditoría del Owner
         await audit_logger.log_purchase(
             client=client,
             user_id=user_id,
@@ -178,27 +174,26 @@ def register_checkout_handlers(app: Client):
             delivered_items=delivered_text
         )
 
-        # 8. Pantalla de entrega al usuario
-        warranty_note = f"\n🛡️ <b>Garantía:</b> <code>{warranty_hours} horas</code>" if warranty_hours > 0 else ""
-        after_note_block = f"\n\n📌 <b>Instrucciones Post-Compra:</b>\n<i>{after_note}</i>" if after_note else ""
+        # Pantalla de entrega traducida
+        warranty_text = f"\n🛡️ <b>{t('warranty_label', lang)}:</b> <code>{warranty_hours}h</code>" if warranty_hours > 0 else ""
+        after_note_block = f"\n\n📌 <b>Info:</b>\n<i>{after_note}</i>" if after_note else ""
 
-        success_text = (
-            f"🎉 <b>¡COMPRA REALIZADA CON ÉXITO!</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"📦 <b>Producto:</b> <code>{product_name}</code> (x{qty})\n"
-            f"💰 <b>Total Pagado:</b> <code>${total_price:.2f} USDT</code>\n"
-            f"🆔 <b>Orden #:</b> <code>ORD_{internal_order_id}</code>{warranty_note}\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🔑 <b>DATOS DE TU SERVICIO:</b>\n"
-            f"<pre>{delivered_text}</pre>"
-            f"{after_note_block}\n\n"
-            f"<i>💡 Puedes consultar tus compras y garantías en cualquier momento desde 'Mis Pedidos'.</i>"
+        success_text = t(
+            "purchase_success_title",
+            lang,
+            product=product_name,
+            qty=qty,
+            total=f"{total_price:.2f}",
+            order_id=internal_order_id,
+            warranty_text=warranty_text,
+            items=delivered_text,
+            after_note=after_note_block
         )
 
         success_keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💼 Ver en 'Mis Pedidos'", callback_data="orders:page:1")],
-            [InlineKeyboardButton("🛒 Seguir Comprando", callback_data="catalog:disponibles:1")],
-            [InlineKeyboardButton("🔙 Menú Principal", callback_data="menu_main")]
+            [InlineKeyboardButton(t("btn_view_in_orders", lang), callback_data="orders:page:1")],
+            [InlineKeyboardButton(t("btn_continue_shopping", lang), callback_data="catalog:disponibles:1")],
+            [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
         ])
 
         await render_screen(client, callback, success_text, success_keyboard)

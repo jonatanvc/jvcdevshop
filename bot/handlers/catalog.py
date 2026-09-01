@@ -7,14 +7,15 @@ from bot.services.pricing import pricing_service, PAGE_SIZE
 from bot.services.bunai_client import bunai_api
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
+from bot.utils.i18n import t
 
 SEARCH_STATES = {}
 
-FILTER_NAMES = {
-    "disponibles": "Disponibles",
-    "agotados": "Agotados",
-    "ofertas": "Ofertas",
-    "todos": "Todos"
+FILTER_KEYS = {
+    "disponibles": "catalog_title_disponibles",
+    "agotados": "catalog_title_agotados",
+    "ofertas": "catalog_title_ofertas",
+    "todos": "catalog_title_todos"
 }
 
 FILTER_ROTATION = ["disponibles", "ofertas", "agotados", "todos"]
@@ -48,22 +49,16 @@ def get_product_icon(name: str) -> str:
         return "👔"
     elif "spotify" in name_lower:
         return "🎧"
-    elif "leonardo" in name_lower or "veo" in name_lower or "kling" in name_lower:
-        return "🎨"
-    elif "windows" in name_lower:
-        return "💻"
-    elif "test" in name_lower:
-        return "🧪"
     return "🏷️"
 
-def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode: str) -> InlineKeyboardMarkup:
-    """Construye la botonera inline del catálogo con paginación máxima de 8 productos y buscador"""
+def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode: str, lang: str = "es") -> InlineKeyboardMarkup:
+    """Construye la botonera inline del catálogo traducida"""
     buttons = []
 
     # 1. Botones de cada producto
     for p in items:
         icon = get_product_icon(p["name"])
-        stock_str = "∞" if p["infinite_stock"] else (str(p["stock_count"]) if p["stock_count"] > 0 else "Agotado")
+        stock_str = t("stock_unlimited", lang) if p["infinite_stock"] else (str(p["stock_count"]) if p["stock_count"] > 0 else t("stock_out", lang))
         price_str = f"{p['user_price']:.2f}".rstrip("0").rstrip(".") if p["user_price"] % 1 != 0 else f"{int(p['user_price'])}"
         
         btn_text = f"{icon} {p['name']} - {price_str} USDT (Stock: {stock_str})"
@@ -75,14 +70,14 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
     if total_pages > 1:
         nav_row = []
         if page > 1:
-            nav_row.append(InlineKeyboardButton("◀️ Anterior", callback_data=f"catalog:{filter_mode}:{page - 1}"))
+            nav_row.append(InlineKeyboardButton("◀️", callback_data=f"catalog:{filter_mode}:{page - 1}"))
         else:
             nav_row.append(InlineKeyboardButton("⏺️", callback_data="noop"))
 
-        nav_row.append(InlineKeyboardButton(f"Pág. {page}/{total_pages}", callback_data="noop"))
+        nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
 
         if page < total_pages:
-            nav_row.append(InlineKeyboardButton("Siguiente ▶️", callback_data=f"catalog:{filter_mode}:{page + 1}"))
+            nav_row.append(InlineKeyboardButton("▶️", callback_data=f"catalog:{filter_mode}:{page + 1}"))
         else:
             nav_row.append(InlineKeyboardButton("⏺️", callback_data="noop"))
         
@@ -91,17 +86,17 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
     # 3. Fila de controles (Actualizar y Cambiar Filtro)
     current_idx = FILTER_ROTATION.index(filter_mode) if filter_mode in FILTER_ROTATION else 0
     next_filter = FILTER_ROTATION[(current_idx + 1) % len(FILTER_ROTATION)]
-    next_filter_name = FILTER_NAMES[next_filter]
+    next_filter_name = t(FILTER_KEYS.get(next_filter, "catalog_title_disponibles"), lang)
 
     buttons.append([
-        InlineKeyboardButton("🔄 Actualizar", callback_data=f"catalog_refresh:{filter_mode}:{page}"),
-        InlineKeyboardButton(f"Cambiar a: {next_filter_name}", callback_data=f"catalog:{next_filter}:1")
+        InlineKeyboardButton(t("btn_refresh", lang), callback_data=f"catalog_refresh:{filter_mode}:{page}"),
+        InlineKeyboardButton(f"{t('btn_change_to', lang)}: {next_filter_name}", callback_data=f"catalog:{next_filter}:1")
     ])
 
     # 4. Buscador y Volver
     buttons.append([
-        InlineKeyboardButton("🔍 Buscar Servicio", callback_data="catalog:search_prompt"),
-        InlineKeyboardButton("Volver", callback_data="menu_main")
+        InlineKeyboardButton(t("btn_search_service", lang), callback_data="catalog:search_prompt"),
+        InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")
     ])
 
     return InlineKeyboardMarkup(buttons)
@@ -115,9 +110,10 @@ def build_product_calculator_keyboard(
     has_stock: bool,
     is_alert_active: bool,
     total_price: float,
-    bot_username: str
+    bot_username: str,
+    lang: str = "es"
 ) -> InlineKeyboardMarkup:
-    """Construye el teclado numérico interactivo con soporte para alerta de restock"""
+    """Construye el teclado numérico interactivo traducido"""
     buttons = []
 
     # Fila 1: Cantidad actual y botón Del
@@ -148,33 +144,32 @@ def build_product_calculator_keyboard(
     if has_stock:
         if qty > 0 and can_buy:
             buttons.append([
-                InlineKeyboardButton(f"🛒 Comprar {qty} (${total_price:.2f} USDT)", callback_data=f"checkout:confirm:{product_id}:{qty}")
+                InlineKeyboardButton(t("btn_buy_qty", lang, qty=qty, total=f"{total_price:.2f}"), callback_data=f"checkout:confirm:{product_id}:{qty}")
             ])
         else:
             buttons.append([
-                InlineKeyboardButton("⊞ Recargar Saldo", callback_data="wallet:deposit_menu")
+                InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet:deposit_menu")
             ])
     else:
-        # Si está agotado: Opción de activar/desactivar alerta automática de restock
         if is_alert_active:
             buttons.append([
-                InlineKeyboardButton("🔕 Alerta Activa (Toca para Cancelar)", callback_data=f"stock_alert:unsub:{product_id}:{filter_mode}:{page}:{qty}")
+                InlineKeyboardButton(t("btn_cancel_stock_alert", lang), callback_data=f"stock_alert:unsub:{product_id}:{filter_mode}:{page}:{qty}")
             ])
         else:
             buttons.append([
-                InlineKeyboardButton("🔔 Avisarme cuando haya stock", callback_data=f"stock_alert:sub:{product_id}:{filter_mode}:{page}:{qty}")
+                InlineKeyboardButton(t("btn_notify_stock", lang), callback_data=f"stock_alert:sub:{product_id}:{filter_mode}:{page}:{qty}")
             ])
 
     # Fila 5: Compartir Enlace y Ver Nota
-    share_url = f"https://t.me/share/url?url=https://t.me/{bot_username}&text=Mira%20este%20servicio%20disponible!"
+    share_url = f"https://t.me/share/url?url=https://t.me/{bot_username}&text=Check%20out%20this%20service!"
     buttons.append([
-        InlineKeyboardButton("🔗 Compartir Enlace 📋", url=share_url),
-        InlineKeyboardButton("📝 Ver Nota", callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{qty}")
+        InlineKeyboardButton(t("btn_share_link", lang), url=share_url),
+        InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{qty}")
     ])
 
     # Fila 6: Botón Volver
     buttons.append([
-        InlineKeyboardButton("Volver", callback_data=f"catalog:{filter_mode}:{page}")
+        InlineKeyboardButton(t("btn_back", lang), callback_data=f"catalog:{filter_mode}:{page}")
     ])
 
     return InlineKeyboardMarkup(buttons)
@@ -192,40 +187,48 @@ def register_catalog_handlers(app: Client):
         page = int(callback.matches[0].group(2))
 
         async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
             products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=False)
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
-            filter_title = FILTER_NAMES.get(filter_mode, "Disponibles")
-            header_text = f"<b>Productos {filter_title}:</b>\n"
+            filter_title = t(FILTER_KEYS.get(filter_mode, "catalog_title_disponibles"), lang)
+            header_text = f"<b>{filter_title}:</b>\n"
 
             if not items_page:
-                header_text += "\n<i>No hay productos en esta categoría por el momento.</i>"
+                header_text += f"\n<i>{t('catalog_empty', lang)}</i>"
 
-            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, filter_mode)
+            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, filter_mode, lang)
             await render_screen(client, callback, header_text, keyboard)
 
     @app.on_callback_query(filters.regex(r"^catalog_refresh:([a-z_]+):(\d+)$"))
     async def cb_catalog_refresh(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
-            await callback.answer("⏳ Actualizando...")
+            await callback.answer("⏳ ...")
             return
 
-        await callback.answer("🔄 Sincronizando catálogo en tiempo real...")
+        await callback.answer("🔄 Sincronizando...")
         filter_mode = callback.matches[0].group(1)
         page = int(callback.matches[0].group(2))
 
         async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
             products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=True)
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
-            filter_title = FILTER_NAMES.get(filter_mode, "Disponibles")
-            header_text = f"<b>Productos {filter_title}:</b>\n"
+            filter_title = t(FILTER_KEYS.get(filter_mode, "catalog_title_disponibles"), lang)
+            header_text = f"<b>{filter_title}:</b>\n"
 
             if not items_page:
-                header_text += "\n<i>No hay productos en esta categoría por el momento.</i>"
+                header_text += f"\n<i>{t('catalog_empty', lang)}</i>"
 
-            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, filter_mode)
+            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, filter_mode, lang)
             await render_screen(client, callback, header_text, keyboard)
 
     @app.on_callback_query(filters.regex("^catalog:search_prompt$"))
@@ -233,14 +236,14 @@ def register_catalog_handlers(app: Client):
         user_id = callback.from_user.id
         SEARCH_STATES[user_id] = True
 
-        text = (
-            "🔍 <b>BUSCADOR DE SERVICIOS</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            "Escribe el nombre del servicio que buscas (ejemplo: <code>Gemini</code>, <code>Netflix</code>, <code>Office</code>, <code>ChatGPT</code>).\n\n"
-            "<i>O escribe <code>/buscar nombre</code> en cualquier momento.</i>"
-        )
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
+        text = t("search_prompt_title", lang)
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Volver", callback_data="catalog:disponibles:1")]
+            [InlineKeyboardButton(t("btn_back", lang), callback_data="catalog:disponibles:1")]
         ])
         await render_screen(client, callback, text, keyboard)
 
@@ -252,14 +255,19 @@ def register_catalog_handlers(app: Client):
         except Exception:
             pass
 
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
         if len(message.command) < 2:
-            text = "🔍 Por favor escribe el nombre a buscar (ej: <code>/buscar netflix</code> o <code>/buscar gemini</code>)."
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="catalog:disponibles:1")]])
+            text = t("search_prompt_title", lang)
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="catalog:disponibles:1")]])
             await render_screen(client, user_id, text, keyboard)
             return
 
         query = " ".join(message.command[1:]).lower()
-        await execute_search(client, user_id, query)
+        await execute_search(client, user_id, query, lang)
 
     @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar"]))
     async def handle_search_text(client: Client, message: Message):
@@ -270,34 +278,36 @@ def register_catalog_handlers(app: Client):
             except Exception:
                 pass
             query = message.text.strip().lower()
-            await execute_search(client, user_id, query)
 
-    async def execute_search(client: Client, user_id: int, query: str):
+            async with async_session() as session:
+                user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+                user = user_res.scalar_one_or_none()
+                lang = user.language if user else "es"
+
+            await execute_search(client, user_id, query, lang)
+
+    async def execute_search(client: Client, user_id: int, query: str, lang: str):
         async with async_session() as session:
             products = await pricing_service.get_processed_catalog(session, filter_mode="todos", force_refresh=False)
             results = [p for p in products if query in p["name"].lower() or query in p["product_id"].lower()]
 
             if not results:
-                text = (
-                    f"🔍 <b>Resultados de búsqueda para:</b> <i>'{query}'</i>\n"
-                    "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                    "❌ No se encontraron productos con ese nombre."
-                )
+                text = t("search_no_results", lang, query=query)
                 keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("🛒 Volver al Catálogo", callback_data="catalog:disponibles:1")],
-                    [InlineKeyboardButton("Volver", callback_data="menu_main")]
+                    [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
+                    [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
                 ])
                 await render_screen(client, user_id, text, keyboard)
                 return
 
             items_page, total_pages, current_page = pricing_service.paginate(results, page=1, page_size=PAGE_SIZE)
-            text = f"🔍 <b>Resultados para:</b> <i>'{query}'</i> ({len(results)} encontrados):\n"
-            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, "todos")
+            text = t("search_results_title", lang, query=query, count=len(results)) + "\n"
+            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, "todos", lang)
             await render_screen(client, user_id, text, keyboard)
 
     @app.on_callback_query(filters.regex(r"^product:view:([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))
     async def cb_product_view(client: Client, callback: CallbackQuery):
-        """Muestra la vista del producto con calculadora interactiva y garantías al 50%"""
+        """Muestra la vista del producto con calculadora interactiva y garantías traducidas"""
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
             await callback.answer()
@@ -313,13 +323,14 @@ def register_catalog_handlers(app: Client):
         async with async_session() as session:
             p_data = await bunai_api.get_product(product_id)
             if not p_data:
-                await callback.answer("❌ El producto no se encuentra disponible.", show_alert=True)
+                await callback.answer("❌ No disponible / Not available", show_alert=True)
                 return
 
             user_stmt = select(User).where(User.telegram_id == user_id)
             u_res = await session.execute(user_stmt)
             user = u_res.scalar_one_or_none()
             user_balance = float(user.balance) if user else 0.0
+            lang = user.language if user else "es"
 
             # Verificar si el usuario tiene alerta activa
             alert_stmt = select(StockAlert).where(
@@ -342,8 +353,14 @@ def register_catalog_handlers(app: Client):
             has_promo = bool(p_data.get("has_promo", False))
             has_stock = infinite_stock or stock_count > 0
 
-            stock_display = "Ilimitado (∞)" if infinite_stock else (f"{stock_count}" if stock_count > 0 else "0 (Agotado)")
-            warranty_display = "Sin Garantía" if adjusted_warranty == 0 else (f"{adjusted_warranty // 24} Días" if adjusted_warranty >= 24 and adjusted_warranty % 24 == 0 else f"{adjusted_warranty} Horas")
+            stock_display = t("stock_unlimited", lang) if infinite_stock else (f"{stock_count}" if stock_count > 0 else f"0 ({t('stock_out', lang)})")
+            
+            if adjusted_warranty == 0:
+                warranty_display = t("no_warranty", lang)
+            elif adjusted_warranty >= 24 and adjusted_warranty % 24 == 0:
+                warranty_display = t("warranty_days", lang, days=adjusted_warranty // 24)
+            else:
+                warranty_display = t("warranty_hours", lang, hours=adjusted_warranty)
 
             offer_line = ""
             discount_pct = 0.0
@@ -351,12 +368,12 @@ def register_catalog_handlers(app: Client):
                 promo_tiers = p_data.get("promo_tiers")
                 if isinstance(promo_tiers, list) and len(promo_tiers) > 0:
                     tier = promo_tiers[0]
-                    offer_line = f"\n\n🎁 <b>Oferta: Compra {tier.get('qty', 100)}+ ➔ -{tier.get('discount', 5.0)}% Desc</b>"
+                    offer_line = f"\n\n{t('promo_offer_text', lang, qty=tier.get('qty', 100), discount=tier.get('discount', 5.0))}"
                     if qty >= tier.get("qty", 100):
                         discount_pct = float(tier.get("discount", 5.0))
                 elif isinstance(promo_tiers, dict) and len(promo_tiers) > 0:
                     first_min = next(iter(promo_tiers))
-                    offer_line = f"\n\n🎁 <b>Oferta: Compra {first_min}+ ➔ -{promo_tiers[first_min]}% Desc</b>"
+                    offer_line = f"\n\n{t('promo_offer_text', lang, qty=first_min, discount=promo_tiers[first_min])}"
 
             calc_qty = max(1, qty) if qty > 0 else 0
             subtotal = calc_qty * unit_price
@@ -367,14 +384,14 @@ def register_catalog_handlers(app: Client):
             can_buy = (user_balance >= total_price) and (infinite_stock or stock_count >= qty)
 
             text = (
-                f"{icon} <b>Producto:</b> {name}\n"
-                f"🏷️ <b>Precio Base:</b> {unit_price:.2f} USDT\n"
-                f"🎲 <b>Stock Disponible:</b> {stock_display}\n"
-                f"⭐ <b>Garantía:</b> {warranty_display}"
+                f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
+                f"🏷️ <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT\n"
+                f"🎲 <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
+                f"⭐ <b>{t('warranty_label', lang)}:</b> {warranty_display}"
                 f"{offer_line}\n\n"
-                f"🧮 <b>Cant. Seleccionada:</b> {qty}\n"
-                f"👛 <b>Monto Total:</b> {total_price:.2f} USDT\n"
-                f"👛 <b>Saldo:</b> {user_balance:.2f} USDT"
+                f"🧮 <b>{t('selected_qty', lang)}:</b> {qty}\n"
+                f"👛 <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT\n"
+                f"👛 <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
             )
 
             keyboard = build_product_calculator_keyboard(
@@ -386,7 +403,8 @@ def register_catalog_handlers(app: Client):
                 has_stock=has_stock,
                 is_alert_active=is_alert_active,
                 total_price=total_price,
-                bot_username=bot_info.username
+                bot_username=bot_info.username,
+                lang=lang
             )
 
             await render_screen(client, callback, text, keyboard)
@@ -405,6 +423,10 @@ def register_catalog_handlers(app: Client):
         product_name = p_data.get("display_name") or p_data.get("name") or "Servicio Digital" if p_data else "Servicio Digital"
 
         async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
             stmt = select(StockAlert).where(
                 StockAlert.user_id == user_id,
                 StockAlert.product_id == product_id,
@@ -423,14 +445,13 @@ def register_catalog_handlers(app: Client):
                     )
                     session.add(new_alert)
                     await session.commit()
-                await callback.answer("🔔 ¡Alerta activada! Te enviaremos un mensaje privado automático cuando haya stock.", show_alert=True)
+                await callback.answer(t("alert_activated", lang), show_alert=True)
             else:
                 if existing:
                     existing.is_active = False
                     await session.commit()
-                await callback.answer("🔕 Alerta de stock cancelada.", show_alert=True)
+                await callback.answer(t("alert_cancelled", lang), show_alert=True)
 
-        # Re-renderizar vista de producto
         await cb_product_view(client, callback)
 
     @app.on_callback_query(filters.regex(r"^pqty:([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+):([0-9]|del)$"))
@@ -459,13 +480,14 @@ def register_catalog_handlers(app: Client):
         async with async_session() as session:
             p_data = await bunai_api.get_product(product_id)
             if not p_data:
-                await callback.answer("❌ El producto no se encuentra disponible.", show_alert=True)
+                await callback.answer("❌ No disponible", show_alert=True)
                 return
 
             user_stmt = select(User).where(User.telegram_id == callback.from_user.id)
             u_res = await session.execute(user_stmt)
             user = u_res.scalar_one_or_none()
             user_balance = float(user.balance) if user else 0.0
+            lang = user.language if user else "es"
 
             alert_stmt = select(StockAlert).where(
                 StockAlert.user_id == callback.from_user.id,
@@ -487,8 +509,14 @@ def register_catalog_handlers(app: Client):
             has_promo = bool(p_data.get("has_promo", False))
             has_stock = infinite_stock or stock_count > 0
 
-            stock_display = "Ilimitado (∞)" if infinite_stock else (f"{stock_count}" if stock_count > 0 else "0 (Agotado)")
-            warranty_display = "Sin Garantía" if adjusted_warranty == 0 else (f"{adjusted_warranty // 24} Días" if adjusted_warranty >= 24 and adjusted_warranty % 24 == 0 else f"{adjusted_warranty} Horas")
+            stock_display = t("stock_unlimited", lang) if infinite_stock else (f"{stock_count}" if stock_count > 0 else f"0 ({t('stock_out', lang)})")
+            
+            if adjusted_warranty == 0:
+                warranty_display = t("no_warranty", lang)
+            elif adjusted_warranty >= 24 and adjusted_warranty % 24 == 0:
+                warranty_display = t("warranty_days", lang, days=adjusted_warranty // 24)
+            else:
+                warranty_display = t("warranty_hours", lang, hours=adjusted_warranty)
 
             offer_line = ""
             discount_pct = 0.0
@@ -496,12 +524,12 @@ def register_catalog_handlers(app: Client):
                 promo_tiers = p_data.get("promo_tiers")
                 if isinstance(promo_tiers, list) and len(promo_tiers) > 0:
                     tier = promo_tiers[0]
-                    offer_line = f"\n\n🎁 <b>Oferta: Compra {tier.get('qty', 100)}+ ➔ -{tier.get('discount', 5.0)}% Desc</b>"
+                    offer_line = f"\n\n{t('promo_offer_text', lang, qty=tier.get('qty', 100), discount=tier.get('discount', 5.0))}"
                     if new_qty >= tier.get("qty", 100):
                         discount_pct = float(tier.get("discount", 5.0))
                 elif isinstance(promo_tiers, dict) and len(promo_tiers) > 0:
                     first_min = next(iter(promo_tiers))
-                    offer_line = f"\n\n🎁 <b>Oferta: Compra {first_min}+ ➔ -{promo_tiers[first_min]}% Desc</b>"
+                    offer_line = f"\n\n{t('promo_offer_text', lang, qty=first_min, discount=promo_tiers[first_min])}"
 
             calc_qty = max(1, new_qty) if new_qty > 0 else 0
             subtotal = calc_qty * unit_price
@@ -512,14 +540,14 @@ def register_catalog_handlers(app: Client):
             can_buy = (user_balance >= total_price) and (infinite_stock or stock_count >= new_qty)
 
             text = (
-                f"{icon} <b>Producto:</b> {name}\n"
-                f"🏷️ <b>Precio Base:</b> {unit_price:.2f} USDT\n"
-                f"🎲 <b>Stock Disponible:</b> {stock_display}\n"
-                f"⭐ <b>Garantía:</b> {warranty_display}"
+                f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
+                f"🏷️ <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT\n"
+                f"🎲 <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
+                f"⭐ <b>{t('warranty_label', lang)}:</b> {warranty_display}"
                 f"{offer_line}\n\n"
-                f"🧮 <b>Cant. Seleccionada:</b> {new_qty}\n"
-                f"👛 <b>Monto Total:</b> {total_price:.2f} USDT\n"
-                f"👛 <b>Saldo:</b> {user_balance:.2f} USDT"
+                f"🧮 <b>{t('selected_qty', lang)}:</b> {new_qty}\n"
+                f"👛 <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT\n"
+                f"👛 <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
             )
 
             keyboard = build_product_calculator_keyboard(
@@ -531,31 +559,38 @@ def register_catalog_handlers(app: Client):
                 has_stock=has_stock,
                 is_alert_active=is_alert_active,
                 total_price=total_price,
-                bot_username=bot_info.username
+                bot_username=bot_info.username,
+                lang=lang
             )
 
             await render_screen(client, callback, text, keyboard)
 
     @app.on_callback_query(filters.regex(r"^pnote:([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))
     async def cb_product_note(client: Client, callback: CallbackQuery):
-        """Muestra la Nota del Admin (Foto 3) con bloque blockquote y botón Atrás"""
+        """Muestra la Nota del Admin traducida"""
         product_id = callback.matches[0].group(1)
         filter_mode = callback.matches[0].group(2)
         page = int(callback.matches[0].group(3))
         qty = int(callback.matches[0].group(4))
+        user_id = callback.from_user.id
+
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
 
         p_data = await bunai_api.get_product(product_id)
         note = p_data.get("note") if p_data else ""
         if not note:
-            note = "No hay notas o términos adicionales configurados para este producto."
+            note = t("no_admin_note", lang)
 
         text = (
-            f"📝 <b>Nota del Admin:</b>\n\n"
+            f"{t('admin_note_title', lang)}\n\n"
             f"<blockquote>{note}</blockquote>"
         )
 
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Atrás", callback_data=f"product:view:{product_id}:{filter_mode}:{page}:{qty}")]
+            [InlineKeyboardButton(t("btn_back", lang), callback_data=f"product:view:{product_id}:{filter_mode}:{page}:{qty}")]
         ])
 
         await render_screen(client, callback, text, keyboard)

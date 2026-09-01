@@ -14,11 +14,12 @@ from bot.services.audit_logger import audit_logger
 from bot.services.qr_generator import get_wallet_qr_media
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
+from bot.utils.i18n import t
 
 USER_STATES: Dict[int, Dict[str, Any]] = {}
 
-def get_deposit_menu_keyboard() -> InlineKeyboardMarkup:
-    """Botonera con montos rápidos de recarga (mínimo 2 USDT)"""
+def get_deposit_menu_keyboard(lang: str = "es") -> InlineKeyboardMarkup:
+    """Botonera con montos rápidos de recarga traducida"""
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("💵 2 USDT", callback_data="deposit:amount:2"),
@@ -30,33 +31,33 @@ def get_deposit_menu_keyboard() -> InlineKeyboardMarkup:
             InlineKeyboardButton("💵 50 USDT", callback_data="deposit:amount:50")
         ],
         [
-            InlineKeyboardButton("✍️ Ingresar Otro Monto", callback_data="deposit:custom")
+            InlineKeyboardButton(t("btn_custom_amount", lang), callback_data="deposit:custom")
         ],
         [
-            InlineKeyboardButton("Volver", callback_data="menu_main")
+            InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")
         ]
     ])
 
-def get_invoice_keyboard(deposit_id: int) -> InlineKeyboardMarkup:
-    """Botonera de la pantalla de pago con botón para ver QR y enviar TxID"""
+def get_invoice_keyboard(deposit_id: int, lang: str = "es") -> InlineKeyboardMarkup:
+    """Botonera de la pantalla de pago traducida"""
     return InlineKeyboardMarkup([
         [
-            InlineKeyboardButton("📱 Ver Código QR", callback_data=f"deposit:show_qr:{deposit_id}")
+            InlineKeyboardButton(t("btn_show_qr", lang), callback_data=f"deposit:show_qr:{deposit_id}")
         ],
         [
-            InlineKeyboardButton("🔗 Ingresar Hash / TxID", callback_data=f"deposit:submit_hash:{deposit_id}")
+            InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")
         ],
         [
-            InlineKeyboardButton("🔄 Verificar Pago", callback_data=f"deposit:submit_hash:{deposit_id}")
+            InlineKeyboardButton(t("btn_verify_payment", lang), callback_data=f"deposit:submit_hash:{deposit_id}")
         ],
         [
-            InlineKeyboardButton("❌ Cancelar Solicitud", callback_data=f"deposit:cancel:{deposit_id}"),
-            InlineKeyboardButton("Volver", callback_data="menu_main")
+            InlineKeyboardButton(t("btn_cancel_request", lang), callback_data=f"deposit:cancel:{deposit_id}"),
+            InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")
         ]
     ])
 
-async def create_deposit_invoice(client: Client, user_id: int, username: str, first_name: str, base_amount: float, target) -> None:
-    """Crea la solicitud de depósito con fracción decimal única y renderiza la pantalla de pago"""
+async def create_deposit_invoice(client: Client, user_id: int, username: str, first_name: str, base_amount: float, target, lang: str = "es") -> None:
+    """Crea la solicitud de depósito con fracción decimal única y renderiza la pantalla de pago traducida"""
     async with async_session() as session:
         now = datetime.utcnow()
         expires_at = now + timedelta(minutes=30)
@@ -98,21 +99,15 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
         exact_amount=float(exact_dec)
     )
 
-    # Renderizar pantalla de pago (solo texto, sin foto para mantener el diseño limpio)
-    invoice_text = (
-        f"💳 <b>SOLICITUD DE RECARGA USDT (BEP-20)</b>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"⚠️ <b>IMPORTANTE:</b> Envía <b>EXACTAMENTE</b> la cantidad indicada a continuación para que la acreditación sea automática.\n\n"
-        f"🎯 <b>Monto Exacto a Enviar:</b>\n"
-        f"<code>{exact_val:.4f}</code> USDT\n\n"
-        f"📬 <b>Dirección de Billetera (BNB Smart Chain / BEP-20):</b>\n"
-        f"<code>{settings.ADMIN_WALLET_BSC}</code>\n\n"
-        f"⏳ <b>Tiempo Límite:</b> <code>30 minutos</code>\n"
-        f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-        f"<i>Pulsa '📱 Ver Código QR' para escanear desde tu app o realiza la transferencia y luego pulsa 'Ingresar Hash / TxID'.</i>"
+    # Renderizar pantalla de pago traducida
+    invoice_text = t(
+        "invoice_title",
+        lang,
+        exact_val=exact_val,
+        wallet=settings.ADMIN_WALLET_BSC
     )
 
-    await render_screen(client, target, invoice_text, get_invoice_keyboard(deposit_id))
+    await render_screen(client, target, invoice_text, get_invoice_keyboard(deposit_id, lang))
 
 def register_wallet_handlers(app: Client):
 
@@ -128,29 +123,30 @@ def register_wallet_handlers(app: Client):
             res = await session.execute(stmt)
             user = res.scalar_one_or_none()
             balance = float(user.balance) if user else 0.0
+            lang = user.language if user else "es"
 
-        text = (
-            f"💳 <b>BILLETERA & DEPÓSITOS USDT</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"💰 <b>Saldo Actual:</b> <code>${balance:.4f} USDT</code>\n"
-            f"🌐 <b>Red Aceptada:</b> <code>BNB Smart Chain (BEP-20)</code>\n"
-            f"🔒 <b>Depósito Mínimo:</b> <code>${settings.MIN_DEPOSIT_USDT:.2f} USDT</code>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Selecciona el monto que deseas recargar o pulsa 'Ingresar Otro Monto':</i>"
-        )
-        await render_screen(client, callback, text, get_deposit_menu_keyboard())
+        text = t("wallet_title", lang, balance=balance, min_dep=settings.MIN_DEPOSIT_USDT)
+        await render_screen(client, callback, text, get_deposit_menu_keyboard(lang))
 
     @app.on_callback_query(filters.regex(r"^deposit:amount:(\d+)$"))
     async def cb_deposit_fixed(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
         amount = float(callback.matches[0].group(1))
+
+        async with async_session() as session:
+            stmt = select(User).where(User.telegram_id == user_id)
+            res = await session.execute(stmt)
+            user = res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
         await create_deposit_invoice(
             client=client,
             user_id=user_id,
             username=callback.from_user.username or "",
             first_name=callback.from_user.first_name or "Usuario",
             base_amount=amount,
-            target=callback
+            target=callback,
+            lang=lang
         )
 
     @app.on_callback_query(filters.regex("^deposit:custom$"))
@@ -158,15 +154,15 @@ def register_wallet_handlers(app: Client):
         user_id = callback.from_user.id
         USER_STATES[user_id] = {"action": "waiting_amount"}
 
-        text = (
-            f"✍️ <b>INGRESA EL MONTO A DEPOSITAR</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Escribe la cantidad de USDT que deseas recargar en tu cuenta.\n\n"
-            f"⚠️ <b>Monto Mínimo:</b> <code>{settings.MIN_DEPOSIT_USDT:.2f} USDT</code>\n\n"
-            f"<i>Ejemplo: Envía un mensaje escribiendo <code>15</code> o <code>25.5</code></i>"
-        )
+        async with async_session() as session:
+            stmt = select(User).where(User.telegram_id == user_id)
+            res = await session.execute(stmt)
+            user = res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
+        text = t("custom_amount_prompt", lang, min_dep=settings.MIN_DEPOSIT_USDT)
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Volver", callback_data="wallet:deposit_menu")]
+            [InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]
         ])
         await render_screen(client, callback, text, keyboard)
 
@@ -181,25 +177,28 @@ def register_wallet_handlers(app: Client):
             res = await session.execute(stmt)
             deposit = res.scalar_one_or_none()
 
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
             if not deposit:
-                await callback.answer("❌ Solicitud no encontrada.", show_alert=True)
+                await callback.answer("❌ Error", show_alert=True)
                 return
 
             exact_val = float(deposit.exact_amount)
 
         qr_media = get_wallet_qr_media()
 
-        caption = (
-            f"📱 <b>CÓDIGO QR DE PAGO BSC (BEP-20)</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"🎯 <b>Monto a transferir:</b> <code>{exact_val:.4f}</code> USDT\n"
-            f"📬 <b>Billetera:</b> <code>{settings.ADMIN_WALLET_BSC}</code>\n\n"
-            f"<i>Escanea este código directamente desde Trust Wallet, Binance o MetaMask.</i>"
+        caption = t(
+            "qr_caption",
+            lang,
+            exact_val=exact_val,
+            wallet=settings.ADMIN_WALLET_BSC
         )
 
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔗 Ingresar Hash / TxID", callback_data=f"deposit:submit_hash:{deposit_id}")],
-            [InlineKeyboardButton("🔙 Volver a la Solicitud", callback_data=f"deposit:view_inv:{deposit_id}")]
+            [InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")],
+            [InlineKeyboardButton(t("btn_back_to_invoice", lang), callback_data=f"deposit:view_inv:{deposit_id}")]
         ])
 
         try:
@@ -210,9 +209,9 @@ def register_wallet_handlers(app: Client):
                 parse_mode=ParseMode.HTML,
                 reply_markup=keyboard
             )
-            await callback.answer("✅ Código QR abierto.")
+            await callback.answer("✅ QR OK")
         except Exception as e:
-            await callback.answer(f"Error al cargar QR: {e}", show_alert=True)
+            await callback.answer(f"Error: {e}", show_alert=True)
 
     @app.on_callback_query(filters.regex(r"^deposit:view_inv:(\d+)$"))
     async def cb_view_invoice(client: Client, callback: CallbackQuery):
@@ -224,26 +223,24 @@ def register_wallet_handlers(app: Client):
             res = await session.execute(stmt)
             deposit = res.scalar_one_or_none()
 
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
             if not deposit or deposit.status != DepositStatus.PENDING:
                 await cb_deposit_menu(client, callback)
                 return
 
             exact_val = float(deposit.exact_amount)
 
-        invoice_text = (
-            f"💳 <b>SOLICITUD DE RECARGA USDT (BEP-20)</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"⚠️ <b>IMPORTANTE:</b> Envía <b>EXACTAMENTE</b> la cantidad indicada a continuación para que la acreditación sea automática.\n\n"
-            f"🎯 <b>Monto Exacto a Enviar:</b>\n"
-            f"<code>{exact_val:.4f}</code> USDT\n\n"
-            f"📬 <b>Dirección de Billetera (BNB Smart Chain / BEP-20):</b>\n"
-            f"<code>{settings.ADMIN_WALLET_BSC}</code>\n\n"
-            f"⏳ <b>Tiempo Límite:</b> <code>30 minutos</code>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"<i>Pulsa '📱 Ver Código QR' para escanear desde tu app o realiza la transferencia y luego pulsa 'Ingresar Hash / TxID'.</i>"
+        invoice_text = t(
+            "invoice_title",
+            lang,
+            exact_val=exact_val,
+            wallet=settings.ADMIN_WALLET_BSC
         )
 
-        await render_screen(client, callback, invoice_text, get_invoice_keyboard(deposit_id))
+        await render_screen(client, callback, invoice_text, get_invoice_keyboard(deposit_id, lang))
 
     @app.on_callback_query(filters.regex(r"^deposit:submit_hash:(\d+)$"))
     async def cb_submit_hash(client: Client, callback: CallbackQuery):
@@ -255,20 +252,20 @@ def register_wallet_handlers(app: Client):
             "deposit_id": deposit_id
         }
 
-        text = (
-            f"🔗 <b>ENVÍA EL HASH / TXID DE LA TRANSACCIÓN</b>\n"
-            f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"Pega a continuación el Hash (TxID) de la transferencia realizada desde tu billetera (Trust Wallet, Binance, MetaMask, etc).\n\n"
-            f"<i>Ejemplo: <code>0x4a8c9b...</code></i>"
-        )
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
+        text = t("submit_hash_prompt", lang)
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Volver", callback_data=f"deposit:view_inv:{deposit_id}")]
+            [InlineKeyboardButton(t("btn_back", lang), callback_data=f"deposit:view_inv:{deposit_id}")]
         ])
         await render_screen(client, callback, text, keyboard)
 
     @app.on_callback_query(filters.regex(r"^deposit:cancel:(\d+)$"))
     async def cb_deposit_cancel(client: Client, callback: CallbackQuery):
-        """Cancela la solicitud de depósito, notifica en el canal de logs y edita la pantalla del usuario"""
+        """Cancela la solicitud de depósito, notifica en logs y edita la pantalla del usuario en su idioma"""
         user_id = callback.from_user.id
         deposit_id = int(callback.matches[0].group(1))
         USER_STATES.pop(user_id, None)
@@ -278,12 +275,17 @@ def register_wallet_handlers(app: Client):
             stmt = select(Deposit).where(Deposit.id == deposit_id, Deposit.user_id == user_id)
             res = await session.execute(stmt)
             dep = res.scalar_one_or_none()
+
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
+
             if dep and dep.status == DepositStatus.PENDING:
                 dep.status = DepositStatus.EXPIRED
                 amount_cancelled = float(dep.exact_amount)
                 await session.commit()
 
-        # 1. Notificar en el canal de auditoría / log group
+        # Notificar al canal de logs
         username_str = f"@{callback.from_user.username}" if callback.from_user.username else callback.from_user.first_name
         await audit_logger.log_system_alert(
             client=client,
@@ -295,19 +297,13 @@ def register_wallet_handlers(app: Client):
             )
         )
 
-        # 2. Editar el mensaje en el chat del usuario a estado cancelado
-        cancel_text = (
-            "❌ <b>SOLICITUD DE RECARGA CANCELADA</b>\n"
-            "━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-            f"La solicitud por <b>${amount_cancelled:.4f} USDT</b> ha sido cancelada correctamente.\n\n"
-            "<i>Puedes generar una nueva solicitud cuando desees.</i>"
-        )
+        cancel_text = t("deposit_cancelled_screen", lang, amount=amount_cancelled)
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("💳 Nueva Recarga", callback_data="wallet:deposit_menu")],
-            [InlineKeyboardButton("🔙 Menú Principal", callback_data="menu_main")]
+            [InlineKeyboardButton(t("btn_new_deposit", lang), callback_data="wallet:deposit_menu")],
+            [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
         ])
 
-        await callback.answer("Solicitud cancelada.")
+        await callback.answer()
         await render_screen(client, callback, cancel_text, keyboard)
 
     @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar"]))
@@ -317,11 +313,15 @@ def register_wallet_handlers(app: Client):
         if not state:
             return
 
-        # Borrar el mensaje de texto del usuario para mantener la pantalla única limpia
         try:
             await message.delete()
         except Exception:
             pass
+
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = user.language if user else "es"
 
         action = state.get("action")
 
@@ -331,20 +331,14 @@ def register_wallet_handlers(app: Client):
             try:
                 amount = float(text_val)
             except ValueError:
-                err_text = (
-                    "❌ Por favor ingresa un número válido (ejemplo: <code>5</code> o <code>12.5</code>).\n\n"
-                    f"⚠️ <b>Monto Mínimo:</b> <code>{settings.MIN_DEPOSIT_USDT:.2f} USDT</code>"
-                )
-                kb = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="wallet:deposit_menu")]])
+                err_text = f"❌ Error. {t('custom_amount_prompt', lang, min_dep=settings.MIN_DEPOSIT_USDT)}"
+                kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
                 await render_screen(client, user_id, err_text, kb)
                 return
 
             if amount < settings.MIN_DEPOSIT_USDT:
-                err_text = (
-                    f"⚠️ El monto mínimo de recarga es de <b>${settings.MIN_DEPOSIT_USDT:.2f} USDT</b>.\n"
-                    "Por favor ingresa un monto mayor:"
-                )
-                kb = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="wallet:deposit_menu")]])
+                err_text = f"⚠️ {t('custom_amount_prompt', lang, min_dep=settings.MIN_DEPOSIT_USDT)}"
+                kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
                 await render_screen(client, user_id, err_text, kb)
                 return
 
@@ -355,7 +349,8 @@ def register_wallet_handlers(app: Client):
                 username=message.from_user.username or "",
                 first_name=message.from_user.first_name or "Usuario",
                 base_amount=amount,
-                target=user_id
+                target=user_id,
+                lang=lang
             )
 
         # 2. Esperando TxHash
@@ -367,49 +362,45 @@ def register_wallet_handlers(app: Client):
             await render_screen(
                 client,
                 user_id,
-                "⏳ <b>Verificando transacción en la blockchain BSC...</b>\n<i>Consultando nodos de red y confirmaciones.</i>",
+                t("verifying_tx", lang),
                 None
             )
 
             async with async_session() as session:
-                # Bloqueo atómico a nivel de fila (Anti Race-Condition)
                 stmt = select(Deposit).where(Deposit.id == deposit_id, Deposit.user_id == user_id).with_for_update()
                 res = await session.execute(stmt)
                 deposit = res.scalar_one_or_none()
 
                 if not deposit or deposit.status != DepositStatus.PENDING:
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="wallet:deposit_menu")]])
-                    await render_screen(client, user_id, "❌ Esta solicitud de depósito ya expiró o fue procesada.", kb)
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
+                    await render_screen(client, user_id, "❌ Error / Expired", kb)
                     return
 
                 if datetime.utcnow() > deposit.expires_at:
                     deposit.status = DepositStatus.EXPIRED
                     await session.commit()
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="wallet:deposit_menu")]])
-                    await render_screen(client, user_id, "❌ El tiempo límite de 30 minutos para este depósito ha expirado. Genera una nueva solicitud.", kb)
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
+                    await render_screen(client, user_id, "❌ Time Expired", kb)
                     return
 
-                # Comprobar si el hash ya fue usado antes (Anti-Replay Attack)
                 dup_stmt = select(Deposit).where(Deposit.tx_hash == tx_hash, Deposit.status == DepositStatus.CONFIRMED).with_for_update()
                 dup_res = await session.execute(dup_stmt)
                 if dup_res.scalar_one_or_none():
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton("Volver", callback_data="wallet:deposit_menu")]])
-                    await render_screen(client, user_id, "❌ <b>Este Hash de transacción ya fue reclamado y acreditado previamente.</b>", kb)
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
+                    await render_screen(client, user_id, "❌ Hash already claimed.", kb)
                     return
 
-                # Validar On-Chain con Multi-RPC y Confirmaciones
                 val_res = await bsc_validator.verify_deposit(tx_hash, float(deposit.exact_amount))
 
                 if not val_res.get("success"):
-                    err_msg = val_res.get("error", "Transacción inválida")
+                    err_msg = val_res.get("error", "Invalid Tx")
                     retry_kb = InlineKeyboardMarkup([
-                        [InlineKeyboardButton("🔄 Reintentar Ingresar Hash", callback_data=f"deposit:submit_hash:{deposit_id}")],
-                        [InlineKeyboardButton("Volver", callback_data="menu_main")]
+                        [InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")],
+                        [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
                     ])
-                    await render_screen(client, user_id, f"❌ <b>Verificación Fallida:</b>\n{err_msg}", retry_kb)
+                    await render_screen(client, user_id, f"❌ <b>Error:</b>\n{err_msg}", retry_kb)
                     return
 
-                # Acreditación Exitosa
                 credited_amount = Decimal(str(val_res["amount"]))
                 deposit.status = DepositStatus.CONFIRMED
                 deposit.tx_hash = tx_hash
@@ -421,7 +412,6 @@ def register_wallet_handlers(app: Client):
                 user.balance += credited_amount
                 new_balance = float(user.balance)
 
-                # Comisión de referidos
                 if user.referred_by:
                     ref_stmt = select(User).where(User.telegram_id == user.referred_by).with_for_update()
                     ref_res = await session.execute(ref_stmt)
@@ -433,7 +423,6 @@ def register_wallet_handlers(app: Client):
 
                 await session.commit()
 
-            # Notificar al canal de auditoría
             await audit_logger.log_deposit_confirmed(
                 client=client,
                 user_id=user_id,
@@ -444,17 +433,9 @@ def register_wallet_handlers(app: Client):
                 new_balance=new_balance
             )
 
-            # Notificar al usuario editando la pantalla única
-            success_text = (
-                f"🎉 <b>¡DEPÓSITO ACREDITADO CON ÉXITO!</b>\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"💰 <b>Monto Acreditado:</b> <code>+${float(credited_amount):.4f} USDT</code>\n"
-                f"💳 <b>Nuevo Saldo Total:</b> <code>${new_balance:.4f} USDT</code>\n"
-                f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                f"<i>Ya puedes explorar el catálogo y comprar cualquier servicio digital.</i>"
-            )
+            success_text = t("deposit_success_title", lang, amount=float(credited_amount), balance=new_balance)
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🛒 Ir al Catálogo de Servicios", callback_data="catalog:disponibles:1")],
-                [InlineKeyboardButton("Volver", callback_data="menu_main")]
+                [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
+                [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
             ])
             await render_screen(client, user_id, success_text, keyboard)
