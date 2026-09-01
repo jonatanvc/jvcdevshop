@@ -87,6 +87,10 @@ class StockWatcher:
                         continue
 
                     name = p.get("display_name") or p.get("name") or "Servicio Digital"
+                    name_lower = name.strip().lower()
+                    if "test api" in name_lower or "test_api" in name_lower or str(pid).lower() in ("test", "test_api"):
+                        continue
+
                     icon = get_product_icon_simple(name)
                     base_price = float(p.get("price", 0.0))
                     current_stock = int(p.get("stock_count", 0))
