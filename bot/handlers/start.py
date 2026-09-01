@@ -12,20 +12,17 @@ from bot.utils.i18n import t, LANGUAGES
 from bot.services.audit_logger import audit_logger
 
 def get_main_menu_keyboard(user_id: int, lang: str = "es") -> InlineKeyboardMarkup:
-    """Genera la botonera inline del menú principal traducida"""
+    """Genera la botonera inline del menú principal limpia (sin duplicar Mis Pedidos)"""
     buttons = [
         [
             InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")
         ],
         [
             InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:deposit_menu"),
-            InlineKeyboardButton(t("btn_my_orders", lang), callback_data="orders:page:1")
-        ],
-        [
-            InlineKeyboardButton(t("btn_referrals", lang), callback_data="referrals:view"),
             InlineKeyboardButton(t("btn_profile", lang), callback_data="account:view")
         ],
         [
+            InlineKeyboardButton(t("btn_referrals", lang), callback_data="referrals:view"),
             InlineKeyboardButton(t("btn_support", lang), callback_data="support:view")
         ]
     ]
@@ -205,7 +202,7 @@ def register_start_handlers(app: Client):
 
     @app.on_callback_query(filters.regex("^account:view$"))
     async def cb_account_view(client: Client, callback: CallbackQuery):
-        """Pantalla de Perfil de Usuario con soporte de idioma"""
+        """Pantalla de Perfil de Usuario con soporte de idioma y acceso a Mis Pedidos"""
         user_id = callback.from_user.id
         try:
             async with async_session() as session:
