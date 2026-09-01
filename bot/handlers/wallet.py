@@ -341,11 +341,12 @@ def register_wallet_handlers(app: Client):
         await callback.answer("Solicitud cancelada.")
         await render_screen(client, callback, cancel_text, keyboard)
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar"]))
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar"]), group=2)
     async def handle_text_inputs(client: Client, message: Message):
         user_id = message.from_user.id
         state = USER_STATES.get(user_id)
         if not state:
+            message.continue_propagation()
             return
 
         try:

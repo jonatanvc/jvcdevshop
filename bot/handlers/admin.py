@@ -149,14 +149,16 @@ def register_admin_handlers(app: Client):
         ])
         await render_screen(client, callback, text, keyboard)
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "buscar"]))
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "buscar"]), group=3)
     async def handle_admin_text(client: Client, message: Message):
         user_id = message.from_user.id
         if not is_admin(user_id):
+            message.continue_propagation()
             return
 
         state = ADMIN_STATES.get(user_id)
         if not state:
+            message.continue_propagation()
             return
 
         # Borrar el texto del administrador para mantener limpia la pantalla única

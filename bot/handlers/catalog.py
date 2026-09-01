@@ -276,22 +276,26 @@ def register_catalog_handlers(app: Client):
         query = " ".join(message.command[1:]).lower()
         await execute_search(client, user_id, query, lang)
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar"]))
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar"]), group=1)
     async def handle_search_text(client: Client, message: Message):
         user_id = message.from_user.id
-        if SEARCH_STATES.pop(user_id, None):
-            try:
-                await message.delete()
-            except Exception:
-                pass
-            query = message.text.strip().lower()
+        if not SEARCH_STATES.get(user_id):
+            message.continue_propagation()
+            return
 
-            async with async_session() as session:
-                user_res = await session.execute(select(User).where(User.telegram_id == user_id))
-                user = user_res.scalar_one_or_none()
-                lang = getattr(user, "language", "es") or "es"
+        SEARCH_STATES.pop(user_id, None)
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        query = message.text.strip().lower()
 
-            await execute_search(client, user_id, query, lang)
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = getattr(user, "language", "es") or "es"
+
+        await execute_search(client, user_id, query, lang)
 
     async def execute_search(client: Client, user_id: int, query: str, lang: str):
         async with async_session() as session:
