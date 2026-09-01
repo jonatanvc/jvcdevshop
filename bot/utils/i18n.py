@@ -42,6 +42,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "catalog_title_agotados": "Productos Agotados",
         "catalog_title_ofertas": "Productos en Oferta",
         "catalog_title_todos": "Todos los Servicios",
+        "filter_short_disponibles": "Disponibles",
+        "filter_short_agotados": "Agotados",
+        "filter_short_ofertas": "Ofertas",
+        "filter_short_todos": "Todos",
         "catalog_empty": "No hay productos en esta categoría por el momento.",
         "btn_change_to": "Cambiar a",
         "stock_unlimited": "Ilimitado (∞)",
@@ -145,6 +149,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "catalog_title_agotados": "Out of Stock Products",
         "catalog_title_ofertas": "Special Offers",
         "catalog_title_todos": "All Services",
+        "filter_short_disponibles": "Available",
+        "filter_short_agotados": "Sold Out",
+        "filter_short_ofertas": "Offers",
+        "filter_short_todos": "All",
         "catalog_empty": "There are no products in this category at the moment.",
         "btn_change_to": "Switch to",
         "stock_unlimited": "Unlimited (∞)",
@@ -248,6 +256,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "catalog_title_agotados": "Produtos Esgotados",
         "catalog_title_ofertas": "Ofertas Especiais",
         "catalog_title_todos": "Todos os Serviços",
+        "filter_short_disponibles": "Disponíveis",
+        "filter_short_agotados": "Esgotados",
+        "filter_short_ofertas": "Ofertas",
+        "filter_short_todos": "Todos",
         "catalog_empty": "Não há produtos nesta categoria no momento.",
         "btn_change_to": "Mudar para",
         "stock_unlimited": "Ilimitado (∞)",
@@ -282,7 +294,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # Carteira e Depósitos
         "wallet_title": "💳 <b>CARTEIRA & DEPÓSITOS USDT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Saldo Atual:</b> <code>${balance} USDT</code>\n🌐 <b>Rede Aceita:</b> <code>BNB Smart Chain (BEP-20)</code>\n🔒 <b>Depósito Mínimo:</b> <code>${min_dep} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Selecione o valor que deseja recarregar ou toque em 'Digitar Outro Valor':</i>",
         "btn_custom_amount": "✍️ Digitar Outro Valor",
-        "invoice_title": "💳 <b>SOLICITAÇÃO DE RECARGA USDT (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANTE:</b> Envie <b>EXATAMENTE</b> o valor indicado abaixo para que a confirmação seja automática.\n\n🎯 <b>Valor Exato a Enviar:</b>\n<code>{exact_val}</code> USDT\n\n📬 <b>Endereço da Carteira (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Tempo Limite:</b> <code>30 minutos</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Toque em '📱 Ver Código QR' para escanear no seu app ou transfira e toque em 'Informar Hash / TxID'.</i>",
+        "invoice_title": "💳 <b>SOLICITAÇÃO DE RECARGA USDT (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANTE:</b> Envie <b>EXACTAMENTE</b> o valor indicado abaixo para que a confirmação seja automática.\n\n🎯 <b>Valor Exato a Enviar:</b>\n<code>{exact_val}</code> USDT\n\n📬 <b>Endereço da Carteira (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Tempo Limite:</b> <code>30 minutos</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Toque em '📱 Ver Código QR' para escanear no seu app ou transfira e toque em 'Informar Hash / TxID'.</i>",
         "btn_show_qr": "📱 Ver Código QR",
         "btn_submit_hash": "🔗 Informar Hash / TxID",
         "btn_verify_payment": "🔄 Verificar Pagamento",
@@ -309,8 +321,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "order_detail_title": "🛍️ <b>DETALHES DO PEDIDO #ORD_{order_id}</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Produto:</b> <code>{product}</code> (x{qty})\n💰 <b>Preço Pago:</b> <code>${total} USDT</code>\n🛡️ <b>Garantia:</b> <code>{warranty}</code>\n📅 <b>Data:</b> <code>{date}</code>\n🆔 <b>ID Provedor:</b> <code>{prov_id}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>CREDENCIAS ENTREGUES:</b>\n<pre>{items}</pre>",
 
         # Indicações
-        "referrals_title": "🔗 <b>SISTEMA DE REFERIDOS & AFILIADOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n¡Invita a tus amigos y gana el <b>{percent}% de comisión</b> automática sobre cada recarga de saldo que realicen!\n\n👥 <b>Tus Referidos Registrados:</b> <code>{count} usuarios</code>\n💰 <b>Comisiones Ganadas:</b> <code>${earnings} USDT</code>\n\n🎯 <b>Tu Enlace Exclusivo de Invitación:</b>\n<code>{ref_link}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Comparte tu enlace y empieza a generar ingresos pasivos.</i>",
-        "btn_share_ref": "📢 Compartir Enlace de Referido",
+        "referrals_title": "🔗 <b>SISTEMA DE INDICAÇÕES & AFILIADOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nConvide seus amigos e ganhe <b>{percent}% de comissão</b> automática sobre cada recarga de saldo que eles fizerem!\n\n👥 <b>Seus Indicados Registrados:</b> <code>{count} usuários</code>\n💰 <b>Comissões Ganhas:</b> <code>${earnings} USDT</code>\n\n🎯 <b>Seu Link Exclusivo de Convite:</b>\n<code>{ref_link}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Compartilhe seu link e comece a gerar renda passiva.</i>",
+        "btn_share_ref": "📢 Compartilhar Link de Indicação",
 
         # Suporte
         "support_text": "🆘 <b>SUPORTE & AJUDA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nTem dúvidas sobre compras, depósitos ou precisa de assistência?\n\n• <b>Garantia:</b> Se algum serviço com garantia apresentar problemas durante o período ativo, entre em contato imediatamente com o seu <b>ID de Pedido</b>.\n• <b>Depósitos:</b> Os depósitos em USDT BEP-20 são creditados automaticamente após a confirmação da rede.\n\n💬 <i>Para falar diretamente com um administrador toque no botão abaixo:</i>"

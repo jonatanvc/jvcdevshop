@@ -18,6 +18,13 @@ FILTER_KEYS = {
     "todos": "catalog_title_todos"
 }
 
+FILTER_SHORT_KEYS = {
+    "disponibles": "filter_short_disponibles",
+    "agotados": "filter_short_agotados",
+    "ofertas": "filter_short_ofertas",
+    "todos": "filter_short_todos"
+}
+
 FILTER_ROTATION = ["disponibles", "ofertas", "agotados", "todos"]
 
 def get_product_icon(name: str) -> str:
@@ -52,7 +59,7 @@ def get_product_icon(name: str) -> str:
     return "🏷️"
 
 def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode: str, lang: str = "es") -> InlineKeyboardMarkup:
-    """Construye la botonera inline del catálogo traducida"""
+    """Construye la botonera inline del catálogo con botón de categorías corto y limpio"""
     buttons = []
 
     # 1. Botones de cada producto
@@ -83,14 +90,14 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
         
         buttons.append(nav_row)
 
-    # 3. Fila de controles (Actualizar y Cambiar Filtro)
+    # 3. Fila de controles: Actualizar y Cambiar Categoría (con texto corto y limpio)
     current_idx = FILTER_ROTATION.index(filter_mode) if filter_mode in FILTER_ROTATION else 0
     next_filter = FILTER_ROTATION[(current_idx + 1) % len(FILTER_ROTATION)]
-    next_filter_name = t(FILTER_KEYS.get(next_filter, "catalog_title_disponibles"), lang)
+    next_filter_short = t(FILTER_SHORT_KEYS.get(next_filter, "filter_short_disponibles"), lang)
 
     buttons.append([
         InlineKeyboardButton(t("btn_refresh", lang), callback_data=f"catalog_refresh:{filter_mode}:{page}"),
-        InlineKeyboardButton(f"{t('btn_change_to', lang)}: {next_filter_name}", callback_data=f"catalog:{next_filter}:1")
+        InlineKeyboardButton(f"📂 {next_filter_short}", callback_data=f"catalog:{next_filter}:1")
     ])
 
     # 4. Buscador y Volver
@@ -189,7 +196,7 @@ def register_catalog_handlers(app: Client):
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
             products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=False)
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
@@ -217,7 +224,7 @@ def register_catalog_handlers(app: Client):
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
             products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=True)
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
@@ -239,7 +246,7 @@ def register_catalog_handlers(app: Client):
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
         text = t("search_prompt_title", lang)
         keyboard = InlineKeyboardMarkup([
@@ -258,7 +265,7 @@ def register_catalog_handlers(app: Client):
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
         if len(message.command) < 2:
             text = t("search_prompt_title", lang)
@@ -282,7 +289,7 @@ def register_catalog_handlers(app: Client):
             async with async_session() as session:
                 user_res = await session.execute(select(User).where(User.telegram_id == user_id))
                 user = user_res.scalar_one_or_none()
-                lang = user.language if user else "es"
+                lang = getattr(user, "language", "es") or "es"
 
             await execute_search(client, user_id, query, lang)
 
@@ -330,7 +337,7 @@ def register_catalog_handlers(app: Client):
             u_res = await session.execute(user_stmt)
             user = u_res.scalar_one_or_none()
             user_balance = float(user.balance) if user else 0.0
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
             # Verificar si el usuario tiene alerta activa
             alert_stmt = select(StockAlert).where(
@@ -425,7 +432,7 @@ def register_catalog_handlers(app: Client):
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
             stmt = select(StockAlert).where(
                 StockAlert.user_id == user_id,
@@ -487,7 +494,7 @@ def register_catalog_handlers(app: Client):
             u_res = await session.execute(user_stmt)
             user = u_res.scalar_one_or_none()
             user_balance = float(user.balance) if user else 0.0
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
             alert_stmt = select(StockAlert).where(
                 StockAlert.user_id == callback.from_user.id,
@@ -577,7 +584,7 @@ def register_catalog_handlers(app: Client):
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
         p_data = await bunai_api.get_product(product_id)
         note = p_data.get("note") if p_data else ""
