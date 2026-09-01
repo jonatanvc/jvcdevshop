@@ -7,10 +7,11 @@ from pyrogram.enums import ParseMode
 from sqlalchemy import select
 from bot.config import settings
 from bot.database.session import async_session
-from bot.database.models import StockAlert
+from bot.database.models import User, StockAlert
 from bot.services.bunai_client import bunai_api
 from bot.services.pricing import pricing_service
 from bot.services.audit_logger import audit_logger
+from bot.utils.i18n import t
 
 def get_product_icon_simple(name: str) -> str:
     """Asigna un icono representativo según el nombre del servicio"""
@@ -68,7 +69,7 @@ class StockWatcher:
         Escanea el catálogo de BunaiStore en tiempo real para:
         1. Detectar si el proveedor agregó stock a un producto existente y avisar en el canal de logs.
         2. Detectar si el proveedor agregó un producto completamente nuevo y avisar en el canal de logs.
-        3. Notificar por mensaje privado a los clientes suscritos a alertas de restock.
+        3. Notificar por mensaje privado a los clientes suscritos a alertas de restock en su idioma preferido.
         """
         try:
             if not self._is_initialized:
@@ -121,7 +122,7 @@ class StockWatcher:
                         added_stock = current_stock - prev_stock
                         self._previous_stock[pid] = current_stock
 
-                        # Alerta al canal de logs del Owner idéntica al formato de aviso (sin botones)
+                        # Alerta al canal de logs del Owner
                         await audit_logger.log_restock_alert(
                             client=client,
                             product_name=name,
@@ -141,18 +142,22 @@ class StockWatcher:
                         alerts_to_notify = alert_res.scalars().all()
 
                         for alert in alerts_to_notify:
-                            dm_text = (
-                                f"🔔 <b>¡PRODUCTO RESTABLECIDO EN STOCK!</b>\n"
-                                f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                f"📦 <b>Producto:</b> <code>{name}</code>\n"
-                                f"💰 <b>Precio:</b> <code>${user_price:.2f} USDT</code>\n"
-                                f"🎲 <b>Stock Disponible:</b> <code>{current_stock} unidades</code>\n"
-                                f"━━━━━━━━━━━━━━━━━━━━━━━━━\n"
-                                f"<i>El servicio que estabas esperando ya tiene stock disponible. ¡Aprovecha antes de que se agote!</i>"
+                            # Obtener idioma del usuario
+                            u_stmt = select(User).where(User.telegram_id == alert.user_id)
+                            u_res = await session.execute(u_stmt)
+                            user = u_res.scalar_one_or_none()
+                            lang = getattr(user, "language", "es") or "es"
+
+                            dm_text = t(
+                                "restock_alert_title",
+                                lang,
+                                product=name,
+                                price=f"{user_price:.2f}",
+                                stock=current_stock
                             )
                             dm_kb = InlineKeyboardMarkup([
-                                [InlineKeyboardButton("🛒 Ver y Comprar Ahora", callback_data=f"product:view:{pid}:disponibles:1:0")],
-                                [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]
+                                [InlineKeyboardButton(t("btn_buy_now", lang), callback_data=f"product:view:{pid}:disponibles:1:0")],
+                                [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
                             ])
                             try:
                                 await client.send_message(

@@ -72,6 +72,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "alert_activated": "🔔 ¡Alerta activada! Te avisaremos por privado cuando haya stock.",
         "alert_cancelled": "🔕 Alerta de stock cancelada.",
         "promo_offer_text": "🎁 <b>Oferta: Compra {qty}+ ➔ -{discount}% Desc</b>",
+        "restock_alert_title": "🔔 <b>¡PRODUCTO RESTABLECIDO EN STOCK!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Producto:</b> <code>{product}</code>\n💰 <b>Precio:</b> <code>${price} USDT</code>\n🎲 <b>Stock Disponible:</b> <code>{stock} unidades</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>El servicio que estabas esperando ya tiene stock disponible. ¡Aprovecha antes de que se agote!</i>",
+        "btn_buy_now": "🛒 Ver y Comprar Ahora",
 
         # Buscador
         "search_prompt_title": "🔍 <b>BUSCADOR DE SERVICIOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nEscribe el nombre del servicio que buscas (ejemplo: <code>Gemini</code>, <code>Netflix</code>, <code>Office</code>).\n\n<i>O escribe <code>/buscar nombre</code> en cualquier momento.</i>",
@@ -180,6 +182,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "alert_activated": "🔔 Alert activated! We will notify you via DM as soon as stock is available.",
         "alert_cancelled": "🔕 Stock alert cancelled.",
         "promo_offer_text": "🎁 <b>Offer: Buy {qty}+ ➔ -{discount}% Off</b>",
+        "restock_alert_title": "🔔 <b>PRODUCT BACK IN STOCK!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Product:</b> <code>{product}</code>\n💰 <b>Price:</b> <code>${price} USDT</code>\n🎲 <b>Available Stock:</b> <code>{stock} units</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>The service you were waiting for is now in stock. Get it before it runs out!</i>",
+        "btn_buy_now": "🛒 View and Buy Now",
 
         # Search
         "search_prompt_title": "🔍 <b>SERVICE SEARCH</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nType the name of the service you are looking for (e.g., <code>Gemini</code>, <code>Netflix</code>, <code>Office</code>).\n\n<i>Or type <code>/buscar name</code> at any time.</i>",
@@ -288,6 +292,8 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "alert_activated": "🔔 Alerta ativado! Notificaremos por mensagem privada quando houver estoque.",
         "alert_cancelled": "🔕 Alerta de estoque cancelado.",
         "promo_offer_text": "🎁 <b>Oferta: Compre {qty}+ ➔ -{discount}% Desc</b>",
+        "restock_alert_title": "🔔 <b>PRODUTO DE VOLTA AO ESTOQUE!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Produto:</b> <code>{product}</code>\n💰 <b>Preço:</b> <code>${price} USDT</code>\n🎲 <b>Estoque Disponível:</b> <code>{stock} unidades</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>O serviço que você estava esperando já está disponível. Aproveite antes que acabe!</i>",
+        "btn_buy_now": "🛒 Ver e Comprar Agora",
 
         # Busca
         "search_prompt_title": "🔍 <b>BUSCADOR DE SERVIÇOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nDigite o nome do serviço procurado (ex: <code>Gemini</code>, <code>Netflix</code>, <code>Office</code>).\n\n<i>Ou digite <code>/buscar nome</code> a qualquer momento.</i>",
@@ -328,7 +334,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_share_ref": "📢 Compartilhar Link de Indicação",
 
         # Suporte
-        "support_text": "🆘 <b>SUPORTE & AJUDA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nTem dúvidas sobre compras, depósitos ou precisa de assistência?\n\n• <b>Garantia:</b> Se algum servicio com garantia apresentar problemas durante o período ativo, entre em contato imediatamente com o seu <b>ID de Pedido</b>.\n• <b>Depósitos:</b> Os depósitos em USDT BEP-20 são creditados automaticamente após a confirmação da rede.\n\n💬 <i>Para falar directamente com um administrador toque no botão abaixo:</i>"
+        "support_text": "🆘 <b>SUPORTE & AJUDA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nTem dúvidas sobre compras, depósitos ou precisa de assistência?\n\n• <b>Garantia:</b> Se algum serviço com garantia apresentar problemas durante o período ativo, entre em contato imediatamente com o seu <b>ID de Pedido</b>.\n• <b>Depósitos:</b> Os depósitos em USDT BEP-20 são creditados automaticamente após a confirmação da rede.\n\n💬 <i>Para falar directamente com um administrador toque no botão abaixo:</i>"
     }
 }
 
