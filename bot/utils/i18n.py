@@ -9,7 +9,7 @@ LANGUAGES = {
 TRANSLATIONS: Dict[str, Dict[str, str]] = {
     "es": {
         # Menú Principal y Navegación
-        "welcome_header": "💎 <b>BIENVENIDO A SERVICIOS DIGITALES</b> 💎",
+        "welcome_header": "💎 <b>BIENVENIDO A jvcᵈᵉᵛ Store</b> 💎",
         "user_label": "Usuario",
         "balance_bot": "Saldo en Bot",
         "balance_provider": "Saldo Proveedor (Bunai)",
@@ -74,36 +74,36 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "search_no_results": "🔍 <b>Resultados para:</b> <i>'{query}'</i>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n❌ No se encontraron productos con ese nombre.",
 
         # Billetera y Depósitos
-        "wallet_title": "💳 <b>BILLETERA & DEPÓSITOS USDT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Saldo Actual:</b> <code>${balance:.4f} USDT</code>\n🌐 <b>Red Aceptada:</b> <code>BNB Smart Chain (BEP-20)</code>\n🔒 <b>Depósito Mínimo:</b> <code>${min_dep:.2f} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Selecciona el monto que deseas recargar o pulsa 'Ingresar Otro Monto':</i>",
+        "wallet_title": "💳 <b>BILLETERA & DEPÓSITOS USDT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Saldo Actual:</b> <code>${balance} USDT</code>\n🌐 <b>Red Aceptada:</b> <code>BNB Smart Chain (BEP-20)</code>\n🔒 <b>Depósito Mínimo:</b> <code>${min_dep} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Selecciona el monto que deseas recargar o pulsa 'Ingresar Otro Monto':</i>",
         "btn_custom_amount": "✍️ Ingresar Otro Monto",
-        "invoice_title": "💳 <b>SOLICITUD DE RECARGA USDT (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANTE:</b> Envía <b>EXACTAMENTE</b> la cantidad indicada a continuación para que la acreditación sea automática.\n\n🎯 <b>Monto Exacto a Enviar:</b>\n<code>{exact_val:.4f}</code> USDT\n\n📬 <b>Dirección de Billetera (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Tiempo Límite:</b> <code>30 minutos</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Pulsa '📱 Ver Código QR' para escanear desde tu app o realiza la transferencia y luego pulsa 'Ingresar Hash / TxID'.</i>",
+        "invoice_title": "💳 <b>SOLICITUD DE RECARGA USDT (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANTE:</b> Envía <b>EXACTAMENTE</b> la cantidad indicada a continuación para que la acreditación sea automática.\n\n🎯 <b>Monto Exacto a Enviar:</b>\n<code>{exact_val}</code> USDT\n\n📬 <b>Dirección de Billetera (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Tiempo Límite:</b> <code>30 minutos</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Pulsa '📱 Ver Código QR' para escanear desde tu app o realiza la transferencia y luego pulsa 'Ingresar Hash / TxID'.</i>",
         "btn_show_qr": "📱 Ver Código QR",
         "btn_submit_hash": "🔗 Ingresar Hash / TxID",
         "btn_verify_payment": "🔄 Verificar Pago",
         "btn_cancel_request": "❌ Cancelar Solicitud",
         "btn_back_to_invoice": "🔙 Volver a la Solicitud",
-        "qr_caption": "📱 <b>CÓDIGO QR DE PAGO BSC (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 <b>Monto a transferir:</b> <code>{exact_val:.4f}</code> USDT\n📬 <b>Billetera:</b> <code>{wallet}</code>\n\n<i>Escanea este código directamente desde Trust Wallet, Binance o MetaMask.</i>",
-        "custom_amount_prompt": "✍️ <b>INGRESA EL MONTO A DEPOSITAR</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nEscribe la cantidad de USDT que deseas recargar en tu cuenta.\n\n⚠️ <b>Monto Mínimo:</b> <code>{min_dep:.2f} USDT</code>\n\n<i>Ejemplo: Envía un mensaje escribiendo <code>15</code> o <code>25.5</code></i>",
+        "qr_caption": "📱 <b>CÓDIGO QR DE PAGO BSC (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 <b>Monto a transferir:</b> <code>{exact_val}</code> USDT\n📬 <b>Billetera:</b> <code>{wallet}</code>\n\n<i>Escanea este código directamente desde Trust Wallet, Binance o MetaMask.</i>",
+        "custom_amount_prompt": "✍️ <b>INGRESA EL MONTO A DEPOSITAR</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nEscribe la cantidad de USDT que deseas recargar en tu cuenta.\n\n⚠️ <b>Monto Mínimo:</b> <code>{min_dep} USDT</code>\n\n<i>Ejemplo: Envía un mensaje escribiendo <code>15</code> o <code>25.5</code></i>",
         "submit_hash_prompt": "🔗 <b>ENVÍA EL HASH / TXID DE LA TRANSACCIÓN</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nPega a continuación el Hash (TxID) de la transferencia realizada desde tu billetera (Trust Wallet, Binance, MetaMask, etc).\n\n<i>Ejemplo: <code>0x4a8c9b...</code></i>",
-        "deposit_cancelled_screen": "❌ <b>SOLICITUD DE RECARGA CANCELADA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nLa solicitud por <b>${amount:.4f} USDT</b> ha sido cancelada correctamente.\n\n<i>Puedes generar una nueva solicitud cuando desees.</i>",
+        "deposit_cancelled_screen": "❌ <b>SOLICITUD DE RECARGA CANCELADA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nLa solicitud por <b>${amount} USDT</b> ha sido cancelada correctamente.\n\n<i>Puedes generar una nueva solicitud cuando desees.</i>",
         "btn_new_deposit": "💳 Nueva Recarga",
         "verifying_tx": "⏳ <b>Verificando transacción en la blockchain BSC...</b>\n<i>Consultando nodos de red y confirmaciones.</i>",
-        "deposit_success_title": "🎉 <b>¡DEPÓSITO ACREDITADO CON ÉXITO!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Monto Acreditado:</b> <code>+${amount:.4f} USDT</code>\n💳 <b>Nuevo Saldo Total:</b> <code>${balance:.4f} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Ya puedes explorar el catálogo y comprar cualquier servicio digital.</i>",
+        "deposit_success_title": "🎉 <b>¡DEPÓSITO ACREDITADO CON ÉXITO!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Monto Acreditado:</b> <code>+${amount} USDT</code>\n💳 <b>Nuevo Saldo Total:</b> <code>${balance} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Ya puedes explorar el catálogo y comprar cualquier servicio digital.</i>",
 
         # Compras y Checkout
         "processing_order": "⏳ <b>Procesando tu orden de {qty}x {product}...</b>\n<i>Por favor espera unos segundos.</i>",
-        "purchase_fail_title": "❌ <b>NO SE PUDO COMPLETAR LA COMPRA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nEl proveedor rechazó la solicitud (posiblemente sin stock suficiente).\n\n🛡️ <b>Tu saldo de ${total:.2f} USDT ha sido reembolsado intacto a tu cuenta.</b>",
-        "purchase_success_title": "🎉 <b>¡COMPRA REALIZADA CON ÉXITO!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Producto:</b> <code>{product}</code> (x{qty})\n💰 <b>Total Pagado:</b> <code>${total:.2f} USDT</code>\n🆔 <b>Orden #:</b> <code>ORD_{order_id}</code>{warranty_text}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>DATOS DE TU SERVICIO:</b>\n<pre>{items}</pre>{after_note}\n\n<i>💡 Puedes consultar tus compras y garantías en cualquier momento desde 'Mis Pedidos'.</i>",
+        "purchase_fail_title": "❌ <b>NO SE PUDO COMPLETAR LA COMPRA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nEl proveedor rechazó la solicitud (posiblemente sin stock suficiente).\n\n🛡️ <b>Tu saldo de ${total} USDT ha sido reembolsado intacto a tu cuenta.</b>",
+        "purchase_success_title": "🎉 <b>¡COMPRA REALIZADA CON ÉXITO!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Producto:</b> <code>{product}</code> (x{qty})\n💰 <b>Total Pagado:</b> <code>${total} USDT</code>\n🆔 <b>Orden #:</b> <code>ORD_{order_id}</code>{warranty_text}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>DATOS DE TU SERVICIO:</b>\n<pre>{items}</pre>{after_note}\n\n<i>💡 Puedes consultar tus compras y garantías en cualquier momento desde 'Mis Pedidos'.</i>",
         "btn_view_in_orders": "💼 Ver en 'Mis Pedidos'",
         "btn_continue_shopping": "🛒 Seguir Comprando",
 
         # Mis Pedidos
         "orders_title": "💼 <b>MIS PEDIDOS ({count} Total)</b>\n<i>Selecciona un pedido para ver los datos entregados:</i>\n",
         "orders_empty": "💼 <b>MIS PEDIDOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nAún no has realizado ningún pedido.\n\n<i>Explora nuestro catálogo y adquiere tus cuentas y licencias al mejor precio.</i>",
-        "order_detail_title": "🛍️ <b>DETALLES DEL PEDIDO #ORD_{order_id}</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Producto:</b> <code>{product}</code> (x{qty})\n💰 <b>Precio Pagado:</b> <code>${total:.2f} USDT</code>\n🛡️ <b>Garantía:</b> <code>{warranty}</code>\n📅 <b>Fecha:</b> <code>{date}</code>\n🆔 <b>ID Proveedor:</b> <code>{prov_id}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>DATOS / CREDENCIALES ENTREGADAS:</b>\n<pre>{items}</pre>",
+        "order_detail_title": "🛍️ <b>DETALLES DEL PEDIDO #ORD_{order_id}</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Producto:</b> <code>{product}</code> (x{qty})\n💰 <b>Precio Pagado:</b> <code>${total} USDT</code>\n🛡️ <b>Garantía:</b> <code>{warranty}</code>\n📅 <b>Fecha:</b> <code>{date}</code>\n🆔 <b>ID Proveedor:</b> <code>{prov_id}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>DATOS / CREDENCIALES ENTREGADAS:</b>\n<pre>{items}</pre>",
 
         # Referidos
-        "referrals_title": "🔗 <b>SISTEMA DE REFERIDOS & AFILIADOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n¡Invita a tus amigos y gana el <b>{percent}% de comisión</b> automática sobre cada recarga de saldo que realicen!\n\n👥 <b>Tus Referidos Registrados:</b> <code>{count} usuarios</code>\n💰 <b>Comisiones Ganadas:</b> <code>${earnings:.2f} USDT</code>\n\n🎯 <b>Tu Enlace Exclusivo de Invitación:</b>\n<code>{ref_link}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Comparte tu enlace y empieza a generar ingresos pasivos.</i>",
+        "referrals_title": "🔗 <b>SISTEMA DE REFERIDOS & AFILIADOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n¡Invita a tus amigos y gana el <b>{percent}% de comisión</b> automática sobre cada recarga de saldo que realicen!\n\n👥 <b>Tus Referidos Registrados:</b> <code>{count} usuarios</code>\n💰 <b>Comisiones Ganadas:</b> <code>${earnings} USDT</code>\n\n🎯 <b>Tu Enlace Exclusivo de Invitación:</b>\n<code>{ref_link}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Comparte tu enlace y empieza a generar ingresos pasivos.</i>",
         "btn_share_ref": "📢 Compartir Enlace de Referido",
 
         # Soporte
@@ -112,7 +112,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
     "en": {
         # Main Menu and Navigation
-        "welcome_header": "💎 <b>WELCOME TO DIGITAL SERVICES</b> 💎",
+        "welcome_header": "💎 <b>WELCOME TO jvcᵈᵉᵛ Store</b> 💎",
         "user_label": "User",
         "balance_bot": "Bot Balance",
         "balance_provider": "Provider Balance (Bunai)",
@@ -177,36 +177,36 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "search_no_results": "🔍 <b>Results for:</b> <i>'{query}'</i>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n❌ No products found with that name.",
 
         # Wallet and Deposits
-        "wallet_title": "💳 <b>WALLET & USDT DEPOSITS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Current Balance:</b> <code>${balance:.4f} USDT</code>\n🌐 <b>Accepted Network:</b> <code>BNB Smart Chain (BEP-20)</code>\n🔒 <b>Minimum Deposit:</b> <code>${min_dep:.2f} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Select an amount to top up or tap 'Enter Other Amount':</i>",
+        "wallet_title": "💳 <b>WALLET & USDT DEPOSITS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Current Balance:</b> <code>${balance} USDT</code>\n🌐 <b>Accepted Network:</b> <code>BNB Smart Chain (BEP-20)</code>\n🔒 <b>Minimum Deposit:</b> <code>${min_dep} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Select an amount to top up or tap 'Enter Other Amount':</i>",
         "btn_custom_amount": "✍️ Enter Other Amount",
-        "invoice_title": "💳 <b>USDT (BEP-20) DEPOSIT INVOICE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANT:</b> Send <b>EXACTLY</b> the amount shown below for automatic crediting.\n\n🎯 <b>Exact Amount to Send:</b>\n<code>{exact_val:.4f}</code> USDT\n\n📬 <b>Wallet Address (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Time Limit:</b> <code>30 minutes</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Tap '📱 View QR Code' to scan from your app or transfer and tap 'Submit Hash / TxID'.</i>",
+        "invoice_title": "💳 <b>USDT (BEP-20) DEPOSIT INVOICE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANT:</b> Send <b>EXACTLY</b> the amount shown below for automatic crediting.\n\n🎯 <b>Exact Amount to Send:</b>\n<code>{exact_val}</code> USDT\n\n📬 <b>Wallet Address (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Time Limit:</b> <code>30 minutes</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Tap '📱 View QR Code' to scan from your app or transfer and tap 'Submit Hash / TxID'.</i>",
         "btn_show_qr": "📱 View QR Code",
         "btn_submit_hash": "🔗 Submit Hash / TxID",
         "btn_verify_payment": "🔄 Verify Payment",
         "btn_cancel_request": "❌ Cancel Request",
         "btn_back_to_invoice": "🔙 Back to Invoice",
-        "qr_caption": "📱 <b>BSC (BEP-20) PAYMENT QR CODE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 <b>Amount to send:</b> <code>{exact_val:.4f}</code> USDT\n📬 <b>Wallet:</b> <code>{wallet}</code>\n\n<i>Scan this code directly from Trust Wallet, Binance or MetaMask.</i>",
-        "custom_amount_prompt": "✍️ <b>ENTER AMOUNT TO DEPOSIT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nType the amount of USDT you wish to add to your balance.\n\n⚠️ <b>Minimum Amount:</b> <code>{min_dep:.2f} USDT</code>\n\n<i>Example: Send a message typing <code>15</code> or <code>25.5</code></i>",
+        "qr_caption": "📱 <b>BSC (BEP-20) PAYMENT QR CODE</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 <b>Amount to send:</b> <code>{exact_val}</code> USDT\n📬 <b>Wallet:</b> <code>{wallet}</code>\n\n<i>Scan this code directly from Trust Wallet, Binance or MetaMask.</i>",
+        "custom_amount_prompt": "✍️ <b>ENTER AMOUNT TO DEPOSIT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nType the amount of USDT you wish to add to your balance.\n\n⚠️ <b>Minimum Amount:</b> <code>${min_dep} USDT</code>\n\n<i>Example: Send a message typing <code>15</code> or <code>25.5</code></i>",
         "submit_hash_prompt": "🔗 <b>SUBMIT TRANSACTION HASH / TXID</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nPaste below the transaction Hash (TxID) from your wallet (Trust Wallet, Binance, MetaMask, etc).\n\n<i>Example: <code>0x4a8c9b...</code></i>",
-        "deposit_cancelled_screen": "❌ <b>DEPOSIT REQUEST CANCELLED</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nThe deposit request for <b>${amount:.4f} USDT</b> has been cancelled.\n\n<i>You can generate a new request whenever you wish.</i>",
+        "deposit_cancelled_screen": "❌ <b>DEPOSIT REQUEST CANCELLED</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nThe deposit request for <b>${amount} USDT</b> has been cancelled.\n\n<i>You can generate a new request whenever you wish.</i>",
         "btn_new_deposit": "💳 New Deposit",
         "verifying_tx": "⏳ <b>Verifying transaction on the BSC blockchain...</b>\n<i>Checking network nodes and confirmations.</i>",
-        "deposit_success_title": "🎉 <b>DEPOSIT CREDITED SUCCESSFULLY!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Credited Amount:</b> <code>+${amount:.4f} USDT</code>\n💳 <b>New Total Balance:</b> <code>${balance:.4f} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>You can now browse the catalog and purchase any digital service.</i>",
+        "deposit_success_title": "🎉 <b>DEPOSIT CREDITED SUCCESSFULLY!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Credited Amount:</b> <code>+${amount} USDT</code>\n💳 <b>New Total Balance:</b> <code>${balance} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>You can now browse the catalog and purchase any digital service.</i>",
 
         # Purchases and Checkout
         "processing_order": "⏳ <b>Processing your order for {qty}x {product}...</b>\n<i>Please wait a few seconds.</i>",
-        "purchase_fail_title": "❌ <b>PURCHASE COULD NOT BE COMPLETED</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nThe provider rejected the request (likely out of stock).\n\n🛡️ <b>Your balance of ${total:.2f} USDT has been fully refunded to your account.</b>",
-        "purchase_success_title": "🎉 <b>PURCHASE COMPLETED SUCCESSFULLY!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Product:</b> <code>{product}</code> (x{qty})\n💰 <b>Total Paid:</b> <code>${total:.2f} USDT</code>\n🆔 <b>Order #:</b> <code>ORD_{order_id}</code>{warranty_text}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>YOUR SERVICE CREDENTIALS:</b>\n<pre>{items}</pre>{after_note}\n\n<i>💡 You can view your purchased credentials anytime under 'My Orders'.</i>",
+        "purchase_fail_title": "❌ <b>PURCHASE COULD NOT BE COMPLETED</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nThe provider rejected the request (likely out of stock).\n\n🛡️ <b>Your balance of ${total} USDT has been fully refunded to your account.</b>",
+        "purchase_success_title": "🎉 <b>PURCHASE COMPLETED SUCCESSFULLY!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Product:</b> <code>{product}</code> (x{qty})\n💰 <b>Total Paid:</b> <code>${total} USDT</code>\n🆔 <b>Order #:</b> <code>ORD_{order_id}</code>{warranty_text}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>YOUR SERVICE CREDENTIALS:</b>\n<pre>{items}</pre>{after_note}\n\n<i>💡 You can view your purchased credentials anytime under 'My Orders'.</i>",
         "btn_view_in_orders": "💼 View in 'My Orders'",
         "btn_continue_shopping": "🛒 Continue Shopping",
 
         # My Orders
         "orders_title": "💼 <b>MY ORDERS ({count} Total)</b>\n<i>Select an order to view credentials:</i>\n",
         "orders_empty": "💼 <b>MY ORDERS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nYou haven't placed any orders yet.\n\n<i>Explore our catalog and get premium digital accounts at the best price.</i>",
-        "order_detail_title": "🛍️ <b>ORDER DETAILS #ORD_{order_id}</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Product:</b> <code>{product}</code> (x{qty})\n💰 <b>Price Paid:</b> <code>${total:.2f} USDT</code>\n🛡️ <b>Warranty:</b> <code>{warranty}</code>\n📅 <b>Date:</b> <code>{date}</code>\n🆔 <b>Provider ID:</b> <code>{prov_id}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>DELIVERED CREDENTIALS:</b>\n<pre>{items}</pre>",
+        "order_detail_title": "🛍️ <b>ORDER DETAILS #ORD_{order_id}</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Product:</b> <code>{product}</code> (x{qty})\n💰 <b>Price Paid:</b> <code>${total} USDT</code>\n🛡️ <b>Warranty:</b> <code>{warranty}</code>\n📅 <b>Date:</b> <code>{date}</code>\n🆔 <b>Provider ID:</b> <code>{prov_id}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>DELIVERED CREDENTIALS:</b>\n<pre>{items}</pre>",
 
         # Referrals
-        "referrals_title": "🔗 <b>REFERRAL & AFFILIATE SYSTEM</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nInvite your friends and earn an automatic <b>{percent}% commission</b> on every balance deposit they make!\n\n👥 <b>Your Registered Referrals:</b> <code>{count} users</code>\n💰 <b>Earned Commissions:</b> <code>${earnings:.2f} USDT</code>\n\n🎯 <b>Your Exclusive Referral Link:</b>\n<code>{ref_link}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Share your link and start earning passive income.</i>",
+        "referrals_title": "🔗 <b>REFERRAL & AFFILIATE SYSTEM</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nInvite your friends and earn an automatic <b>{percent}% commission</b> on every balance deposit they make!\n\n👥 <b>Your Registered Referrals:</b> <code>{count} users</code>\n💰 <b>Earned Commissions:</b> <code>${earnings} USDT</code>\n\n🎯 <b>Your Exclusive Referral Link:</b>\n<code>{ref_link}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Share your link and start earning passive income.</i>",
         "btn_share_ref": "📢 Share Referral Link",
 
         # Support
@@ -215,7 +215,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
 
     "pt": {
         # Menu Principal e Navegação
-        "welcome_header": "💎 <b>BEM-VINDO AOS SERVIÇOS DIGITAIS</b> 💎",
+        "welcome_header": "💎 <b>BEM-VINDO À jvcᵈᵉᵛ Store</b> 💎",
         "user_label": "Usuário",
         "balance_bot": "Saldo no Bot",
         "balance_provider": "Saldo Provedor (Bunai)",
@@ -280,36 +280,36 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "search_no_results": "🔍 <b>Resultados para:</b> <i>'{query}'</i>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n❌ Nenhum produto encontrado com esse nome.",
 
         # Carteira e Depósitos
-        "wallet_title": "💳 <b>CARTEIRA & DEPÓSITOS USDT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Saldo Atual:</b> <code>${balance:.4f} USDT</code>\n🌐 <b>Rede Aceita:</b> <code>BNB Smart Chain (BEP-20)</code>\n🔒 <b>Depósito Mínimo:</b> <code>${min_dep:.2f} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Selecione o valor que deseja recarregar ou toque em 'Digitar Outro Valor':</i>",
+        "wallet_title": "💳 <b>CARTEIRA & DEPÓSITOS USDT</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Saldo Atual:</b> <code>${balance} USDT</code>\n🌐 <b>Rede Aceita:</b> <code>BNB Smart Chain (BEP-20)</code>\n🔒 <b>Depósito Mínimo:</b> <code>${min_dep} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Selecione o valor que deseja recarregar ou toque em 'Digitar Outro Valor':</i>",
         "btn_custom_amount": "✍️ Digitar Outro Valor",
-        "invoice_title": "💳 <b>SOLICITAÇÃO DE RECARGA USDT (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANTE:</b> Envie <b>EXATAMENTE</b> o valor indicado abaixo para que a confirmação seja automática.\n\n🎯 <b>Valor Exato a Enviar:</b>\n<code>{exact_val:.4f}</code> USDT\n\n📬 <b>Endereço da Carteira (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Tempo Limite:</b> <code>30 minutos</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Toque em '📱 Ver Código QR' para escanear no seu app ou transfira e toque em 'Informar Hash / TxID'.</i>",
+        "invoice_title": "💳 <b>SOLICITAÇÃO DE RECARGA USDT (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n⚠️ <b>IMPORTANTE:</b> Envie <b>EXATAMENTE</b> o valor indicado abaixo para que a confirmação seja automática.\n\n🎯 <b>Valor Exato a Enviar:</b>\n<code>{exact_val}</code> USDT\n\n📬 <b>Endereço da Carteira (BNB Smart Chain / BEP-20):</b>\n<code>{wallet}</code>\n\n⏳ <b>Tempo Limite:</b> <code>30 minutos</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Toque em '📱 Ver Código QR' para escanear no seu app ou transfira e toque em 'Informar Hash / TxID'.</i>",
         "btn_show_qr": "📱 Ver Código QR",
         "btn_submit_hash": "🔗 Informar Hash / TxID",
         "btn_verify_payment": "🔄 Verificar Pagamento",
         "btn_cancel_request": "❌ Cancelar Solicitação",
         "btn_back_to_invoice": "🔙 Voltar à Solicitação",
-        "qr_caption": "📱 <b>CÓDIGO QR DE PAGAMENTO BSC (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 <b>Valor a transferir:</b> <code>{exact_val:.4f}</code> USDT\n📬 <b>Carteira:</b> <code>{wallet}</code>\n\n<i>Escaneie este código diretamente na Trust Wallet, Binance ou MetaMask.</i>",
-        "custom_amount_prompt": "✍️ <b>DIGITE O VALOR DO DEPÓSITO</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nDigite a quantidade de USDT que deseja adicionar ao seu saldo.\n\n⚠️ <b>Valor Mínimo:</b> <code>{min_dep:.2f} USDT</code>\n\n<i>Exemplo: Envie uma mensagem digitando <code>15</code> ou <code>25.5</code></i>",
+        "qr_caption": "📱 <b>CÓDIGO QR DE PAGAMENTO BSC (BEP-20)</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🎯 <b>Valor a transferir:</b> <code>{exact_val}</code> USDT\n📬 <b>Carteira:</b> <code>{wallet}</code>\n\n<i>Escaneie este código diretamente na Trust Wallet, Binance ou MetaMask.</i>",
+        "custom_amount_prompt": "✍️ <b>DIGITE O VALOR DO DEPÓSITO</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nDigite a quantidade de USDT que deseja adicionar ao seu saldo.\n\n⚠️ <b>Valor Mínimo:</b> <code>${min_dep} USDT</code>\n\n<i>Exemplo: Envie uma mensagem digitando <code>15</code> ou <code>25.5</code></i>",
         "submit_hash_prompt": "🔗 <b>ENVIE O HASH / TXID DA TRANSAÇÃO</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nCole abaixo o Hash (TxID) da transferência realizada da sua carteira (Trust Wallet, Binance, MetaMask, etc).\n\n<i>Exemplo: <code>0x4a8c9b...</code></i>",
-        "deposit_cancelled_screen": "❌ <b>SOLICITAÇÃO DE RECARGA CANCELADA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nA solicitação de <b>${amount:.4f} USDT</b> foi cancelada com sucesso.\n\n<i>Você pode gerar uma nova solicitação quando quiser.</i>",
+        "deposit_cancelled_screen": "❌ <b>SOLICITAÇÃO DE RECARGA CANCELADA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nA solicitação de <b>${amount} USDT</b> foi cancelada com sucesso.\n\n<i>Você pode gerar uma nova solicitação quando quiser.</i>",
         "btn_new_deposit": "💳 Nova Recarga",
         "verifying_tx": "⏳ <b>Verificando transação na blockchain BSC...</b>\n<i>Consultando nós da rede e confirmações.</i>",
-        "deposit_success_title": "🎉 <b>DEPÓSITO CONFIRMADO COM SUCESSO!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Valor Creditado:</b> <code>+${amount:.4f} USDT</code>\n💳 <b>Novo Saldo Total:</b> <code>${balance:.4f} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Agora você pode navegar pelo catálogo e comprar qualquer serviço.</i>",
+        "deposit_success_title": "🎉 <b>DEPÓSITO CONFIRMADO COM SUCESSO!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n💰 <b>Valor Creditado:</b> <code>+${amount} USDT</code>\n💳 <b>Novo Saldo Total:</b> <code>${balance} USDT</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Agora você pode navegar pelo catálogo e comprar qualquer serviço.</i>",
 
         # Compras e Checkout
         "processing_order": "⏳ <b>Processando seu pedido de {qty}x {product}...</b>\n<i>Por favor, aguarde alguns segundos.</i>",
-        "purchase_fail_title": "❌ <b>NÃO FOI POSSÍVEL CONCLUIR A COMPRA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nO provedor recusou o pedido (provavelmente sem estoque).\n\n🛡️ <b>Seu saldo de ${total:.2f} USDT foi estornado integralmente para sua conta.</b>",
-        "purchase_success_title": "🎉 <b>COMPRA REALIZADA COM SUCESSO!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Produto:</b> <code>{product}</code> (x{qty})\n💰 <b>Total Pago:</b> <code>${total:.2f} USDT</code>\n🆔 <b>Pedido #:</b> <code>ORD_{order_id}</code>{warranty_text}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>DADOS DO SEU SERVIÇO:</b>\n<pre>{items}</pre>{after_note}\n\n<i>💡 Você pode consultar suas compras e credenciais a qualquer momento em 'Meus Pedidos'.</i>",
+        "purchase_fail_title": "❌ <b>NÃO FOI POSSÍVEL CONCLUIR A COMPRA</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nO provedor recusou o pedido (provavelmente sem estoque).\n\n🛡️ <b>Seu saldo de ${total} USDT foi estornado integralmente para sua conta.</b>",
+        "purchase_success_title": "🎉 <b>COMPRA REALIZADA COM SUCESSO!</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Produto:</b> <code>{product}</code> (x{qty})\n💰 <b>Total Pago:</b> <code>${total} USDT</code>\n🆔 <b>Pedido #:</b> <code>ORD_{order_id}</code>{warranty_text}\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>DADOS DO SEU SERVIÇO:</b>\n<pre>{items}</pre>{after_note}\n\n<i>💡 Você pode consultar suas compras e credenciais a qualquer momento em 'Meus Pedidos'.</i>",
         "btn_view_in_orders": "💼 Ver em 'Meus Pedidos'",
         "btn_continue_shopping": "🛒 Continuar Comprando",
 
         # Meus Pedidos
         "orders_title": "💼 <b>MEUS PEDIDOS ({count} Total)</b>\n<i>Selecione um pedido para ver as credenciais:</i>\n",
         "orders_empty": "💼 <b>MEUS PEDIDOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nVocê ainda não fez nenhum pedido.\n\n<i>Explore nosso catálogo e adquira contas premium pelo melhor preço.</i>",
-        "order_detail_title": "🛍️ <b>DETALHES DO PEDIDO #ORD_{order_id}</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Produto:</b> <code>{product}</code> (x{qty})\n💰 <b>Preço Pago:</b> <code>${total:.2f} USDT</code>\n🛡️ <b>Garantia:</b> <code>{warranty}</code>\n📅 <b>Data:</b> <code>{date}</code>\n🆔 <b>ID Provedor:</b> <code>{prov_id}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>CREDENCIAS ENTREGUES:</b>\n<pre>{items}</pre>",
+        "order_detail_title": "🛍️ <b>DETALHES DO PEDIDO #ORD_{order_id}</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n📦 <b>Produto:</b> <code>{product}</code> (x{qty})\n💰 <b>Preço Pago:</b> <code>${total} USDT</code>\n🛡️ <b>Garantia:</b> <code>{warranty}</code>\n📅 <b>Data:</b> <code>{date}</code>\n🆔 <b>ID Provedor:</b> <code>{prov_id}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n🔑 <b>CREDENCIAS ENTREGUES:</b>\n<pre>{items}</pre>",
 
         # Indicações
-        "referrals_title": "🔗 <b>SISTEMA DE INDICAÇÕES & AFILIADOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nConvide seus amigos e ganhe <b>{percent}% de comissão</b> automática sobre cada recarga de saldo que eles fizerem!\n\n👥 <b>Seus Indicados Registrados:</b> <code>{count} usuários</code>\n💰 <b>Comissões Ganhas:</b> <code>${earnings:.2f} USDT</code>\n\n🎯 <b>Seu Link Exclusivo de Convite:</b>\n<code>{ref_link}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Compartilhe seu link e comece a gerar renda passiva.</i>",
+        "referrals_title": "🔗 <b>SISTEMA DE INDICAÇÕES & AFILIADOS</b>\n━━━━━━━━━━━━━━━━━━━━━━━━━\nConvide seus amigos e ganhe <b>{percent}% de comissão</b> automática sobre cada recarga de saldo que eles fizerem!\n\n👥 <b>Seus Indicados Registrados:</b> <code>{count} usuários</code>\n💰 <b>Comissões Ganhas:</b> <code>${earnings} USDT</code>\n\n🎯 <b>Seu Link Exclusivo de Convite:</b>\n<code>{ref_link}</code>\n━━━━━━━━━━━━━━━━━━━━━━━━━\n<i>Compartilhe seu link e comece a gerar renda passiva.</i>",
         "btn_share_ref": "📢 Compartilhar Link de Indicação",
 
         # Suporte
@@ -318,7 +318,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
 }
 
 def t(key: str, lang: str = "es", **kwargs) -> str:
-    """Obtiene el texto traducido para la clave e idioma solicitados"""
+    """Obtiene el texto traducido para la clave e idioma solicitados con formateo robusto"""
     lang_code = lang.lower() if lang else "es"
     if lang_code not in TRANSLATIONS:
         lang_code = "es"
@@ -326,7 +326,13 @@ def t(key: str, lang: str = "es", **kwargs) -> str:
     text = TRANSLATIONS[lang_code].get(key, TRANSLATIONS["es"].get(key, key))
     if kwargs:
         try:
-            return text.format(**kwargs)
-        except Exception:
-            return text
+            # Convertir todos los argumentos kwargs a strings seguros
+            safe_kwargs = {k: str(v) for k, v in kwargs.items()}
+            return text.format(**safe_kwargs)
+        except Exception as e:
+            # Reemplazo manual seguro si str.format falla
+            result = text
+            for k, v in kwargs.items():
+                result = result.replace(f"{{{k}}}", str(v))
+            return result
     return text

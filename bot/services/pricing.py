@@ -12,7 +12,7 @@ class PricingService:
     def __init__(self):
         self._cached_catalog: List[Dict[str, Any]] = []
         self._last_fetch_time: float = 0.0
-        self._cache_ttl: float = 30.0  # 30 segundos de caché
+        self._cache_ttl: float = 10.0  # 10 segundos de TTL para actualización casi instantánea de stock
 
     async def get_global_margin(self, session) -> float:
         """Obtiene el margen global configurado en la base de datos"""
@@ -88,6 +88,7 @@ class PricingService:
     ) -> List[Dict[str, Any]]:
         """
         Obtiene y procesa el catálogo de BunaiStore con los precios y garantías ajustadas
+        Filtra estrictamente productos disponibles solo si tienen stock > 0 o infinite_stock == True
         """
         now = time.time()
         if force_refresh or (now - self._last_fetch_time > self._cache_ttl) or not self._cached_catalog:
@@ -111,9 +112,15 @@ class PricingService:
                 base_price = float(p.get("price", 0.0))
                 user_price = await self.calculate_product_price(base_price, pid, session)
 
-                stock_count = int(p.get("stock_count", 0))
+                stock_raw = p.get("stock_count", 0)
+                try:
+                    stock_count = int(stock_raw)
+                except (ValueError, TypeError):
+                    stock_count = 0
+
                 infinite_stock = bool(p.get("infinite_stock", False))
-                has_stock = infinite_stock or stock_count > 0
+                # Estricto: Tiene stock SOLO si infinite_stock es True o stock_count > 0
+                has_stock = infinite_stock or (stock_count > 0)
                 has_promo = bool(p.get("has_promo", False))
                 bunai_warranty = int(p.get("warranty_hours", 0))
                 adjusted_warranty = self.calculate_adjusted_warranty(bunai_warranty)
@@ -137,16 +144,16 @@ class PricingService:
             self._cached_catalog = processed
             self._last_fetch_time = now
 
-        # Aplicar filtros (disponibles, agotados, ofertas, todos)
+        # Aplicar filtros estrictos (disponibles, agotados, ofertas, todos)
         if filter_mode == "disponibles":
-            return [p for p in self._cached_catalog if p["has_stock"]]
+            return [p for p in self._cached_catalog if p["has_stock"] is True]
         elif filter_mode == "agotados":
-            return [p for p in self._cached_catalog if not p["has_stock"]]
+            return [p for p in self._cached_catalog if p["has_stock"] is False]
         elif filter_mode == "ofertas":
-            return [p for p in self._cached_catalog if p["has_promo"]]
+            return [p for p in self._cached_catalog if p["has_promo"] is True]
         elif filter_mode == "todos":
             return self._cached_catalog
-        return [p for p in self._cached_catalog if p["has_stock"]]
+        return [p for p in self._cached_catalog if p["has_stock"] is True]
 
     def paginate(
         self,

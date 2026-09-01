@@ -17,18 +17,24 @@ async def render_screen(
 ) -> Optional[Message]:
     """
     Renderiza una pantalla editando SIEMPRE el mismo y único mensaje activo del bot.
-    Elimina la duplicación de mensajes en el chat para mantener la interfaz limpia de 1 solo mensaje.
+    Si el mensaje anterior contenía una foto/media (como el código QR), lo elimina primero
+    para evitar que queden imágenes huérfanas en el chat.
     """
     user_id: Optional[int] = None
     msg_to_edit_id: Optional[int] = None
+    is_media_msg = False
 
     if isinstance(target, CallbackQuery):
         user_id = target.from_user.id
         if target.message:
             msg_to_edit_id = target.message.id
+            if target.message.photo or target.message.video or target.message.document:
+                is_media_msg = True
     elif isinstance(target, Message):
         user_id = target.chat.id
         msg_to_edit_id = USER_LAST_MESSAGES.get(user_id) or target.id
+        if target.photo or target.video or target.document:
+            is_media_msg = True
     elif isinstance(target, int):
         user_id = target
         msg_to_edit_id = USER_LAST_MESSAGES.get(user_id)
@@ -36,7 +42,16 @@ async def render_screen(
     if not user_id:
         return None
 
-    # 1. Intentar editar el mensaje existente si tenemos su ID
+    # Si el mensaje actual es una foto/media, no se puede editar a solo texto con edit_message_text
+    # En este caso borramos el mensaje de foto anterior y creamos uno nuevo limpio
+    if is_media_msg and isinstance(target, CallbackQuery) and target.message:
+        try:
+            await target.message.delete()
+        except Exception:
+            pass
+        msg_to_edit_id = None
+
+    # 1. Intentar editar el mensaje de texto existente si tenemos su ID
     if msg_to_edit_id:
         try:
             edited_msg = await client.edit_message_text(
@@ -62,10 +77,9 @@ async def render_screen(
                     pass
             return None
         except (BadRequest, MessageIdInvalid):
-            # Si no se puede editar (ej: mensaje borrado por el usuario o mensaje de bienvenida inicial), procedemos a enviar uno nuevo
             pass
 
-    # 2. Si no se pudo editar o no había mensaje anterior, enviamos el mensaje y guardamos su ID
+    # 2. Si no se pudo editar o era una foto previa, enviamos el mensaje y guardamos su ID
     try:
         new_msg = await client.send_message(
             chat_id=user_id,

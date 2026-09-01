@@ -12,7 +12,7 @@ from bot.database.models import User, Deposit, DepositStatus
 from bot.services.blockchain import bsc_validator
 from bot.services.audit_logger import audit_logger
 from bot.services.qr_generator import get_wallet_qr_media
-from bot.utils.navigation import render_screen
+from bot.utils.navigation import render_screen, USER_LAST_MESSAGES
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 
@@ -99,11 +99,10 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
         exact_amount=float(exact_dec)
     )
 
-    # Renderizar pantalla de pago traducida
     invoice_text = t(
         "invoice_title",
         lang,
-        exact_val=exact_val,
+        exact_val=f"{exact_val:.4f}",
         wallet=settings.ADMIN_WALLET_BSC
     )
 
@@ -123,9 +122,9 @@ def register_wallet_handlers(app: Client):
             res = await session.execute(stmt)
             user = res.scalar_one_or_none()
             balance = float(user.balance) if user else 0.0
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
-        text = t("wallet_title", lang, balance=balance, min_dep=settings.MIN_DEPOSIT_USDT)
+        text = t("wallet_title", lang, balance=f"{balance:.4f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}")
         await render_screen(client, callback, text, get_deposit_menu_keyboard(lang))
 
     @app.on_callback_query(filters.regex(r"^deposit:amount:(\d+)$"))
@@ -137,7 +136,7 @@ def register_wallet_handlers(app: Client):
             stmt = select(User).where(User.telegram_id == user_id)
             res = await session.execute(stmt)
             user = res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
         await create_deposit_invoice(
             client=client,
@@ -158,9 +157,9 @@ def register_wallet_handlers(app: Client):
             stmt = select(User).where(User.telegram_id == user_id)
             res = await session.execute(stmt)
             user = res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
-        text = t("custom_amount_prompt", lang, min_dep=settings.MIN_DEPOSIT_USDT)
+        text = t("custom_amount_prompt", lang, min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}")
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]
         ])
@@ -168,7 +167,7 @@ def register_wallet_handlers(app: Client):
 
     @app.on_callback_query(filters.regex(r"^deposit:show_qr:(\d+)$"))
     async def cb_show_qr(client: Client, callback: CallbackQuery):
-        """Envía la imagen QR oficial de la billetera SOLO cuando se presiona este botón"""
+        """Muestra el QR eliminando el mensaje anterior para que nunca queden fotos duplicadas"""
         user_id = callback.from_user.id
         deposit_id = int(callback.matches[0].group(1))
 
@@ -179,7 +178,7 @@ def register_wallet_handlers(app: Client):
 
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
             if not deposit:
                 await callback.answer("❌ Error", show_alert=True)
@@ -192,7 +191,7 @@ def register_wallet_handlers(app: Client):
         caption = t(
             "qr_caption",
             lang,
-            exact_val=exact_val,
+            exact_val=f"{exact_val:.4f}",
             wallet=settings.ADMIN_WALLET_BSC
         )
 
@@ -201,15 +200,22 @@ def register_wallet_handlers(app: Client):
             [InlineKeyboardButton(t("btn_back_to_invoice", lang), callback_data=f"deposit:view_inv:{deposit_id}")]
         ])
 
+        # Eliminar el mensaje de texto anterior antes de enviar la foto del QR
         try:
-            await client.send_photo(
+            await callback.message.delete()
+        except Exception:
+            pass
+
+        try:
+            photo_msg = await client.send_photo(
                 chat_id=callback.message.chat.id,
                 photo=qr_media,
                 caption=caption,
                 parse_mode=ParseMode.HTML,
                 reply_markup=keyboard
             )
-            await callback.answer("✅ QR OK")
+            USER_LAST_MESSAGES[user_id] = photo_msg.id
+            await callback.answer()
         except Exception as e:
             await callback.answer(f"Error: {e}", show_alert=True)
 
@@ -225,7 +231,7 @@ def register_wallet_handlers(app: Client):
 
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
             if not deposit or deposit.status != DepositStatus.PENDING:
                 await cb_deposit_menu(client, callback)
@@ -236,7 +242,7 @@ def register_wallet_handlers(app: Client):
         invoice_text = t(
             "invoice_title",
             lang,
-            exact_val=exact_val,
+            exact_val=f"{exact_val:.4f}",
             wallet=settings.ADMIN_WALLET_BSC
         )
 
@@ -255,7 +261,7 @@ def register_wallet_handlers(app: Client):
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
         text = t("submit_hash_prompt", lang)
         keyboard = InlineKeyboardMarkup([
@@ -278,7 +284,7 @@ def register_wallet_handlers(app: Client):
 
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
             if dep and dep.status == DepositStatus.PENDING:
                 dep.status = DepositStatus.EXPIRED
@@ -297,7 +303,7 @@ def register_wallet_handlers(app: Client):
             )
         )
 
-        cancel_text = t("deposit_cancelled_screen", lang, amount=amount_cancelled)
+        cancel_text = t("deposit_cancelled_screen", lang, amount=f"{amount_cancelled:.4f}")
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(t("btn_new_deposit", lang), callback_data="wallet:deposit_menu")],
             [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
@@ -321,7 +327,7 @@ def register_wallet_handlers(app: Client):
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            lang = getattr(user, "language", "es") or "es"
 
         action = state.get("action")
 
@@ -331,13 +337,13 @@ def register_wallet_handlers(app: Client):
             try:
                 amount = float(text_val)
             except ValueError:
-                err_text = f"❌ Error. {t('custom_amount_prompt', lang, min_dep=settings.MIN_DEPOSIT_USDT)}"
+                err_text = f"❌ Error. {t('custom_amount_prompt', lang, min_dep=f'{settings.MIN_DEPOSIT_USDT:.2f}')}"
                 kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
                 await render_screen(client, user_id, err_text, kb)
                 return
 
             if amount < settings.MIN_DEPOSIT_USDT:
-                err_text = f"⚠️ {t('custom_amount_prompt', lang, min_dep=settings.MIN_DEPOSIT_USDT)}"
+                err_text = f"⚠️ {t('custom_amount_prompt', lang, min_dep=f'{settings.MIN_DEPOSIT_USDT:.2f}')}"
                 kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
                 await render_screen(client, user_id, err_text, kb)
                 return
@@ -433,7 +439,7 @@ def register_wallet_handlers(app: Client):
                 new_balance=new_balance
             )
 
-            success_text = t("deposit_success_title", lang, amount=float(credited_amount), balance=new_balance)
+            success_text = t("deposit_success_title", lang, amount=f"{float(credited_amount):.4f}", balance=f"{new_balance:.4f}")
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
                 [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
