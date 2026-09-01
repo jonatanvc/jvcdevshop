@@ -56,12 +56,12 @@ def get_invoice_keyboard(deposit_id: int, lang: str = "es") -> InlineKeyboardMar
     ])
 
 async def create_deposit_invoice(client: Client, user_id: int, username: str, first_name: str, base_amount: float, target, lang: str = "es") -> None:
-    """Crea la solicitud de depósito con fracción decimal única y renderiza la pantalla de pago bloqueada hasta pago o cancelación"""
+    """Crea la solicitud de depósito y guarda el log_message_id para editar el mismo mensaje en logs"""
     async with async_session() as session:
         now = datetime.utcnow()
         expires_at = now + timedelta(minutes=30)
 
-        # Si ya existe una solicitud PENDING activa previa, la marcamos como expirada para evitar bloqueos
+        # Si ya existe una solicitud PENDING activa previa, la marcamos como expirada
         cancel_old_stmt = (
             update(Deposit)
             .where(Deposit.user_id == user_id, Deposit.status == DepositStatus.PENDING)
@@ -83,28 +83,29 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
             if not dup_res.scalar_one_or_none():
                 break
 
+        # Notificar solicitud en canal de auditoría y capturar el ID del mensaje
+        log_msg_id = await audit_logger.log_deposit_request(
+            client=client,
+            user_id=user_id,
+            username=username,
+            first_name=first_name,
+            base_amount=base_amount,
+            exact_amount=float(exact_dec)
+        )
+
         new_deposit = Deposit(
             user_id=user_id,
             base_amount=Decimal(str(base_amount)),
             exact_amount=exact_dec,
             status=DepositStatus.PENDING,
             expires_at=expires_at,
-            created_at=now
+            created_at=now,
+            log_message_id=log_msg_id
         )
         session.add(new_deposit)
         await session.commit()
         await session.refresh(new_deposit)
         deposit_id = new_deposit.id
-
-    # Notificar solicitud en canal de auditoría
-    await audit_logger.log_deposit_request(
-        client=client,
-        user_id=user_id,
-        username=username,
-        first_name=first_name,
-        base_amount=base_amount,
-        exact_amount=float(exact_dec)
-    )
 
     invoice_text = t(
         "invoice_title",
@@ -300,12 +301,13 @@ def register_wallet_handlers(app: Client):
 
     @app.on_callback_query(filters.regex(r"^deposit:cancel:(\d+)$"))
     async def cb_deposit_cancel(client: Client, callback: CallbackQuery):
-        """Cancela la solicitud de depósito, notifica en logs y ahora sí permite al usuario volver al menú principal"""
+        """Cancela la solicitud de depósito y EDITA el mismo mensaje en el canal de logs"""
         user_id = callback.from_user.id
         deposit_id = int(callback.matches[0].group(1))
         USER_STATES.pop(user_id, None)
 
         amount_cancelled = 0.0
+        log_msg_id = None
         async with async_session() as session:
             stmt = select(Deposit).where(Deposit.id == deposit_id, Deposit.user_id == user_id)
             res = await session.execute(stmt)
@@ -318,18 +320,18 @@ def register_wallet_handlers(app: Client):
             if dep and dep.status == DepositStatus.PENDING:
                 dep.status = DepositStatus.EXPIRED
                 amount_cancelled = float(dep.exact_amount)
+                log_msg_id = dep.log_message_id
                 await session.commit()
 
-        # Notificar al canal de logs
-        username_str = f"@{callback.from_user.username}" if callback.from_user.username else callback.from_user.first_name
-        await audit_logger.log_system_alert(
+        # EDITAR el mismo mensaje en el canal de logs
+        await audit_logger.log_deposit_cancelled(
             client=client,
-            title="SOLICITUD DE DEPÓSITO CANCELADA",
-            details=(
-                f"👤 <b>Usuario:</b> {username_str} (<code>{user_id}</code>)\n"
-                f"💰 <b>Monto Cancelado:</b> <code>${amount_cancelled:.4f} USDT</code>\n"
-                f"🆔 <b>ID Depósito:</b> <code>DEP_{deposit_id}</code>"
-            )
+            user_id=user_id,
+            username=callback.from_user.username,
+            first_name=callback.from_user.first_name or "Usuario",
+            amount_cancelled=amount_cancelled,
+            deposit_id=deposit_id,
+            log_message_id=log_msg_id
         )
 
         cancel_text = t("deposit_cancelled_screen", lang, amount=f"{amount_cancelled:.4f}")
@@ -402,6 +404,7 @@ def register_wallet_handlers(app: Client):
                 None
             )
 
+            log_msg_id = None
             async with async_session() as session:
                 stmt = select(Deposit).where(Deposit.id == deposit_id, Deposit.user_id == user_id).with_for_update()
                 res = await session.execute(stmt)
@@ -414,7 +417,17 @@ def register_wallet_handlers(app: Client):
 
                 if datetime.utcnow() > deposit.expires_at:
                     deposit.status = DepositStatus.EXPIRED
+                    log_msg_id = deposit.log_message_id
                     await session.commit()
+                    await audit_logger.log_deposit_cancelled(
+                        client=client,
+                        user_id=user_id,
+                        username=message.from_user.username,
+                        first_name=message.from_user.first_name or "Usuario",
+                        amount_cancelled=float(deposit.exact_amount),
+                        deposit_id=deposit_id,
+                        log_message_id=log_msg_id
+                    )
                     kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
                     await render_screen(client, user_id, "❌ Time Expired", kb)
                     return
@@ -441,6 +454,7 @@ def register_wallet_handlers(app: Client):
                 deposit.status = DepositStatus.CONFIRMED
                 deposit.tx_hash = tx_hash
                 deposit.confirmed_at = datetime.utcnow()
+                log_msg_id = deposit.log_message_id
 
                 user_stmt = select(User).where(User.telegram_id == user_id).with_for_update()
                 u_res = await session.execute(user_stmt)
@@ -459,6 +473,7 @@ def register_wallet_handlers(app: Client):
 
                 await session.commit()
 
+            # EDITAR el mismo mensaje en el canal de logs
             await audit_logger.log_deposit_confirmed(
                 client=client,
                 user_id=user_id,
@@ -466,7 +481,9 @@ def register_wallet_handlers(app: Client):
                 first_name=message.from_user.first_name or "Usuario",
                 amount=float(credited_amount),
                 tx_hash=tx_hash,
-                new_balance=new_balance
+                new_balance=new_balance,
+                deposit_id=deposit_id,
+                log_message_id=log_msg_id
             )
 
             success_text = t("deposit_success_title", lang, amount=f"{float(credited_amount):.4f}", balance=f"{new_balance:.4f}")

@@ -52,6 +52,7 @@ class Deposit(Base):
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
     confirmed_at = Column(DateTime, nullable=True)
+    log_message_id = Column(BigInteger, nullable=True)
 
     user = relationship("User", back_populates="deposits")
 

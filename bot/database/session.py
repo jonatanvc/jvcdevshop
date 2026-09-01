@@ -32,7 +32,8 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS total_spent NUMERIC(12, 4) DEFAULT 0.0000;",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS warranty_hours INTEGER DEFAULT 0;",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS provider_order_id VARCHAR(128);",
-            "ALTER TABLE stock_alerts ADD COLUMN IF NOT EXISTS product_name VARCHAR(255);"
+            "ALTER TABLE stock_alerts ADD COLUMN IF NOT EXISTS product_name VARCHAR(255);",
+            "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS log_message_id BIGINT;"
         ]
         for sql in migrations:
             try:
