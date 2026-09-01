@@ -8,6 +8,7 @@ from bot.services.bunai_client import bunai_api
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
+from bot.utils.translator import translate_text
 
 SEARCH_STATES = {}
 
@@ -605,8 +606,10 @@ def register_catalog_handlers(app: Client):
             lang = getattr(user, "language", "es") or "es"
 
         p_data = await bunai_api.get_product(product_id)
-        note = p_data.get("note") if p_data else ""
-        if not note:
+        raw_note = p_data.get("note") if p_data else ""
+        if raw_note and raw_note.strip():
+            note = await translate_text(raw_note, lang)
+        else:
             note = t("no_admin_note", lang)
 
         text = (

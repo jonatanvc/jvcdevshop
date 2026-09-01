@@ -10,6 +10,7 @@ from bot.services.audit_logger import audit_logger
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
+from bot.utils.translator import translate_text
 
 def register_checkout_handlers(app: Client):
 
@@ -131,14 +132,17 @@ def register_checkout_handlers(app: Client):
         # 6. Compra exitosa
         order_data = order_res.get("data", {})
         provider_order_id = order_data.get("order_id")
-        raw_items = order_data.get("items", [])
-        after_note = order_data.get("after_note", "")
+        raw_after_note = order_data.get("after_note", "")
+        if raw_after_note and raw_after_note.strip():
+            after_note = await translate_text(raw_after_note, lang)
+        else:
+            after_note = ""
 
         delivered_text = ""
         if raw_items:
             delivered_text = "\n\n".join(raw_items)
-        elif after_note:
-            delivered_text = after_note
+        elif raw_after_note:
+            delivered_text = raw_after_note
         else:
             delivered_text = "OK"
 
