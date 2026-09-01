@@ -104,8 +104,45 @@ class AuditLogger:
         )
         await self._send_log(client, msg)
 
+    async def log_restock_alert(
+        self,
+        client: Client,
+        product_name: str,
+        icon: str,
+        added_stock: int,
+        total_stock: int,
+        cost_price: float,
+        user_price: float
+    ):
+        """Envía alerta al canal de logs cuando el proveedor añade stock (idéntica a la imagen de referencia)"""
+        msg = (
+            f"📢 <b>¡{added_stock} stock añadido a {product_name}!</b>\n\n"
+            f"{icon} <b>{product_name}</b> - <code>{user_price:.2f} USDT</code> (Stock: {total_stock})\n"
+            f"💰 <b>Costo Proveedor:</b> <code>${cost_price:.2f} USD</code>"
+        )
+        await self._send_log(client, msg)
+
+    async def log_new_product_alert(
+        self,
+        client: Client,
+        product_name: str,
+        icon: str,
+        initial_stock: str,
+        cost_price: float,
+        user_price: float,
+        product_id: str
+    ):
+        """Envía alerta al canal de logs cuando el proveedor agrega un producto nuevo"""
+        msg = (
+            f"✨ <b>¡NUEVO PRODUCTO AÑADIDO POR PROVEEDOR!</b>\n\n"
+            f"{icon} <b>{product_name}</b> - <code>{user_price:.2f} USDT</code> (Stock: {initial_stock})\n"
+            f"💰 <b>Costo en Bunai:</b> <code>${cost_price:.2f} USD</code>\n"
+            f"🆔 <b>ID:</b> <code>{product_id}</code>"
+        )
+        await self._send_log(client, msg)
+
     async def log_system_alert(self, client: Client, title: str, details: str):
-        """Envía una alerta del sistema (ej: saldo bajo en BunaiStore, error de stock)"""
+        """Envía una alerta del sistema"""
         now = datetime.utcnow().strftime("%Y-%m-%d %H:%M:%S UTC")
         msg = (
             f"⚠️ <b>ALERTA DEL SISTEMA: {title}</b>\n"
