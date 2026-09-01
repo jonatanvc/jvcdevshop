@@ -25,8 +25,6 @@ FILTER_SHORT_KEYS = {
     "todos": "filter_short_todos"
 }
 
-FILTER_ROTATION = ["disponibles", "ofertas", "agotados", "todos"]
-
 def get_product_icon(name: str) -> str:
     """Asigna un icono representativo según el nombre del servicio"""
     name_lower = name.lower()
@@ -59,7 +57,7 @@ def get_product_icon(name: str) -> str:
     return "🏷️"
 
 def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode: str, lang: str = "es") -> InlineKeyboardMarkup:
-    """Construye la botonera inline del catálogo con botón de categorías corto y limpio"""
+    """Construye la botonera inline del catálogo con pestañas directas de categoría y marca activa ✅"""
     buttons = []
 
     # 1. Botones de cada producto
@@ -90,19 +88,29 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
         
         buttons.append(nav_row)
 
-    # 3. Fila de controles: Actualizar y Cambiar Categoría (con texto corto y limpio)
-    current_idx = FILTER_ROTATION.index(filter_mode) if filter_mode in FILTER_ROTATION else 0
-    next_filter = FILTER_ROTATION[(current_idx + 1) % len(FILTER_ROTATION)]
-    next_filter_short = t(FILTER_SHORT_KEYS.get(next_filter, "filter_short_disponibles"), lang)
+    # 3. Pestañas directas de Categoría (marcando con ✅ la categoría actual)
+    disp_text = f"✅ {t('filter_short_disponibles', lang)}" if filter_mode == "disponibles" else f"🟢 {t('filter_short_disponibles', lang)}"
+    ofertas_text = f"✅ {t('filter_short_ofertas', lang)}" if filter_mode == "ofertas" else f"🎁 {t('filter_short_ofertas', lang)}"
+    agotados_text = f"✅ {t('filter_short_agotados', lang)}" if filter_mode == "agotados" else f"🔴 {t('filter_short_agotados', lang)}"
+    todos_text = f"✅ {t('filter_short_todos', lang)}" if filter_mode == "todos" else f"📋 {t('filter_short_todos', lang)}"
 
     buttons.append([
-        InlineKeyboardButton(t("btn_refresh", lang), callback_data=f"catalog_refresh:{filter_mode}:{page}"),
-        InlineKeyboardButton(f"📂 {next_filter_short}", callback_data=f"catalog:{next_filter}:1")
+        InlineKeyboardButton(disp_text, callback_data="catalog:disponibles:1"),
+        InlineKeyboardButton(ofertas_text, callback_data="catalog:ofertas:1")
+    ])
+    buttons.append([
+        InlineKeyboardButton(agotados_text, callback_data="catalog:agotados:1"),
+        InlineKeyboardButton(todos_text, callback_data="catalog:todos:1")
     ])
 
-    # 4. Buscador y Volver
+    # 4. Fila de controles: Actualizar y Buscar
     buttons.append([
-        InlineKeyboardButton(t("btn_search_service", lang), callback_data="catalog:search_prompt"),
+        InlineKeyboardButton(t("btn_refresh", lang), callback_data=f"catalog_refresh:{filter_mode}:{page}"),
+        InlineKeyboardButton(t("btn_search_service", lang), callback_data="catalog:search_prompt")
+    ])
+
+    # 5. Volver
+    buttons.append([
         InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")
     ])
 
@@ -202,7 +210,7 @@ def register_catalog_handlers(app: Client):
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
             filter_title = t(FILTER_KEYS.get(filter_mode, "catalog_title_disponibles"), lang)
-            header_text = f"<b>{filter_title}:</b>\n"
+            header_text = f"<b>{filter_title} ({len(products)}):</b>\n"
 
             if not items_page:
                 header_text += f"\n<i>{t('catalog_empty', lang)}</i>"
@@ -230,7 +238,7 @@ def register_catalog_handlers(app: Client):
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
             filter_title = t(FILTER_KEYS.get(filter_mode, "catalog_title_disponibles"), lang)
-            header_text = f"<b>{filter_title}:</b>\n"
+            header_text = f"<b>{filter_title} ({len(products)}):</b>\n"
 
             if not items_page:
                 header_text += f"\n<i>{t('catalog_empty', lang)}</i>"

@@ -38,10 +38,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "lang_changed": "✅ Idioma actualizado a: {lang_name}",
 
         # Catálogo
-        "catalog_title_disponibles": "Productos Disponibles",
-        "catalog_title_agotados": "Productos Agotados",
-        "catalog_title_ofertas": "Productos en Oferta",
-        "catalog_title_todos": "Todos los Servicios",
+        "catalog_title_disponibles": "🟢 Productos Disponibles",
+        "catalog_title_agotados": "🔴 Productos Agotados",
+        "catalog_title_ofertas": "🎁 Productos en Oferta",
+        "catalog_title_todos": "📋 Todos los Servicios",
         "filter_short_disponibles": "Disponibles",
         "filter_short_agotados": "Agotados",
         "filter_short_ofertas": "Ofertas",
@@ -145,10 +145,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "lang_changed": "✅ Language updated to: {lang_name}",
 
         # Catalog
-        "catalog_title_disponibles": "Available Products",
-        "catalog_title_agotados": "Out of Stock Products",
-        "catalog_title_ofertas": "Special Offers",
-        "catalog_title_todos": "All Services",
+        "catalog_title_disponibles": "🟢 Available Products",
+        "catalog_title_agotados": "🔴 Out of Stock Products",
+        "catalog_title_ofertas": "🎁 Special Offers",
+        "catalog_title_todos": "📋 All Services",
         "filter_short_disponibles": "Available",
         "filter_short_agotados": "Sold Out",
         "filter_short_ofertas": "Offers",
@@ -252,10 +252,10 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "lang_changed": "✅ Idioma atualizado para: {lang_name}",
 
         # Catálogo
-        "catalog_title_disponibles": "Produtos Disponíveis",
-        "catalog_title_agotados": "Produtos Esgotados",
-        "catalog_title_ofertas": "Ofertas Especiais",
-        "catalog_title_todos": "Todos os Serviços",
+        "catalog_title_disponibles": "🟢 Produtos Disponíveis",
+        "catalog_title_agotados": "🔴 Produtos Esgotados",
+        "catalog_title_ofertas": "🎁 Ofertas Especiais",
+        "catalog_title_todos": "📋 Todos os Serviços",
         "filter_short_disponibles": "Disponíveis",
         "filter_short_agotados": "Esgotados",
         "filter_short_ofertas": "Ofertas",
