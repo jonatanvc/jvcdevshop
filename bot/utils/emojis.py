@@ -1,13 +1,8 @@
-"""
-Módulo de Emojis Premium de Telegram.
-Formatea automáticamente cada emoji como `<tg-emoji emoji-id="{ID}">{FALLBACK}</tg-emoji>`
-para renderizado vectorial y animado en clientes Telegram,
-además de proveer los iconos para botones y servicios digitales del catálogo.
-"""
+import re
 
 def pe(emoji_id: str, fallback: str) -> str:
-    """Retorna la etiqueta HTML de Telegram Custom Emoji"""
-    return f'<tg-emoji emoji-id="{emoji_id}">{fallback}</tg-emoji>'
+    """Retorna la etiqueta HTML de Telegram Custom Emoji compatible con Pyrogram"""
+    return f'<emoji id={emoji_id}>{fallback}</emoji>'
 
 # --- BOTONES Y MENÚS PRINCIPALES ---
 # 40- Botón Catálogo - (5278413853577734640)
@@ -323,3 +318,147 @@ def get_service_icon(name: str, for_html: bool = False) -> str:
             return pe(eid, fb) if for_html else fb
             
     return pe("5890883384057533697", "🏷️") if for_html else "🏷️"
+
+# ==============================================================================
+# SISTEMA DINÁMICO DE PARSEO DE EMOJIS (Compatible con Pyrogram)
+# ==============================================================================
+
+EMOJI_MAP_CORE = {
+    # --- Identidad y Menú Principal ---
+    "💎": "5427168083074628963",
+    "👤": "5275979556308674886",
+    "🆔": "5884366771913233289",
+    "💰": "5375296873982604963",
+    "💵": "5409048419211682843",
+    "🏦": "5264733042710181045",
+    "🛍️": "5767288471685171967",
+    "🛍": "5767288471685171967",
+    "🛒": "5278613311858959074",
+    "🪙": "5805550320985578625",
+    "💳": "5445353829304387411",
+    "💼": "5445221832074483553",
+    "🔗": "5289511602393984968",
+    "🆘": "6021798595739523148",
+    "⚙️": "5341715473882955310",
+    "⚙": "5341715473882955310",
+    "😀": "5465353434712528673",
+    "🏠": "5350404270032166927",
+    "🔄": "6030657343744644592",
+    "🔍": "5276395476646653290",
+    "💬": "5443038326535759644",
+    "⚠️": "5447644880824181073",
+    "⚠": "5447644880824181073",
+
+    # --- Mensajes, Billetera y Pedidos ---
+    "📝": "5334882760735598374",
+    "🌎": "4967677561032148287",
+    "🧮": "5472404950673791399",
+    "⭐️": "5469641199348363998",
+    "⭐": "5469641199348363998",
+    "📌": "5116161907669074775",
+    "💾": "4990318000096675490",
+    "📥": "5276220667182736079",
+    "📊": "5431577498364158238",
+    "✅": "6244510079014409289",
+    "🤭": "5787467546596743616",
+
+    # --- Controles y Administración ---
+    "🛠️": "5462921117423384478",
+    "🛠": "5462921117423384478",
+    "🌀": "5370715282044100355",
+    "📣": "5424818078833715060",
+    "📢": "5424818078833715060",
+    "◀️": "5465353434712528673",
+    "◀": "5465353434712528673",
+    "🔵": "5339366229851260759",
+    "⏺️": "5339366229851260759",
+    "⏺": "5339366229851260759",
+    "⏩": "5465152894099540081",
+    "▶️": "5465152894099540081",
+    "▶": "5465152894099540081",
+    "📁": "5244807637157029775",
+    "🟢": "5884106131822875141",
+    "🕶": "5276398496008663230",
+    "🕶️": "5276398496008663230",
+    "🔴": "5470060791883374114",
+    "🖥": "5406809207947142040",
+    "🖥️": "5406809207947142040",
+    "📲": "5407025283456835913",
+    "✍️": "5334882760735598374",
+    "✍": "5334882760735598374",
+    "❌": "5208429100951159058",
+    "📦": "5886285355279193209",
+    "🏷️": "5890883384057533697",
+    "🏷": "5890883384057533697",
+    "🔒": "5276262671962892944",
+    "🎲": "5190741648237161191",
+    "📈": "5244837092042750681",
+    "🎯": "5310278924616356636",
+    "⏳": "5451732530048802485",
+    "🎉": "5461151367559141950",
+    "🔑": "5330115548900501467",
+    "💡": "5397782960512444700",
+    "👥": "5422439311196834318",
+    "📉": "5246762912428603768",
+    "✨": "5118474816277447476",
+    "⏰": "5276412364458059956",
+    "🔔": "5242628160297641831",
+    "🔕": "5208429100951159058",
+    "🌐": "5447410659077661506",
+    "📅": "5413879192267805083",
+    "🗣️": "5370765563226236970",
+    "🗣": "5370765563226236970",
+    "🇪🇸": "4916120627582076238",
+    "🇺🇸": "4916136269852968195",
+    "🇧🇷": "5224688610183228070",
+    "🔣": "5778208881301787450",
+    "🌟": "5769248574499983619",
+    "👆": "5769248574499983619",
+}
+
+def _build_final_emoji_map() -> dict[str, str]:
+    mapping = {}
+    for em_char, em_id in EMOJI_MAP_CORE.items():
+        mapping[em_char] = em_id
+        clean = em_char.replace("\ufe0f", "")
+        mapping[clean] = em_id
+        mapping[clean + "\ufe0f"] = em_id
+    return mapping
+
+EMOJI_MAP = _build_final_emoji_map()
+
+_ESCAPED_KEYS = [re.escape(k) for k in sorted(EMOJI_MAP.keys(), key=lambda x: len(x), reverse=True) if k]
+_EMOJI_REGEX_PATTERN = re.compile("|".join(_ESCAPED_KEYS)) if _ESCAPED_KEYS else None
+_PROTECTED_TAGS_REGEX = re.compile(r'<emoji[^>]*>.*?</emoji>|<tg-emoji[^>]*>.*?</tg-emoji>|<[^>]+>', re.DOTALL)
+_TG_EMOJI_CONVERTER = re.compile(r'<tg-emoji emoji-id="(\d+)">([^<]+)</tg-emoji>')
+
+def parse_emojis(text: str) -> str:
+    """
+    Convierte dinámicamente emojis unicode a etiquetas <emoji id=...> compatibles
+    nativamente con el parser HTML de Pyrogram (MessageEntityCustomEmoji).
+    """
+    if not text:
+        return text
+
+    # Compatibilidad retroactiva: convertir cualquier <tg-emoji> a <emoji>
+    text = _TG_EMOJI_CONVERTER.sub(r'<emoji id=\1>\2</emoji>', text)
+
+    if not _EMOJI_REGEX_PATTERN:
+        return text
+
+    segments = []
+    last_idx = 0
+    for match in _PROTECTED_TAGS_REGEX.finditer(text):
+        start, end = match.span()
+        if start > last_idx:
+            plain_part = text[last_idx:start]
+            segments.append(_EMOJI_REGEX_PATTERN.sub(lambda m: f'<emoji id={EMOJI_MAP[m.group(0)]}>{m.group(0)}</emoji>', plain_part))
+        segments.append(match.group(0))
+        last_idx = end
+
+    if last_idx < len(text):
+        segments.append(_EMOJI_REGEX_PATTERN.sub(lambda m: f'<emoji id={EMOJI_MAP[m.group(0)]}>{m.group(0)}</emoji>', text[last_idx:]))
+
+    return "".join(segments)
+
+p = parse_emojis

@@ -16,7 +16,7 @@ from bot.utils.emojis import (
     EMOJI_ADMIN, EMOJI_USERS, EMOJI_CARD, EMOJI_SHOPPING, EMOJI_PROVIDER,
     EMOJI_CHART_DOWN, EMOJI_CHART_UP, EMOJI_SHIELD, EMOJI_TOOLS, EMOJI_RED_DOT,
     EMOJI_GREEN_DOT, EMOJI_WARN, EMOJI_CHECK, EMOJI_PARTY, EMOJI_BROADCAST,
-    EMOJI_WALLET, EMOJI_MONEY, EMOJI_TRASH, EMOJI_ADMIN_PERSON
+    EMOJI_WALLET, EMOJI_MONEY, EMOJI_TRASH, EMOJI_ADMIN_PERSON, parse_emojis
 )
 
 ADMIN_STATES: Dict[int, Dict[str, Any]] = {}
@@ -120,7 +120,7 @@ def register_admin_handlers(app: Client):
                 "<code>/del @usuario</code> o <code>/del 123456789</code>\n\n"
                 "<i>Este comando restablece el saldo del usuario a 0.00 USDT.</i>"
             )
-            await client.send_message(chat_id=user_id, text=help_text)
+            await client.send_message(chat_id=user_id, text=parse_emojis(help_text))
             return
 
         target_ident = message.command[1].strip()
@@ -129,7 +129,7 @@ def register_admin_handlers(app: Client):
             if not user:
                 await client.send_message(
                     chat_id=user_id,
-                    text=f"❌ <b>Usuario no encontrado:</b> No se encontró a ningún usuario con el identificador <code>{target_ident}</code> en la base de datos."
+                    text=parse_emojis(f"❌ <b>Usuario no encontrado:</b> No se encontró a ningún usuario con el identificador <code>{target_ident}</code> en la base de datos.")
                 )
                 return
 
@@ -147,7 +147,7 @@ def register_admin_handlers(app: Client):
             f"{EMOJI_MONEY} <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
             f"{EMOJI_WALLET} <b>Saldo Actual:</b> <code>$0.00 USDT</code>"
         )
-        await client.send_message(chat_id=user_id, text=conf_text)
+        await client.send_message(chat_id=user_id, text=parse_emojis(conf_text))
 
         # Notificar por DM al usuario
         try:
@@ -165,7 +165,7 @@ def register_admin_handlers(app: Client):
                     f"{EMOJI_WARN} <b>Aviso de Carteira:</b>\n\n"
                     "Seu saldo foi redefinido para <code>0.00 USDT</code> pela administração."
                 )
-            await client.send_message(chat_id=target_uid, text=user_dm_text)
+            await client.send_message(chat_id=target_uid, text=parse_emojis(user_dm_text))
         except Exception:
             pass
 
@@ -198,7 +198,7 @@ def register_admin_handlers(app: Client):
                 "<code>/dep 5.50 @usuario</code> o <code>/dep 5.50 123456789</code>\n\n"
                 "<i>Añade saldo en USDT directamente a la billetera del usuario.</i>"
             )
-            await client.send_message(chat_id=user_id, text=help_text)
+            await client.send_message(chat_id=user_id, text=parse_emojis(help_text))
             return
 
         arg1 = message.command[1].strip()
@@ -221,7 +221,7 @@ def register_admin_handlers(app: Client):
         if amount is None or amount <= 0 or not target_ident:
             await client.send_message(
                 chat_id=user_id,
-                text=f"{EMOJI_CROSS} <b>Monto inválido:</b> Asegúrate de indicar un monto numérico mayor a 0.\nEjemplo: <code>/dep 5.50 @usuario</code>"
+                text=parse_emojis(f"{EMOJI_CROSS} <b>Monto inválido:</b> Asegúrate de indicar un monto numérico mayor a 0.\nEjemplo: <code>/dep 5.50 @usuario</code>")
             )
             return
 
@@ -232,7 +232,7 @@ def register_admin_handlers(app: Client):
             if not user:
                 await client.send_message(
                     chat_id=user_id,
-                    text=f"{EMOJI_CROSS} <b>Usuario no encontrado:</b> No se encontró a ningún usuario con el identificador <code>{target_ident}</code> en la base de datos."
+                    text=parse_emojis(f"{EMOJI_CROSS} <b>Usuario no encontrado:</b> No se encontró a ningún usuario con el identificador <code>{target_ident}</code> en la base de datos.")
                 )
                 return
 
@@ -252,7 +252,7 @@ def register_admin_handlers(app: Client):
             f"{EMOJI_MONEY} <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
             f"{EMOJI_WALLET} <b>Nuevo Saldo:</b> <code>${new_balance:.2f} USDT</code>"
         )
-        await client.send_message(chat_id=user_id, text=conf_text)
+        await client.send_message(chat_id=user_id, text=parse_emojis(conf_text))
 
         # Notificación por DM al Usuario
         try:
@@ -273,7 +273,7 @@ def register_admin_handlers(app: Client):
                     f"Foram adicionados <b>+${amount:.2f} USDT</b> ao seu saldo pela administração.\n"
                     f"{EMOJI_WALLET} <b>Saldo Atual:</b> <code>${new_balance:.2f} USDT</code>"
                 )
-            await client.send_message(chat_id=target_uid, text=user_dm_text)
+            await client.send_message(chat_id=target_uid, text=parse_emojis(user_dm_text))
         except Exception:
             pass
 
@@ -406,7 +406,7 @@ def register_admin_handlers(app: Client):
 
             for uid in user_ids:
                 try:
-                    await client.send_message(chat_id=uid, text=broadcast_text)
+                    await client.send_message(chat_id=uid, text=parse_emojis(broadcast_text))
                     sent_count += 1
                     await asyncio.sleep(0.05)
                 except Exception:

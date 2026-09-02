@@ -3,6 +3,7 @@ from pyrogram import Client
 from pyrogram.types import InlineKeyboardMarkup, Message, CallbackQuery
 from pyrogram.enums import ParseMode
 from pyrogram.errors import MessageNotModified, BadRequest, MessageIdInvalid
+from bot.utils.emojis import parse_emojis
 
 # Diccionario en memoria para rastrear el ID del único mensaje activo por usuario
 USER_LAST_MESSAGES: Dict[int, int] = {}
@@ -41,6 +42,9 @@ async def render_screen(
 
     if not user_id:
         return None
+
+    if text:
+        text = parse_emojis(text)
 
     # Si el mensaje actual es una foto/media, no se puede editar a solo texto con edit_message_text
     # En este caso borramos el mensaje de foto anterior y creamos uno nuevo limpio

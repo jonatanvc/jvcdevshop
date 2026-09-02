@@ -15,6 +15,7 @@ from bot.services.qr_generator import get_wallet_qr_media
 from bot.utils.navigation import render_screen, USER_LAST_MESSAGES
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
+from bot.utils.emojis import parse_emojis
 
 USER_STATES: Dict[int, Dict[str, Any]] = {}
 
@@ -240,7 +241,7 @@ def register_wallet_handlers(app: Client):
             photo_msg = await client.send_photo(
                 chat_id=callback.message.chat.id,
                 photo=qr_media,
-                caption=caption,
+                caption=parse_emojis(caption),
                 parse_mode=ParseMode.HTML,
                 reply_markup=keyboard
             )

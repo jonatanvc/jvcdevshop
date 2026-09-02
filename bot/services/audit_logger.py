@@ -7,7 +7,7 @@ from bot.utils.emojis import (
     EMOJI_SHOPPING, EMOJI_USER, EMOJI_BOX, EMOJI_MONEY, EMOJI_CARD,
     EMOJI_KEY, EMOJI_TARGET, EMOJI_HOURGLASS, EMOJI_CLOCK, EMOJI_CROSS,
     EMOJI_CHECK, EMOJI_LINK, EMOJI_BROADCAST, EMOJI_SPARKLES, EMOJI_WARN,
-    EMOJI_INBOX, EMOJI_BAR_CHART, EMOJI_NAME_TAG
+    EMOJI_INBOX, EMOJI_BAR_CHART, EMOJI_NAME_TAG, parse_emojis
 )
 
 class AuditLogger:
@@ -19,6 +19,8 @@ class AuditLogger:
         if not self.log_group_id or self.log_group_id == 0:
             return None
         try:
+            if text:
+                text = parse_emojis(text)
             msg = await client.send_message(
                 chat_id=self.log_group_id,
                 text=text,

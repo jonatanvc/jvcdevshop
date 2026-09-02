@@ -9,7 +9,7 @@ from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, Deposit, Order, Setting, CustomPricing
 from bot.utils.time_utils import get_now_str
-from bot.utils.emojis import EMOJI_CALENDAR, EMOJI_LOCK, EMOJI_DISK
+from bot.utils.emojis import EMOJI_CALENDAR, EMOJI_LOCK, EMOJI_DISK, parse_emojis
 
 class BackupService:
     async def generate_backup_file(self) -> io.BytesIO:
@@ -122,7 +122,7 @@ class BackupService:
             await client.send_document(
                 chat_id=target_chat,
                 document=backup_file,
-                caption=caption
+                caption=parse_emojis(caption)
             )
         except Exception as e:
             print(f"[BackupService Error] {e}")

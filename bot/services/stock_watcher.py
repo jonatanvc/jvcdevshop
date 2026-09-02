@@ -12,7 +12,7 @@ from bot.services.bunai_client import bunai_api
 from bot.services.pricing import pricing_service
 from bot.services.audit_logger import audit_logger
 from bot.utils.i18n import t
-from bot.utils.emojis import get_service_icon
+from bot.utils.emojis import get_service_icon, parse_emojis
 
 def get_product_icon_simple(name: str) -> str:
     """Asigna un icono representativo según el catálogo de servicios"""
@@ -140,7 +140,7 @@ class StockWatcher:
                             try:
                                 await client.send_message(
                                     chat_id=alert.user_id,
-                                    text=dm_text,
+                                    text=parse_emojis(dm_text),
                                     reply_markup=dm_kb,
                                     parse_mode=ParseMode.HTML
                                 )
