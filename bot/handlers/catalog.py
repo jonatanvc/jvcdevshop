@@ -82,8 +82,8 @@ def build_product_calculator_keyboard(
 
     # Fila 1: Cantidad actual y botón Del
     buttons.append([
-        InlineKeyboardButton(f"Cant: {qty}", callback_data="noop"),
-        InlineKeyboardButton("Del", callback_data=f"pqty:{product_id}:{filter_mode}:{page}:{qty}:del")
+        InlineKeyboardButton(f"🧮 Cant: {qty}", callback_data="noop"),
+        InlineKeyboardButton("🗑️ Borrar", callback_data=f"pqty:{product_id}:{filter_mode}:{page}:{qty}:del")
     ])
 
     # Fila 2: Dígitos 1 a 5

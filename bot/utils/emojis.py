@@ -1,4 +1,6 @@
 import re
+from typing import Any, Optional
+from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton as _PyrogramInlineKeyboardButton
 
 def pe(emoji_id: str, fallback: str) -> str:
     """Retorna la etiqueta HTML de Telegram Custom Emoji compatible con Pyrogram"""
@@ -414,6 +416,34 @@ EMOJI_MAP_CORE = {
     "🔣": "5778208881301787450",
     "🌟": "5769248574499983619",
     "👆": "5769248574499983619",
+
+    # --- Servicios y Marcas del Catálogo ---
+    "🤖": "5310176773114197087",  # Google / Gemini
+    "🐁": "5796209712009581332",  # Gmail
+    "💊": "5798553402648565182",  # Windows 10/11
+    "🛻": "5796683820564484775",  # Outlook / Hotmail
+    "⚒": "5796297333637387376",  # Crunchyroll
+    "🥀": "5796214303329620386",  # Canva
+    "👋": "6226228430459912404",  # QuillBot
+    "🔫": "5796371348808799072",  # Duolingo
+    "😵": "6273793612715138423",  # Cursor AI
+    "😁": "6179337489350663129",  # Grok
+    "😶": "6133975818591805751",  # Leonardo AI
+    "👍": "6104729848675050039",  # Lovable AI
+    "😊": "6318816857230942976",  # HeyGen
+    "😭": "6178962311072456422",  # Veo AI
+    "🍸": "5796592771552777710",  # Surfshark
+    "🥏": "5796345694969140339",  # NordVPN
+    "👨‍⚖️": "5796153709931009517",  # ExpressVPN
+    "❤️": "5807666842214339188",  # HMA
+    "😙": "6116431787720712232",  # Xbox
+    "🔙": "5465353434712528673",  # Volver
+    "📋": "5334544901428229844",  # Portapapeles
+    "🗑️": "4990318000096675490",  # Borrar
+    "🗑": "4990318000096675490",
+    "🛡️": "5469641199348363998",  # Escudo
+    "🛡": "5469641199348363998",
+    "👛": "6030443364178992166",  # Billetera
 }
 
 def _build_final_emoji_map() -> dict[str, str]:
@@ -462,3 +492,63 @@ def parse_emojis(text: str) -> str:
     return "".join(segments)
 
 p = parse_emojis
+
+def parse_keyboard(reply_markup: Any) -> Any:
+    """
+    Procesa y parsea absolutamente todos los botones de la botonera inline:
+    1. Limpia cualquier residuo de tags HTML (<emoji>, <tg-emoji>, etc.) para garantizar
+       que Telegram muestre el emoji nativo nítido y sin artefactos.
+    2. Detecta el emoji del botón contra EMOJI_MAP y le asocia icon_custom_emoji_id
+       (igual que en telegram-confesiones-bot).
+    """
+    if not reply_markup or not hasattr(reply_markup, "inline_keyboard"):
+        return reply_markup
+
+    for row in reply_markup.inline_keyboard:
+        for btn in row:
+            if btn and hasattr(btn, "text") and btn.text:
+                # Remover cualquier tag HTML si estuviera presente
+                clean_text = re.sub(r'<[^>]+>', '', str(btn.text)).strip()
+                
+                # Buscar coincidencia con el mapa de emojis
+                icon_id = None
+                for emoji_char, em_id in sorted(EMOJI_MAP.items(), key=lambda x: len(x[0]), reverse=True):
+                    if clean_text.startswith(emoji_char):
+                        icon_id = em_id
+                        break
+                    elif emoji_char in clean_text:
+                        icon_id = em_id
+                        break
+                
+                if icon_id:
+                    try:
+                        btn.icon_custom_emoji_id = str(icon_id)
+                    except Exception:
+                        pass
+                
+                btn.text = clean_text
+
+    return reply_markup
+
+def InlineKeyboardButton(text: str, *args, **kwargs) -> _PyrogramInlineKeyboardButton:
+    """
+    Construye InlineKeyboardButton limpiando tags HTML e inyectando
+    icon_custom_emoji_id cuando coincide con EMOJI_MAP (idéntico al bot de confesiones).
+    """
+    clean_text = re.sub(r'<[^>]+>', '', str(text)).strip()
+    icon_id = None
+    for emoji_char, em_id in sorted(EMOJI_MAP.items(), key=lambda x: len(x[0]), reverse=True):
+        if clean_text.startswith(emoji_char):
+            icon_id = em_id
+            break
+        elif emoji_char in clean_text:
+            icon_id = em_id
+            break
+
+    btn = _PyrogramInlineKeyboardButton(text=clean_text, *args, **kwargs)
+    if icon_id:
+        try:
+            btn.icon_custom_emoji_id = str(icon_id)
+        except Exception:
+            pass
+    return btn

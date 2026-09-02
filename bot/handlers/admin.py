@@ -417,5 +417,5 @@ def register_admin_handlers(app: Client):
                 f"• <b>Entregados:</b> {sent_count}\n"
                 f"• <b>Fallidos/Bloqueados:</b> {fail_count}"
             )
-            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("Volver al Panel", callback_data="admin:menu")]])
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("😀 Volver al Panel", callback_data="admin:menu")]])
             await render_screen(client, user_id, result_text, keyboard)

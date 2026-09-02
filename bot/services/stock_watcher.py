@@ -12,7 +12,7 @@ from bot.services.bunai_client import bunai_api
 from bot.services.pricing import pricing_service
 from bot.services.audit_logger import audit_logger
 from bot.utils.i18n import t
-from bot.utils.emojis import get_service_icon, parse_emojis
+from bot.utils.emojis import get_service_icon, parse_emojis, parse_keyboard
 
 def get_product_icon_simple(name: str) -> str:
     """Asigna un icono representativo según el catálogo de servicios"""
@@ -133,10 +133,10 @@ class StockWatcher:
                                 price=f"{user_price:.2f}",
                                 stock=current_stock
                             )
-                            dm_kb = InlineKeyboardMarkup([
+                            dm_kb = parse_keyboard(InlineKeyboardMarkup([
                                 [InlineKeyboardButton(t("btn_buy_now", lang), callback_data=f"product:view:{pid}:disponibles:1:0")],
                                 [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
-                            ])
+                            ]))
                             try:
                                 await client.send_message(
                                     chat_id=alert.user_id,
