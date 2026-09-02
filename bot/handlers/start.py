@@ -23,7 +23,7 @@ def get_main_menu_keyboard(user_id: int, lang: str = "es") -> InlineKeyboardMark
             InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")
         ],
         [
-            InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:topup"),
+            InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:deposit_menu"),
             InlineKeyboardButton(t("btn_my_orders", lang), callback_data="orders:page:1")
         ],
         [

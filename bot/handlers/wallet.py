@@ -119,11 +119,15 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
 
 def register_wallet_handlers(app: Client):
 
-    @app.on_callback_query(filters.regex("^wallet:deposit_menu$"))
+    @app.on_callback_query(filters.regex(r"^wallet:(deposit_menu|topup)$"))
     async def cb_deposit_menu(client: Client, callback: CallbackQuery):
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
-            await callback.answer()
             return
 
         async with async_session() as session:
@@ -160,6 +164,11 @@ def register_wallet_handlers(app: Client):
 
     @app.on_callback_query(filters.regex(r"^deposit:amount:(\d+)$"))
     async def cb_deposit_fixed(client: Client, callback: CallbackQuery):
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         user_id = callback.from_user.id
         amount = float(callback.matches[0].group(1))
 
@@ -181,6 +190,11 @@ def register_wallet_handlers(app: Client):
 
     @app.on_callback_query(filters.regex("^deposit:custom$"))
     async def cb_deposit_custom(client: Client, callback: CallbackQuery):
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         user_id = callback.from_user.id
         USER_STATES[user_id] = {"action": "waiting_amount"}
 

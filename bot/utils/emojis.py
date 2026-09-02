@@ -1,5 +1,9 @@
 import re
-from typing import Any
+from io import BytesIO
+from typing import Any, Optional, Tuple
+from pyrogram.raw.core.primitives import Int, Long, String, Bytes
+from pyrogram.raw.core import TLObject
+from pyrogram.raw.all import objects
 from pyrogram.types import InlineKeyboardButton as _PyrogramInlineKeyboardButton
 
 def pe(emoji_id: str, fallback: str) -> str:
@@ -490,13 +494,169 @@ def parse_emojis(text: str) -> str:
 
 p = parse_emojis
 
+# --- CONSTRUCTORES RAW MTPROTO PARA BOTONES CON EMOJI PREMIUM (CAPA 180+) ---
+
+class RawKeyboardButtonStyle(TLObject):
+    ID = 0x4fdd3430
+    QUALNAME = "types.KeyboardButtonStyle"
+
+    def __init__(self, *, icon: Optional[int] = None, bg_primary: bool = False, bg_danger: bool = False, bg_success: bool = False):
+        self.icon = int(icon) if icon is not None else None
+        self.bg_primary = bg_primary
+        self.bg_danger = bg_danger
+        self.bg_success = bg_success
+
+    @staticmethod
+    def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonStyle":
+        flags = Int.read(b)
+        bg_primary = bool(flags & (1 << 0))
+        bg_danger = bool(flags & (1 << 1))
+        bg_success = bool(flags & (1 << 2))
+        icon = Long.read(b) if bool(flags & (1 << 3)) else None
+        return RawKeyboardButtonStyle(icon=icon, bg_primary=bg_primary, bg_danger=bg_danger, bg_success=bg_success)
+
+    def write(self, *args: Any) -> bytes:
+        b = BytesIO()
+        b.write(Int(self.ID, False))
+        flags = 0
+        if self.bg_primary: flags |= (1 << 0)
+        if self.bg_danger: flags |= (1 << 1)
+        if self.bg_success: flags |= (1 << 2)
+        if self.icon is not None: flags |= (1 << 3)
+        b.write(Int(flags))
+        if self.icon is not None:
+            b.write(Long(self.icon))
+        return b.getvalue()
+
+class RawKeyboardButtonCallback(TLObject):
+    ID = 0xe62bc960
+    QUALNAME = "types.KeyboardButtonCallback"
+
+    def __init__(self, *, text: str, data: bytes, style: Optional[RawKeyboardButtonStyle] = None, requires_password: Optional[bool] = None):
+        self.text = text
+        self.data = data
+        self.style = style
+        self.requires_password = requires_password
+
+    @staticmethod
+    def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonCallback":
+        flags = Int.read(b)
+        requires_password = bool(flags & (1 << 0))
+        style = TLObject.read(b) if bool(flags & (1 << 10)) else None
+        text = String.read(b)
+        data = Bytes.read(b)
+        return RawKeyboardButtonCallback(text=text, data=data, style=style, requires_password=requires_password)
+
+    def write(self, *args: Any) -> bytes:
+        b = BytesIO()
+        b.write(Int(self.ID, False))
+        flags = 0
+        if self.requires_password: flags |= (1 << 0)
+        if self.style is not None: flags |= (1 << 10)
+        b.write(Int(flags))
+        if self.style is not None:
+            b.write(self.style.write())
+        b.write(String(self.text))
+        b.write(Bytes(self.data))
+        return b.getvalue()
+
+class RawKeyboardButtonUrl(TLObject):
+    ID = 0x258aff05
+    QUALNAME = "types.KeyboardButtonUrl"
+
+    def __init__(self, *, text: str, url: str, style: Optional[RawKeyboardButtonStyle] = None):
+        self.text = text
+        self.url = url
+        self.style = style
+
+    @staticmethod
+    def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonUrl":
+        flags = Int.read(b)
+        style = TLObject.read(b) if bool(flags & (1 << 10)) else None
+        text = String.read(b)
+        url = String.read(b)
+        return RawKeyboardButtonUrl(text=text, url=url, style=style)
+
+    def write(self, *args: Any) -> bytes:
+        b = BytesIO()
+        b.write(Int(self.ID, False))
+        flags = 0
+        if self.style is not None: flags |= (1 << 10)
+        b.write(Int(flags))
+        if self.style is not None:
+            b.write(self.style.write())
+        b.write(String(self.text))
+        b.write(String(self.url))
+        return b.getvalue()
+
+objects[RawKeyboardButtonStyle.ID] = RawKeyboardButtonStyle
+objects[RawKeyboardButtonCallback.ID] = RawKeyboardButtonCallback
+objects[RawKeyboardButtonUrl.ID] = RawKeyboardButtonUrl
+
+# Monkeypatch del serializador write() de Pyrogram para inyectar style.icon en MTProto
+_orig_btn_write = _PyrogramInlineKeyboardButton.write
+
+async def _custom_btn_write(self, client: Any):
+    icon_id = getattr(self, "icon_custom_emoji_id", None)
+    if icon_id:
+        try:
+            icon_int = int(str(icon_id).strip())
+            style = RawKeyboardButtonStyle(icon=icon_int)
+            if self.callback_data is not None:
+                data = bytes(self.callback_data, "utf-8") if isinstance(self.callback_data, str) else self.callback_data
+                return RawKeyboardButtonCallback(
+                    text=self.text,
+                    data=data,
+                    style=style
+                )
+            if self.url is not None:
+                return RawKeyboardButtonUrl(
+                    text=self.text,
+                    url=self.url,
+                    style=style
+                )
+        except Exception:
+            pass
+    return await _orig_btn_write(self, client)
+
+_PyrogramInlineKeyboardButton.write = _custom_btn_write
+
+def format_button_info(text: str) -> Tuple[str, Optional[str], str]:
+    """
+    Construye la información del botón (idéntico al bot de confesiones):
+    - Extrae icon_custom_emoji_id según el catálogo de Emojis Animados Premium.
+    - Remueve el emoji unicode del texto para evitar que aparezcan 2 emojis duplicados
+      cuando Telegram renderiza el icono animado en el botón.
+    - Retorna (texto_sin_emoji, icon_id, texto_completo_con_emoji).
+    """
+    clean_text = re.sub(r'<[^>]+>', '', str(text)).strip()
+    text_str = clean_text
+    icon_id = None
+
+    # 1. Buscar si comienza con algún emoji del catálogo
+    for emoji_char, em_id in sorted(EMOJI_MAP.items(), key=lambda x: len(x[0]), reverse=True):
+        if text_str.startswith(emoji_char):
+            icon_id = em_id
+            text_str = text_str[len(emoji_char):].strip().lstrip(" \ufe0f")
+            break
+
+    # 2. Si no empieza con emoji, buscar si contiene un emoji en el texto
+    if not icon_id:
+        for emoji_char, em_id in sorted(EMOJI_MAP.items(), key=lambda x: len(x[0]), reverse=True):
+            if emoji_char in text_str:
+                icon_id = em_id
+                text_str = text_str.replace(emoji_char, "").strip()
+                break
+
+    final_text = text_str if text_str else clean_text
+    return final_text, icon_id, clean_text
+
 def parse_keyboard(reply_markup: Any) -> Any:
     """
     Procesa y parsea absolutamente todos los botones de la botonera inline:
-    1. Limpia cualquier residuo de tags HTML (<emoji>, <tg-emoji>, etc.) para garantizar
-       que Telegram muestre el emoji nativo nítido y sin artefactos.
-    2. Detecta el emoji del botón contra EMOJI_MAP y le asocia icon_custom_emoji_id
-       (igual que en telegram-confesiones-bot).
+    1. Limpia cualquier residuo de tags HTML.
+    2. Asocia icon_custom_emoji_id inyectando el icono animado de Telegram Premium.
+    3. Remueve el emoji duplicado del texto (idéntico a telegram-confesiones-bot).
     """
     if not reply_markup or not hasattr(reply_markup, "inline_keyboard"):
         return reply_markup
@@ -504,48 +664,41 @@ def parse_keyboard(reply_markup: Any) -> Any:
     for row in reply_markup.inline_keyboard:
         for btn in row:
             if btn and hasattr(btn, "text") and btn.text:
-                # Remover cualquier tag HTML si estuviera presente
-                clean_text = re.sub(r'<[^>]+>', '', str(btn.text)).strip()
-                
-                # Buscar coincidencia con el mapa de emojis
-                icon_id = None
-                for emoji_char, em_id in sorted(EMOJI_MAP.items(), key=lambda x: len(x[0]), reverse=True):
-                    if clean_text.startswith(emoji_char):
-                        icon_id = em_id
-                        break
-                    elif emoji_char in clean_text:
-                        icon_id = em_id
-                        break
-                
+                final_text, icon_id, full_text = format_button_info(btn.text)
+                btn._fallback_text = full_text
                 if icon_id:
-                    try:
-                        btn.icon_custom_emoji_id = str(icon_id)
-                    except Exception:
-                        pass
-                
-                btn.text = clean_text
+                    btn.text = final_text
+                    btn.icon_custom_emoji_id = str(icon_id)
+                else:
+                    btn.text = full_text
 
     return reply_markup
 
-def InlineKeyboardButton(text: str, *args, **kwargs) -> _PyrogramInlineKeyboardButton:
+def InlineKeyboardButton(text: str, *args: Any, **kwargs: Any) -> _PyrogramInlineKeyboardButton:
     """
-    Construye InlineKeyboardButton limpiando tags HTML e inyectando
-    icon_custom_emoji_id cuando coincide con EMOJI_MAP (idéntico al bot de confesiones).
+    Construye InlineKeyboardButton inyectando icon_custom_emoji_id cuando coincide
+    con el catálogo de Emojis Animados Premium de Telegram, y remueve el emoji unicode
+    del texto para evitar que aparezcan 2 emojis duplicados en el botón (idéntico al bot de confesiones).
     """
-    clean_text = re.sub(r'<[^>]+>', '', str(text)).strip()
-    icon_id = None
-    for emoji_char, em_id in sorted(EMOJI_MAP.items(), key=lambda x: len(x[0]), reverse=True):
-        if clean_text.startswith(emoji_char):
-            icon_id = em_id
-            break
-        elif emoji_char in clean_text:
-            icon_id = em_id
-            break
-
-    btn = _PyrogramInlineKeyboardButton(text=clean_text, *args, **kwargs)
+    final_text, icon_id, full_text = format_button_info(text)
     if icon_id:
-        try:
-            btn.icon_custom_emoji_id = str(icon_id)
-        except Exception:
-            pass
-    return btn
+        btn = _PyrogramInlineKeyboardButton(text=final_text, *args, **kwargs)
+        btn.icon_custom_emoji_id = str(icon_id)
+        btn._fallback_text = full_text
+        return btn
+    else:
+        btn = _PyrogramInlineKeyboardButton(text=full_text, *args, **kwargs)
+        btn._fallback_text = full_text
+        return btn
+
+def strip_keyboard_icons(reply_markup: Any) -> Any:
+    """Restaura los botones estándar eliminando icon_custom_emoji_id si Telegram rechaza el formato"""
+    if not reply_markup or not hasattr(reply_markup, "inline_keyboard"):
+        return reply_markup
+    for row in reply_markup.inline_keyboard:
+        for btn in row:
+            if hasattr(btn, "icon_custom_emoji_id"):
+                delattr(btn, "icon_custom_emoji_id")
+            if hasattr(btn, "_fallback_text"):
+                btn.text = btn._fallback_text
+    return reply_markup

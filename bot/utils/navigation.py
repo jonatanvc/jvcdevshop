@@ -3,7 +3,7 @@ from pyrogram import Client
 from pyrogram.types import InlineKeyboardMarkup, Message, CallbackQuery
 from pyrogram.enums import ParseMode
 from pyrogram.errors import MessageNotModified, BadRequest, MessageIdInvalid
-from bot.utils.emojis import parse_emojis, parse_keyboard
+from bot.utils.emojis import parse_emojis, parse_keyboard, strip_keyboard_icons
 
 # Diccionario en memoria para rastrear el ID del único mensaje activo por usuario
 USER_LAST_MESSAGES: Dict[int, int] = {}
@@ -83,7 +83,28 @@ async def render_screen(
                 except Exception:
                     pass
             return None
-        except (BadRequest, MessageIdInvalid):
+        except (BadRequest, MessageIdInvalid) as e:
+            if reply_markup and ("BUTTON" in str(e).upper() or "CONSTRUCTOR" in str(e).upper()):
+                try:
+                    clean_kb = strip_keyboard_icons(reply_markup)
+                    edited_msg = await client.edit_message_text(
+                        chat_id=user_id,
+                        message_id=msg_to_edit_id,
+                        text=text,
+                        reply_markup=clean_kb,
+                        parse_mode=parse_mode,
+                        disable_web_page_preview=disable_web_page_preview
+                    )
+                    USER_LAST_MESSAGES[user_id] = msg_to_edit_id
+                    if isinstance(target, CallbackQuery):
+                        try:
+                            await target.answer()
+                        except Exception:
+                            pass
+                    return edited_msg
+                except Exception:
+                    pass
+        except Exception:
             pass
 
     # 2. Si no se pudo editar o era una foto previa, enviamos el mensaje y guardamos su ID
@@ -108,5 +129,24 @@ async def render_screen(
                 pass
         return new_msg
     except Exception as e:
+        if reply_markup:
+            try:
+                clean_kb = strip_keyboard_icons(reply_markup)
+                new_msg = await client.send_message(
+                    chat_id=user_id,
+                    text=text,
+                    reply_markup=clean_kb,
+                    parse_mode=parse_mode,
+                    disable_web_page_preview=disable_web_page_preview
+                )
+                USER_LAST_MESSAGES[user_id] = new_msg.id
+                if isinstance(target, CallbackQuery):
+                    try:
+                        await target.answer()
+                    except Exception:
+                        pass
+                return new_msg
+            except Exception as e2:
+                print(f"[render_screen fallback Error]: {e2}")
         print(f"[render_screen send Error]: {e}")
         return None
