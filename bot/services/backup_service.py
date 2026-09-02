@@ -116,7 +116,6 @@ class BackupService:
             backup_file = await self.generate_backup_file()
             caption = (
                 f"💾 <b>COPIA DE SEGURIDAD AUTOMÁTICA DE BASE DE DATOS</b>\n"
-                f"━━━━━━━━━━━━━━━\n"
                 f"📅 <b>Fecha:</b> <code>{get_now_str('%Y-%m-%d %H:%M:%S')}</code>\n"
                 f"🔒 <i>Guarda este archivo. Contiene todos los usuarios, órdenes, compras y balances.</i>"
             )

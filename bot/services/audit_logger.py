@@ -43,7 +43,6 @@ class AuditLogger:
 
         msg = (
             f"🛍️ <b>NUEVA COMPRA REALIZADA #ORD_{order_id}</b>\n"
-            f"━━━━━━━━━━━━━━━\n"
             f"👤 <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
             f"📛 <b>Nombre:</b> {first_name}\n"
             f"📦 <b>Producto:</b> <code>{product_name}</code>\n"
@@ -71,7 +70,6 @@ class AuditLogger:
 
         msg = (
             f"📥 <b>NUEVA SOLICITUD DE DEPÓSITO</b>\n"
-            f"━━━━━━━━━━━━━━━\n"
             f"👤 <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
             f"💵 <b>Monto Base Solicitado:</b> <code>${base_amount:.2f} USDT</code>\n"
             f"🎯 <b>Monto Exacto Asignado:</b> <code>{exact_amount:.4f} USDT</code>\n"
@@ -96,7 +94,6 @@ class AuditLogger:
 
         msg = (
             f"❌ <b>SOLICITUD DE DEPÓSITO CANCELADA</b>\n"
-            f"━━━━━━━━━━━━━━━\n"
             f"👤 <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
             f"💰 <b>Monto Cancelado:</b> <code>${amount_cancelled:.4f} USDT</code>\n"
             f"🆔 <b>ID Depósito:</b> <code>DEP_{deposit_id}</code>\n"
@@ -141,7 +138,6 @@ class AuditLogger:
 
         msg = (
             f"✅ <b>DEPÓSITO CONFIRMADO EN BLOCKCHAIN</b>\n"
-            f"━━━━━━━━━━━━━━━\n"
             f"👤 <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
             f"💰 <b>Monto Acreditado:</b> <code>+${amount:.4f} USDT</code>\n"
             f"💳 <b>Nuevo Saldo Usuario:</b> <code>${new_balance:.4f} USDT</code>\n"
@@ -211,7 +207,6 @@ class AuditLogger:
         now = get_now_str("%Y-%m-%d %H:%M:%S")
         msg = (
             f"⚠️ <b>ALERTA DEL SISTEMA: {title}</b>\n"
-            f"━━━━━━━━━━━━━━━\n"
             f"{details}\n\n"
             f"⏰ <b>Fecha:</b> <code>{now}</code>"
         )
@@ -223,7 +218,6 @@ class AuditLogger:
         now = get_now_str("%Y-%m-%d %H:%M:%S")
         msg = (
             f"👤 <b>NUEVO USUARIO REGISTRADO</b>\n"
-            f"━━━━━━━━━━━━━━━\n"
             f"• <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
             f"• <b>Nombre:</b> {first_name}\n"
             f"• <b>Fecha:</b> <code>{now}</code>"

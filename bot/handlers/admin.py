@@ -61,24 +61,19 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
     balance_alert = " ⚠️ <i>¡Recarga recomendada!</i>" if bunai_balance < 10.0 else " ✅"
 
     text = (
-        f"⚙️ <b>PANEL DE ADMINISTRACIÓN & MÉTRICAS</b>\n"
-        f"━━━━━━━━━━━━━━━\n"
+        f"⚙️ <b>PANEL DE ADMINISTRACIÓN & MÉTRICAS</b>\n\n"
         f"👥 <b>Usuarios Totales:</b> <code>{total_users}</code>\n"
         f"💳 <b>Total Depositado (USDT):</b> <code>${total_deposited:.2f}</code>\n"
-        f"🛍️ <b>Ventas Realizadas:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n"
-        f"━━━━━━━━━━━━━━━\n"
+        f"🛍️ <b>Ventas Realizadas:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n\n"
         f"🏢 <b>Saldo en BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
-        f"📉 <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n"
-        f"━━━━━━━━━━━━━━━\n"
+        f"📉 <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n\n"
         f"📈 <b>ESTRATEGIA DE PRECIOS ACTIVA:</b>\n"
         f"• <b>Costo &lt; $0.50:</b> <code>x7.0 (+600%)</code>\n"
         f"• <b>Costo $0.50 - $0.99:</b> <code>x4.0 (+300%)</code>\n"
         f"• <b>Costo $1.00 - $2.99:</b> <code>x2.5 (+150%)</code>\n"
         f"• <b>Costo &ge; $3.00:</b> <code>x2.0 (+100%)</code>\n"
-        f"🛡️ <b>Garantías:</b> <code>50% de BunaiStore</code>\n"
-        f"━━━━━━━━━━━━━━━\n"
-        f"🛠️ <b>Modo Mantenimiento:</b> <code>{'🔴 ACTIVADO' if maintenance_active else '🟢 DESACTIVADO'}</code>\n"
-        f"━━━━━━━━━━━━━━━\n"
+        f"🛡️ <b>Garantías:</b> <code>50% de BunaiStore</code>\n\n"
+        f"🛠️ <b>Modo Mantenimiento:</b> <code>{'🔴 ACTIVADO' if maintenance_active else '🟢 DESACTIVADO'}</code>\n\n"
         f"<i>Selecciona una acción administrativa:</i>"
     )
 
@@ -140,7 +135,6 @@ def register_admin_handlers(app: Client):
         # Notificar al Administrador
         conf_text = (
             "🗑️ <b>SALDO RESTABLECIDO A CERO</b>\n"
-            "━━━━━━━━━━━━━━━\n"
             f"👤 <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
             f"💰 <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
             f"👛 <b>Saldo Actual:</b> <code>$0.00 USDT</code>"
@@ -151,19 +145,18 @@ def register_admin_handlers(app: Client):
         try:
             user_dm_text = (
                 "⚠️ <b>Aviso de Billetera:</b>\n"
-                "━━━━━━━━━━━━━━━\n"
                 "Tu saldo ha sido restablecido a <code>0.00 USDT</code> por la administración."
             )
             if lang == "en":
                 user_dm_text = (
                     "⚠️ <b>Wallet Notice:</b>\n"
-                    "━━━━━━━━━━━━━━━\n"
+                    "\n"
                     "Your balance has been reset to <code>0.00 USDT</code> by administration."
                 )
             elif lang == "pt":
                 user_dm_text = (
                     "⚠️ <b>Aviso de Carteira:</b>\n"
-                    "━━━━━━━━━━━━━━━\n"
+                    "\n"
                     "Seu saldo foi redefinido para <code>0.00 USDT</code> pela administração."
                 )
             await client.send_message(chat_id=target_uid, text=user_dm_text)
@@ -248,7 +241,6 @@ def register_admin_handlers(app: Client):
         # Confirmación al Admin
         conf_text = (
             "✅ <b>SALDO AGREGADO EXITOSAMENTE</b>\n"
-            "━━━━━━━━━━━━━━━\n"
             f"👤 <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
             f"➕ <b>Monto Añadido:</b> <code>+${amount:.2f} USDT</code>\n"
             f"💰 <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
@@ -260,21 +252,20 @@ def register_admin_handlers(app: Client):
         try:
             user_dm_text = (
                 "🎉 <b>¡Saldo Acreditado!</b>\n"
-                "━━━━━━━━━━━━━━━\n"
                 f"Se han añadido <b>+${amount:.2f} USDT</b> a tu saldo por la administración.\n"
                 f"👛 <b>Tu Saldo Actual:</b> <code>${new_balance:.2f} USDT</code>"
             )
             if lang == "en":
                 user_dm_text = (
                     "🎉 <b>Balance Credited!</b>\n"
-                    "━━━━━━━━━━━━━━━\n"
+                    "\n"
                     f"<b>+${amount:.2f} USDT</b> has been added to your balance by administration.\n"
                     f"👛 <b>Current Balance:</b> <code>${new_balance:.2f} USDT</code>"
                 )
             elif lang == "pt":
                 user_dm_text = (
                     "🎉 <b>Saldo Creditado!</b>\n"
-                    "━━━━━━━━━━━━━━━\n"
+                    "\n"
                     f"Foram adicionados <b>+${amount:.2f} USDT</b> ao seu saldo pela administração.\n"
                     f"👛 <b>Saldo Atual:</b> <code>${new_balance:.2f} USDT</code>"
                 )
@@ -368,7 +359,6 @@ def register_admin_handlers(app: Client):
         ADMIN_STATES[user_id] = {"action": "waiting_broadcast"}
         text = (
             "📢 <b>DIFUSIÓN MASIVA (BROADCAST)</b>\n"
-            "━━━━━━━━━━━━━━━\n"
             "Envía a continuación el mensaje que deseas transmitir a <b>todos los usuarios registrados</b> en el bot.\n\n"
             "<i>Puedes usar formato HTML (negritas, enlaces, etc).</i>"
         )
@@ -420,7 +410,6 @@ def register_admin_handlers(app: Client):
 
             result_text = (
                 f"✅ <b>DIFUSIÓN COMPLETADA</b>\n"
-                f"━━━━━━━━━━━━━━━\n"
                 f"• <b>Entregados:</b> {sent_count}\n"
                 f"• <b>Fallidos/Bloqueados:</b> {fail_count}"
             )

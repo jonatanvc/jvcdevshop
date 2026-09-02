@@ -65,14 +65,12 @@ async def build_main_menu_text(user: User, orders_count: int, session) -> str:
 
     text = (
         f"{maintenance_banner}"
-        f"{t('welcome_header', lang)}\n"
-        f"━━━━━━━━━━━━━━━\n"
+        f"{t('welcome_header', lang)}\n\n"
         f"👤 <b>{t('user_label', lang)}:</b> {user_name}\n"
         f"🆔 <b>ID:</b> <code>{user.telegram_id}</code>\n"
         f"💰 <b>{t('balance_bot', lang)}:</b> <code>${balance_val:.2f} USDT</code>\n"
         f"{bunai_line}"
-        f"🛍️ <b>{t('orders_made', lang)}:</b> <code>{orders_count}</code>\n"
-        f"━━━━━━━━━━━━━━━\n"
+        f"🛍️ <b>{t('orders_made', lang)}:</b> <code>{orders_count}</code>\n\n"
         f"<i>{t('select_option', lang)}</i>"
     )
     return text
@@ -153,11 +151,9 @@ def register_start_handlers(app: Client):
             traceback.print_exc()
             # Fallback seguro en caso de error
             fallback_text = (
-                f"{t('welcome_header', 'es')}\n"
-                "━━━━━━━━━━━━━━━\n"
+                f"{t('welcome_header', 'es')}\n\n"
                 f"👤 <b>Usuario:</b> {first_name}\n"
-                f"🆔 <b>ID:</b> <code>{user_id}</code>\n"
-                "━━━━━━━━━━━━━━━\n"
+                f"🆔 <b>ID:</b> <code>{user_id}</code>\n\n"
                 "<i>Selecciona una opción del menú inferior para comenzar:</i>"
             )
             fallback_kb = get_main_menu_keyboard(user_id, "es")
