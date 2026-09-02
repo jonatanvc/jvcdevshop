@@ -3,6 +3,11 @@ from pyrogram import Client
 from pyrogram.enums import ParseMode
 from bot.config import settings
 from bot.utils.time_utils import get_now_str
+from bot.utils.emojis import (
+    EMOJI_SHOPPING, EMOJI_USER, EMOJI_BOX, EMOJI_MONEY, EMOJI_CARD,
+    EMOJI_KEY, EMOJI_TARGET, EMOJI_HOURGLASS, EMOJI_CLOCK, EMOJI_CROSS,
+    EMOJI_CHECK, EMOJI_LINK, EMOJI_BROADCAST, EMOJI_SPARKLES, EMOJI_WARN
+)
 
 class AuditLogger:
     def __init__(self):
@@ -42,15 +47,15 @@ class AuditLogger:
         now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
-            f"🛍️ <b>NUEVA COMPRA REALIZADA #ORD_{order_id}</b>\n"
-            f"👤 <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
+            f"{EMOJI_SHOPPING} <b>NUEVA COMPRA REALIZADA #ORD_{order_id}</b>\n\n"
+            f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
             f"📛 <b>Nombre:</b> {first_name}\n"
-            f"📦 <b>Producto:</b> <code>{product_name}</code>\n"
-            f"💰 <b>Precio Pagado:</b> <code>${paid_price:.2f} USDT</code>\n"
+            f"{EMOJI_BOX} <b>Producto:</b> <code>{product_name}</code>\n"
+            f"{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${paid_price:.2f} USDT</code>\n"
             f"📊 <b>Saldo Restante Usuario:</b> <code>${remaining_balance:.2f} USDT</code>\n"
             f"🆔 <b>ID Orden Proveedor:</b> <code>{provider_order_id or 'N/A'}</code>\n"
-            f"⏰ <b>Fecha:</b> <code>{now}</code>\n\n"
-            f"🔑 <b>DATOS / CUENTAS ENTREGADAS:</b>\n"
+            f"{EMOJI_CLOCK} <b>Fecha:</b> <code>{now}</code>\n\n"
+            f"{EMOJI_KEY} <b>DATOS / CUENTAS ENTREGADAS:</b>\n"
             f"<pre>{delivered_items}</pre>"
         )
         await self._send_log(client, msg)
@@ -69,12 +74,12 @@ class AuditLogger:
         now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
-            f"📥 <b>NUEVA SOLICITUD DE DEPÓSITO</b>\n"
-            f"👤 <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
+            f"📥 <b>NUEVA SOLICITUD DE DEPÓSITO</b>\n\n"
+            f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
             f"💵 <b>Monto Base Solicitado:</b> <code>${base_amount:.2f} USDT</code>\n"
-            f"🎯 <b>Monto Exacto Asignado:</b> <code>{exact_amount:.4f} USDT</code>\n"
-            f"⏳ <b>Vigencia:</b> 30 minutos\n"
-            f"⏰ <b>Fecha:</b> <code>{now}</code>"
+            f"{EMOJI_TARGET} <b>Monto Exacto Asignado:</b> <code>{exact_amount:.4f} USDT</code>\n"
+            f"{EMOJI_HOURGLASS} <b>Vigencia:</b> 30 minutos\n"
+            f"{EMOJI_CLOCK} <b>Fecha:</b> <code>{now}</code>"
         )
         return await self._send_log(client, msg)
 
@@ -93,11 +98,11 @@ class AuditLogger:
         now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
-            f"❌ <b>SOLICITUD DE DEPÓSITO CANCELADA</b>\n"
-            f"👤 <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
-            f"💰 <b>Monto Cancelado:</b> <code>${amount_cancelled:.4f} USDT</code>\n"
+            f"{EMOJI_CROSS} <b>SOLICITUD DE DEPÓSITO CANCELADA</b>\n\n"
+            f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
+            f"{EMOJI_MONEY} <b>Monto Cancelado:</b> <code>${amount_cancelled:.4f} USDT</code>\n"
             f"🆔 <b>ID Depósito:</b> <code>DEP_{deposit_id}</code>\n"
-            f"⏰ <b>Cancelado:</b> <code>{now}</code>"
+            f"{EMOJI_CLOCK} <b>Cancelado:</b> <code>{now}</code>"
         )
 
         if not self.log_group_id or self.log_group_id == 0:
@@ -137,13 +142,13 @@ class AuditLogger:
         now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
-            f"✅ <b>DEPÓSITO CONFIRMADO EN BLOCKCHAIN</b>\n"
-            f"👤 <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
-            f"💰 <b>Monto Acreditado:</b> <code>+${amount:.4f} USDT</code>\n"
-            f"💳 <b>Nuevo Saldo Usuario:</b> <code>${new_balance:.4f} USDT</code>\n"
-            f"🔗 <b>Hash / TxID:</b> <a href='{bsc_link}'>{tx_hash[:10]}...{tx_hash[-8:]}</a>\n"
+            f"{EMOJI_CHECK} <b>DEPÓSITO CONFIRMADO EN BLOCKCHAIN</b>\n\n"
+            f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
+            f"{EMOJI_MONEY} <b>Monto Acreditado:</b> <code>+${amount:.4f} USDT</code>\n"
+            f"{EMOJI_CARD} <b>Nuevo Saldo Usuario:</b> <code>${new_balance:.4f} USDT</code>\n"
+            f"{EMOJI_LINK} <b>Hash / TxID:</b> <a href='{bsc_link}'>{tx_hash[:10]}...{tx_hash[-8:]}</a>\n"
             f"🆔 <b>ID Depósito:</b> <code>DEP_{deposit_id or 'N/A'}</code>\n"
-            f"⏰ <b>Confirmado:</b> <code>{now}</code>"
+            f"{EMOJI_CLOCK} <b>Confirmado:</b> <code>{now}</code>"
         )
 
         if not self.log_group_id or self.log_group_id == 0:
@@ -177,9 +182,9 @@ class AuditLogger:
     ):
         """Envía alerta al canal de logs cuando el proveedor añade stock"""
         msg = (
-            f"📢 <b>¡{added_stock} stock añadido a {product_name}!</b>\n\n"
+            f"{EMOJI_BROADCAST} <b>¡{added_stock} stock añadido a {product_name}!</b>\n\n"
             f"{icon} <b>{product_name}</b> - <code>{user_price:.2f} USDT</code> (Stock: {total_stock})\n"
-            f"💰 <b>Costo Proveedor:</b> <code>${cost_price:.2f} USD</code>"
+            f"{EMOJI_MONEY} <b>Costo Proveedor:</b> <code>${cost_price:.2f} USD</code>"
         )
         await self._send_log(client, msg)
 
@@ -195,9 +200,9 @@ class AuditLogger:
     ):
         """Envía alerta al canal de logs cuando el proveedor agrega un producto nuevo"""
         msg = (
-            f"✨ <b>¡NUEVO PRODUCTO AÑADIDO POR PROVEEDOR!</b>\n\n"
+            f"{EMOJI_SPARKLES} <b>¡NUEVO PRODUCTO AÑADIDO POR PROVEEDOR!</b>\n\n"
             f"{icon} <b>{product_name}</b> - <code>{user_price:.2f} USDT</code> (Stock: {initial_stock})\n"
-            f"💰 <b>Costo en Bunai:</b> <code>${cost_price:.2f} USD</code>\n"
+            f"{EMOJI_MONEY} <b>Costo en Bunai:</b> <code>${cost_price:.2f} USD</code>\n"
             f"🆔 <b>ID:</b> <code>{product_id}</code>"
         )
         await self._send_log(client, msg)
@@ -206,9 +211,9 @@ class AuditLogger:
         """Envía una alerta del sistema con hora local exacta"""
         now = get_now_str("%Y-%m-%d %H:%M:%S")
         msg = (
-            f"⚠️ <b>ALERTA DEL SISTEMA: {title}</b>\n"
+            f"{EMOJI_WARN} <b>ALERTA DEL SISTEMA: {title}</b>\n\n"
             f"{details}\n\n"
-            f"⏰ <b>Fecha:</b> <code>{now}</code>"
+            f"{EMOJI_CLOCK} <b>Fecha:</b> <code>{now}</code>"
         )
         await self._send_log(client, msg)
 
@@ -217,7 +222,7 @@ class AuditLogger:
         user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
         now = get_now_str("%Y-%m-%d %H:%M:%S")
         msg = (
-            f"👤 <b>NUEVO USUARIO REGISTRADO</b>\n"
+            f"{EMOJI_USER} <b>NUEVO USUARIO REGISTRADO</b>\n\n"
             f"• <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
             f"• <b>Nombre:</b> {first_name}\n"
             f"• <b>Fecha:</b> <code>{now}</code>"

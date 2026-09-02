@@ -6,6 +6,10 @@ from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, Order, Setting
 from bot.services.bunai_client import bunai_api
+from bot.utils.emojis import (
+    EMOJI_USER, EMOJI_ID, EMOJI_MONEY, EMOJI_PROVIDER, EMOJI_SHOPPING,
+    EMOJI_WALLET, EMOJI_LANG, EMOJI_GLOBE, EMOJI_CALENDAR
+)
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t, LANGUAGES
@@ -19,16 +23,19 @@ def get_main_menu_keyboard(user_id: int, lang: str = "es") -> InlineKeyboardMark
             InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")
         ],
         [
-            InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:deposit_menu"),
-            InlineKeyboardButton(t("btn_profile", lang), callback_data="account:view")
+            InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:topup"),
+            InlineKeyboardButton(t("btn_my_orders", lang), callback_data="orders:page:1")
         ],
         [
             InlineKeyboardButton(t("btn_referrals", lang), callback_data="referrals:view"),
+            InlineKeyboardButton(t("btn_profile", lang), callback_data="account:view")
+        ],
+        [
             InlineKeyboardButton(t("btn_support", lang), callback_data="support:view")
         ]
     ]
 
-    # Botón exclusivo para administradores
+    # Botón exclusivo de panel de administración
     if user_id in settings.admin_ids:
         buttons.append([
             InlineKeyboardButton(t("btn_admin", lang), callback_data="admin:menu")
@@ -37,7 +44,7 @@ def get_main_menu_keyboard(user_id: int, lang: str = "es") -> InlineKeyboardMark
     return InlineKeyboardMarkup(buttons)
 
 async def build_main_menu_text(user: User, orders_count: int, session) -> str:
-    """Genera el texto de bienvenida del menú principal traducido con tolerancia a fallos"""
+    """Construye el texto enriquecido del menú principal con hora local y saldo"""
     lang = getattr(user, "language", "es") or "es"
     
     maintenance_banner = ""
@@ -57,7 +64,7 @@ async def build_main_menu_text(user: User, orders_count: int, session) -> str:
         try:
             bunai_data = await bunai_api.get_me()
             bunai_balance = float(bunai_data.get("balance", 0.0))
-            bunai_line = f"🏢 <b>{t('balance_provider', lang)}:</b> <code>${bunai_balance:.2f} USD</code>\n"
+            bunai_line = f"{EMOJI_PROVIDER} <b>{t('balance_provider', lang)}:</b> <code>${bunai_balance:.2f} USD</code>\n"
         except Exception:
             bunai_line = ""
 
@@ -66,11 +73,11 @@ async def build_main_menu_text(user: User, orders_count: int, session) -> str:
     text = (
         f"{maintenance_banner}"
         f"{t('welcome_header', lang)}\n\n"
-        f"👤 <b>{t('user_label', lang)}:</b> {user_name}\n"
-        f"🆔 <b>ID:</b> <code>{user.telegram_id}</code>\n"
-        f"💰 <b>{t('balance_bot', lang)}:</b> <code>${balance_val:.2f} USDT</code>\n"
+        f"{EMOJI_USER} <b>{t('user_label', lang)}:</b> {user_name}\n"
+        f"{EMOJI_ID} <b>ID:</b> <code>{user.telegram_id}</code>\n"
+        f"{EMOJI_MONEY} <b>{t('balance_bot', lang)}:</b> <code>${balance_val:.2f} USDT</code>\n"
         f"{bunai_line}"
-        f"🛍️ <b>{t('orders_made', lang)}:</b> <code>{orders_count}</code>\n\n"
+        f"{EMOJI_SHOPPING} <b>{t('orders_made', lang)}:</b> <code>{orders_count}</code>\n\n"
         f"<i>{t('select_option', lang)}</i>"
     )
     return text
@@ -218,18 +225,18 @@ def register_start_handlers(app: Client):
                     try:
                         bunai_data = await bunai_api.get_me()
                         bunai_bal = float(bunai_data.get("balance", 0.0))
-                        bunai_owner_line = f"🏢 <b>{t('balance_provider', lang)}:</b> <code>${bunai_bal:.2f} USD</code>\n"
+                        bunai_owner_line = f"{EMOJI_PROVIDER} <b>{t('balance_provider', lang)}:</b> <code>${bunai_bal:.2f} USD</code>\n"
                     except Exception:
                         pass
 
                 text = (
                     f"{t('profile_title', lang)}\n\n"
-                    f"👤 <b>ID:</b> <code>{user.telegram_id}</code>\n"
-                    f"👛 <b>{t('balance_bot', lang)}:</b> <code>{float(user.balance):.2f} USDT</code>\n"
+                    f"{EMOJI_ID} <b>ID:</b> <code>{user.telegram_id}</code>\n"
+                    f"{EMOJI_WALLET} <b>{t('balance_bot', lang)}:</b> <code>{float(user.balance):.2f} USDT</code>\n"
                     f"{bunai_owner_line}"
-                    f"🗣️ <b>{t('lang_label', lang)}:</b> <code>{lang.upper()}</code> ({LANGUAGES.get(lang, 'Español')})\n"
-                    f"🌐 <b>Timezone:</b> <code>{settings.TIMEZONE}</code>\n"
-                    f"📅 <b>{t('registered', lang)}:</b> <code>{reg_date}</code>"
+                    f"{EMOJI_LANG} <b>{t('lang_label', lang)}:</b> <code>{lang.upper()}</code> ({LANGUAGES.get(lang, 'Español')})\n"
+                    f"{EMOJI_GLOBE} <b>Timezone:</b> <code>{settings.TIMEZONE}</code>\n"
+                    f"{EMOJI_CALENDAR} <b>{t('registered', lang)}:</b> <code>{reg_date}</code>"
                 )
 
                 keyboard = InlineKeyboardMarkup([

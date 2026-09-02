@@ -12,6 +12,12 @@ from bot.services.pricing import pricing_service
 from bot.services.backup_service import backup_service
 from bot.services.audit_logger import audit_logger
 from bot.utils.navigation import render_screen
+from bot.utils.emojis import (
+    EMOJI_ADMIN, EMOJI_USERS, EMOJI_CARD, EMOJI_SHOPPING, EMOJI_PROVIDER,
+    EMOJI_CHART_DOWN, EMOJI_CHART_UP, EMOJI_SHIELD, EMOJI_TOOLS, EMOJI_RED_DOT,
+    EMOJI_GREEN_DOT, EMOJI_WARN, EMOJI_CHECK, EMOJI_PARTY, EMOJI_BROADCAST,
+    EMOJI_WALLET, EMOJI_MONEY, EMOJI_TRASH
+)
 
 ADMIN_STATES: Dict[int, Dict[str, Any]] = {}
 
@@ -58,22 +64,24 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
     bunai_balance = float(bunai_profile.get("balance", 0.0))
     bunai_spent = float(bunai_profile.get("api_spent", 0.0))
 
-    balance_alert = " ⚠️ <i>¡Recarga recomendada!</i>" if bunai_balance < 10.0 else " ✅"
+    balance_alert = f" {EMOJI_WARN} <i>¡Recarga recomendada!</i>" if bunai_balance < 10.0 else f" {EMOJI_CHECK}"
+
+    status_tag = f"{EMOJI_RED_DOT} ACTIVADO" if maintenance_active else f"{EMOJI_GREEN_DOT} DESACTIVADO"
 
     text = (
-        f"⚙️ <b>PANEL DE ADMINISTRACIÓN & MÉTRICAS</b>\n\n"
-        f"👥 <b>Usuarios Totales:</b> <code>{total_users}</code>\n"
-        f"💳 <b>Total Depositado (USDT):</b> <code>${total_deposited:.2f}</code>\n"
-        f"🛍️ <b>Ventas Realizadas:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n\n"
-        f"🏢 <b>Saldo en BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
-        f"📉 <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n\n"
-        f"📈 <b>ESTRATEGIA DE PRECIOS ACTIVA:</b>\n"
+        f"{EMOJI_ADMIN} <b>PANEL DE ADMINISTRACIÓN & MÉTRICAS</b>\n\n"
+        f"{EMOJI_USERS} <b>Usuarios Totales:</b> <code>{total_users}</code>\n"
+        f"{EMOJI_CARD} <b>Total Depositado (USDT):</b> <code>${total_deposited:.2f}</code>\n"
+        f"{EMOJI_SHOPPING} <b>Ventas Realizadas:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n\n"
+        f"{EMOJI_PROVIDER} <b>Saldo en BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
+        f"{EMOJI_CHART_DOWN} <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n\n"
+        f"{EMOJI_CHART_UP} <b>ESTRATEGIA DE PRECIOS ACTIVA:</b>\n"
         f"• <b>Costo &lt; $0.50:</b> <code>x7.0 (+600%)</code>\n"
         f"• <b>Costo $0.50 - $0.99:</b> <code>x4.0 (+300%)</code>\n"
         f"• <b>Costo $1.00 - $2.99:</b> <code>x2.5 (+150%)</code>\n"
         f"• <b>Costo &ge; $3.00:</b> <code>x2.0 (+100%)</code>\n"
-        f"🛡️ <b>Garantías:</b> <code>50% de BunaiStore</code>\n\n"
-        f"🛠️ <b>Modo Mantenimiento:</b> <code>{'🔴 ACTIVADO' if maintenance_active else '🟢 DESACTIVADO'}</code>\n\n"
+        f"{EMOJI_SHIELD} <b>Garantías:</b> <code>50% de BunaiStore</code>\n\n"
+        f"{EMOJI_TOOLS} <b>Modo Mantenimiento:</b> <code>{status_tag}</code>\n\n"
         f"<i>Selecciona una acción administrativa:</i>"
     )
 
@@ -134,29 +142,27 @@ def register_admin_handlers(app: Client):
 
         # Notificar al Administrador
         conf_text = (
-            "🗑️ <b>SALDO RESTABLECIDO A CERO</b>\n"
-            f"👤 <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
-            f"💰 <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
-            f"👛 <b>Saldo Actual:</b> <code>$0.00 USDT</code>"
+            f"{EMOJI_TRASH} <b>SALDO RESTABLECIDO A CERO</b>\n\n"
+            f"{EMOJI_USER} <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
+            f"{EMOJI_MONEY} <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
+            f"{EMOJI_WALLET} <b>Saldo Actual:</b> <code>$0.00 USDT</code>"
         )
         await client.send_message(chat_id=user_id, text=conf_text)
 
         # Notificar por DM al usuario
         try:
             user_dm_text = (
-                "⚠️ <b>Aviso de Billetera:</b>\n"
+                f"{EMOJI_WARN} <b>Aviso de Billetera:</b>\n\n"
                 "Tu saldo ha sido restablecido a <code>0.00 USDT</code> por la administración."
             )
             if lang == "en":
                 user_dm_text = (
-                    "⚠️ <b>Wallet Notice:</b>\n"
-                    "\n"
+                    f"{EMOJI_WARN} <b>Wallet Notice:</b>\n\n"
                     "Your balance has been reset to <code>0.00 USDT</code> by administration."
                 )
             elif lang == "pt":
                 user_dm_text = (
-                    "⚠️ <b>Aviso de Carteira:</b>\n"
-                    "\n"
+                    f"{EMOJI_WARN} <b>Aviso de Carteira:</b>\n\n"
                     "Seu saldo foi redefinido para <code>0.00 USDT</code> pela administração."
                 )
             await client.send_message(chat_id=target_uid, text=user_dm_text)
@@ -169,9 +175,9 @@ def register_admin_handlers(app: Client):
             title="SALDO DE USUARIO RESTABLECIDO A CERO",
             details=(
                 f"👮‍♂️ <b>Admin:</b> <code>{user_id}</code>\n"
-                f"👤 <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
-                f"💰 <b>Saldo Removido:</b> <code>${old_balance:.2f} USDT</code>\n"
-                f"👛 <b>Saldo Actual:</b> <code>$0.00 USDT</code>"
+                f"{EMOJI_USER} <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
+                f"{EMOJI_MONEY} <b>Saldo Removido:</b> <code>${old_balance:.2f} USDT</code>\n"
+                f"{EMOJI_WALLET} <b>Saldo Actual:</b> <code>$0.00 USDT</code>"
             )
         )
 
@@ -188,7 +194,7 @@ def register_admin_handlers(app: Client):
 
         if len(message.command) < 3:
             help_text = (
-                "⚠️ <b>Uso correcto del comando:</b>\n"
+                f"{EMOJI_WARN} <b>Uso correcto del comando:</b>\n"
                 "<code>/dep 5.50 @usuario</code> o <code>/dep 5.50 123456789</code>\n\n"
                 "<i>Añade saldo en USDT directamente a la billetera del usuario.</i>"
             )
@@ -215,7 +221,7 @@ def register_admin_handlers(app: Client):
         if amount is None or amount <= 0 or not target_ident:
             await client.send_message(
                 chat_id=user_id,
-                text="❌ <b>Monto inválido:</b> Asegúrate de indicar un monto numérico mayor a 0.\nEjemplo: <code>/dep 5.50 @usuario</code>"
+                text=f"{EMOJI_CROSS} <b>Monto inválido:</b> Asegúrate de indicar un monto numérico mayor a 0.\nEjemplo: <code>/dep 5.50 @usuario</code>"
             )
             return
 
@@ -226,7 +232,7 @@ def register_admin_handlers(app: Client):
             if not user:
                 await client.send_message(
                     chat_id=user_id,
-                    text=f"❌ <b>Usuario no encontrado:</b> No se encontró a ningún usuario con el identificador <code>{target_ident}</code> en la base de datos."
+                    text=f"{EMOJI_CROSS} <b>Usuario no encontrado:</b> No se encontró a ningún usuario con el identificador <code>{target_ident}</code> en la base de datos."
                 )
                 return
 
@@ -240,34 +246,32 @@ def register_admin_handlers(app: Client):
 
         # Confirmación al Admin
         conf_text = (
-            "✅ <b>SALDO AGREGADO EXITOSAMENTE</b>\n"
-            f"👤 <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
+            f"{EMOJI_CHECK} <b>SALDO AGREGADO EXITOSAMENTE</b>\n\n"
+            f"{EMOJI_USER} <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
             f"➕ <b>Monto Añadido:</b> <code>+${amount:.2f} USDT</code>\n"
-            f"💰 <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
-            f"👛 <b>Nuevo Saldo:</b> <code>${new_balance:.2f} USDT</code>"
+            f"{EMOJI_MONEY} <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
+            f"{EMOJI_WALLET} <b>Nuevo Saldo:</b> <code>${new_balance:.2f} USDT</code>"
         )
         await client.send_message(chat_id=user_id, text=conf_text)
 
         # Notificación por DM al Usuario
         try:
             user_dm_text = (
-                "🎉 <b>¡Saldo Acreditado!</b>\n"
+                f"{EMOJI_PARTY} <b>¡Saldo Acreditado!</b>\n\n"
                 f"Se han añadido <b>+${amount:.2f} USDT</b> a tu saldo por la administración.\n"
-                f"👛 <b>Tu Saldo Actual:</b> <code>${new_balance:.2f} USDT</code>"
+                f"{EMOJI_WALLET} <b>Tu Saldo Actual:</b> <code>${new_balance:.2f} USDT</code>"
             )
             if lang == "en":
                 user_dm_text = (
-                    "🎉 <b>Balance Credited!</b>\n"
-                    "\n"
+                    f"{EMOJI_PARTY} <b>Balance Credited!</b>\n\n"
                     f"<b>+${amount:.2f} USDT</b> has been added to your balance by administration.\n"
-                    f"👛 <b>Current Balance:</b> <code>${new_balance:.2f} USDT</code>"
+                    f"{EMOJI_WALLET} <b>Current Balance:</b> <code>${new_balance:.2f} USDT</code>"
                 )
             elif lang == "pt":
                 user_dm_text = (
-                    "🎉 <b>Saldo Creditado!</b>\n"
-                    "\n"
+                    f"{EMOJI_PARTY} <b>Saldo Creditado!</b>\n\n"
                     f"Foram adicionados <b>+${amount:.2f} USDT</b> ao seu saldo pela administração.\n"
-                    f"👛 <b>Saldo Atual:</b> <code>${new_balance:.2f} USDT</code>"
+                    f"{EMOJI_WALLET} <b>Saldo Atual:</b> <code>${new_balance:.2f} USDT</code>"
                 )
             await client.send_message(chat_id=target_uid, text=user_dm_text)
         except Exception:
@@ -279,10 +283,10 @@ def register_admin_handlers(app: Client):
             title="SALDO MANUAL AÑADIDO POR ADMIN",
             details=(
                 f"👮‍♂️ <b>Admin:</b> <code>{user_id}</code>\n"
-                f"👤 <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
+                f"{EMOJI_USER} <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
                 f"➕ <b>Monto Añadido:</b> <code>+${amount:.2f} USDT</code>\n"
-                f"💰 <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
-                f"👛 <b>Nuevo Saldo:</b> <code>${new_balance:.2f} USDT</code>"
+                f"{EMOJI_MONEY} <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
+                f"{EMOJI_WALLET} <b>Nuevo Saldo:</b> <code>${new_balance:.2f} USDT</code>"
             )
         )
 
@@ -358,7 +362,7 @@ def register_admin_handlers(app: Client):
 
         ADMIN_STATES[user_id] = {"action": "waiting_broadcast"}
         text = (
-            "📢 <b>DIFUSIÓN MASIVA (BROADCAST)</b>\n"
+            f"{EMOJI_BROADCAST} <b>DIFUSIÓN MASIVA (BROADCAST)</b>\n\n"
             "Envía a continuación el mensaje que deseas transmitir a <b>todos los usuarios registrados</b> en el bot.\n\n"
             "<i>Puedes usar formato HTML (negritas, enlaces, etc).</i>"
         )
@@ -391,7 +395,7 @@ def register_admin_handlers(app: Client):
             ADMIN_STATES.pop(user_id, None)
             broadcast_text = message.text
 
-            status_msg = await render_screen(client, user_id, "⏳ <b>Iniciando difusión masiva...</b>", None)
+            status_msg = await render_screen(client, user_id, f"{EMOJI_HOURGLASS} <b>Iniciando difusión masiva...</b>", None)
 
             async with async_session() as session:
                 users_res = await session.execute(select(User.telegram_id))
@@ -409,7 +413,7 @@ def register_admin_handlers(app: Client):
                     fail_count += 1
 
             result_text = (
-                f"✅ <b>DIFUSIÓN COMPLETADA</b>\n"
+                f"{EMOJI_CHECK} <b>DIFUSIÓN COMPLETADA</b>\n\n"
                 f"• <b>Entregados:</b> {sent_count}\n"
                 f"• <b>Fallidos/Bloqueados:</b> {fail_count}"
             )
