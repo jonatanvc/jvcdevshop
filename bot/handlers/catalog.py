@@ -9,39 +9,17 @@ from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.translator import translate_text
+from bot.utils.emojis import (
+    get_service_icon, EMOJI_TAG, EMOJI_DICE, EMOJI_SHIELD, EMOJI_MONEY,
+    EMOJI_WALLET, EMOJI_BUY, EMOJI_RECHARGE, EMOJI_SHARE, EMOJI_NOTE,
+    EMOJI_BELL, EMOJI_BELL_OFF
+)
 
 SEARCH_STATES = {}
 
-def get_product_icon(name: str) -> str:
-    """Asigna un icono representativo según el nombre del servicio"""
-    name_lower = name.lower()
-    if "gemini" in name_lower or "google" in name_lower:
-        return "1️⃣"
-    elif "office" in name_lower or "microsoft" in name_lower or "onedrive" in name_lower:
-        return "🪟"
-    elif "capcut" in name_lower:
-        return "✂️"
-    elif "chatgpt" in name_lower or "openai" in name_lower:
-        return "🤖"
-    elif "claude" in name_lower or "anthropic" in name_lower:
-        return "💥"
-    elif "netflix" in name_lower:
-        return "🎬"
-    elif "surfshark" in name_lower or "nord" in name_lower or "vpn" in name_lower:
-        return "🛡️"
-    elif "youtube" in name_lower:
-        return "📺"
-    elif "canva" in name_lower:
-        return "🎨"
-    elif "figma" in name_lower:
-        return "📐"
-    elif "grammarly" in name_lower:
-        return "✍️"
-    elif "linkedin" in name_lower:
-        return "👔"
-    elif "spotify" in name_lower:
-        return "🎧"
-    return "🏷️"
+def get_product_icon(name: str, for_html: bool = False) -> str:
+    """Asigna un icono representativo según el catálogo de servicios"""
+    return get_service_icon(name, for_html=for_html)
 
 def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode: str, lang: str = "es") -> InlineKeyboardMarkup:
     """Construye la botonera inline del catálogo ultra limpia con botón de categorías dedicado"""
@@ -49,7 +27,7 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
 
     # 1. Botones de cada producto (solo nombre e icono)
     for p in items:
-        icon = get_product_icon(p["name"])
+        icon = get_service_icon(p["name"], for_html=False)
         btn_text = f"{icon} {p['name']}"
         buttons.append([
             InlineKeyboardButton(btn_text, callback_data=f"product:view:{p['product_id']}:{filter_mode}:{page}:0")
@@ -392,7 +370,7 @@ def register_catalog_handlers(app: Client):
             unit_price = await pricing_service.calculate_product_price(base_price, product_id, session)
 
             name = p_data.get("display_name") or p_data.get("name") or "Servicio Digital"
-            icon = get_product_icon(name)
+            icon = get_product_icon(name, for_html=True)
             stock_count = int(p_data.get("stock_count", 0))
             infinite_stock = bool(p_data.get("infinite_stock", False))
             bunai_warranty = int(p_data.get("warranty_hours", 0))
@@ -432,13 +410,13 @@ def register_catalog_handlers(app: Client):
 
             text = (
                 f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
-                f"🏷️ <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT\n"
-                f"🎲 <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
-                f"⭐ <b>{t('warranty_label', lang)}:</b> {warranty_display}"
+                f"{EMOJI_TAG} <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT\n"
+                f"{EMOJI_DICE} <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
+                f"{EMOJI_SHIELD} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
                 f"{offer_line}\n\n"
                 f"🧮 <b>{t('selected_qty', lang)}:</b> {qty}\n"
-                f"👛 <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT\n"
-                f"👛 <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
+                f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT\n"
+                f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
             )
 
             raw_note = p_data.get("note", "")
@@ -552,7 +530,7 @@ def register_catalog_handlers(app: Client):
             unit_price = await pricing_service.calculate_product_price(base_price, product_id, session)
 
             name = p_data.get("display_name") or p_data.get("name") or "Servicio Digital"
-            icon = get_product_icon(name)
+            icon = get_product_icon(name, for_html=True)
             stock_count = int(p_data.get("stock_count", 0))
             infinite_stock = bool(p_data.get("infinite_stock", False))
             bunai_warranty = int(p_data.get("warranty_hours", 0))
@@ -592,13 +570,13 @@ def register_catalog_handlers(app: Client):
 
             text = (
                 f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
-                f"🏷️ <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT\n"
-                f"🎲 <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
-                f"⭐ <b>{t('warranty_label', lang)}:</b> {warranty_display}"
+                f"{EMOJI_TAG} <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT\n"
+                f"{EMOJI_DICE} <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
+                f"{EMOJI_SHIELD} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
                 f"{offer_line}\n\n"
                 f"🧮 <b>{t('selected_qty', lang)}:</b> {new_qty}\n"
-                f"👛 <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT\n"
-                f"👛 <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
+                f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT\n"
+                f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
             )
 
             raw_note = p_data.get("note", "")

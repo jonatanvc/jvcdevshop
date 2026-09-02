@@ -12,37 +12,11 @@ from bot.services.bunai_client import bunai_api
 from bot.services.pricing import pricing_service
 from bot.services.audit_logger import audit_logger
 from bot.utils.i18n import t
+from bot.utils.emojis import get_service_icon
 
 def get_product_icon_simple(name: str) -> str:
-    """Asigna un icono representativo según el nombre del servicio"""
-    name_lower = name.lower()
-    if "gemini" in name_lower or "google" in name_lower:
-        return "1️⃣"
-    elif "office" in name_lower or "microsoft" in name_lower or "onedrive" in name_lower:
-        return "🪟"
-    elif "capcut" in name_lower:
-        return "✂️"
-    elif "chatgpt" in name_lower or "openai" in name_lower:
-        return "🤖"
-    elif "claude" in name_lower or "anthropic" in name_lower:
-        return "💥"
-    elif "netflix" in name_lower:
-        return "🎬"
-    elif "surfshark" in name_lower or "nord" in name_lower or "vpn" in name_lower:
-        return "🛡️"
-    elif "youtube" in name_lower:
-        return "📺"
-    elif "canva" in name_lower:
-        return "🎨"
-    elif "figma" in name_lower:
-        return "📐"
-    elif "grammarly" in name_lower:
-        return "✍️"
-    elif "linkedin" in name_lower:
-        return "👔"
-    elif "spotify" in name_lower:
-        return "🎧"
-    return "🏷️"
+    """Asigna un icono representativo según el catálogo de servicios"""
+    return get_service_icon(name, for_html=True)
 
 class StockWatcher:
     def __init__(self):
