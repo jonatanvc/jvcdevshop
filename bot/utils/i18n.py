@@ -9,7 +9,8 @@ from bot.utils.emojis import (
     EMOJI_BELL, EMOJI_BELL_OFF, EMOJI_DICE, EMOJI_PHONE, EMOJI_TOOLS, EMOJI_CHART_UP,
     EMOJI_TARGET, EMOJI_HOURGLASS, EMOJI_BACK, EMOJI_PARTY, EMOJI_KEY, EMOJI_IDEA,
     EMOJI_USERS, EMOJI_BROADCAST, EMOJI_CHART_DOWN, EMOJI_SPARKLES, EMOJI_CLOCK,
-    EMOJI_MONITOR, EMOJI_BUY, EMOJI_RECHARGE, EMOJI_FINGER_UP
+    EMOJI_MONITOR, EMOJI_BUY, EMOJI_RECHARGE, EMOJI_FINGER_UP,
+    EMOJI_WALLET_ADDR, EMOJI_CALC, EMOJI_STAR, EMOJI_PIN, EMOJI_DISK
 )
 
 LANGUAGES = {
@@ -95,13 +96,13 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # Billetera y Depósitos
         "wallet_title": f"{EMOJI_CARD} <b>BILLETERA & DEPÓSITOS USDT</b>\n\n{EMOJI_MONEY} <b>Saldo Actual:</b> <code>${{balance}} USDT</code>\n{EMOJI_GLOBE} <b>Red Aceptada:</b> <code>BNB Smart Chain (BEP-20)</code>\n{EMOJI_LOCK} <b>Depósito Mínimo:</b> <code>${{min_dep}} USDT</code>\n\n<i>Selecciona el monto que deseas recargar o pulsa 'Ingresar Otro Monto':</i>",
         "btn_custom_amount": "✍️ Ingresar Otro Monto",
-        "invoice_title": f"{EMOJI_CARD} <b>SOLICITUD DE RECARGA USDT (BEP-20)</b>\n\n{EMOJI_WARN} <b>IMPORTANTE:</b> Envía <b>EXACTAMENTE</b> la cantidad indicada a continuación para que la acreditación sea automática.\n\n{EMOJI_TARGET} <b>Monto Exacto a Enviar:</b>\n<code>{{exact_val}}</code> USDT\n\n📬 <b>Dirección de Billetera (BNB Smart Chain / BEP-20):</b>\n<code>{{wallet}}</code>\n\n{EMOJI_HOURGLASS} <b>Tiempo Límite:</b> <code>30 minutos</code>\n\n<i>Pulsa '📲 Ver Código QR' para escanear desde tu app o realiza la transferencia y luego pulsa 'Ingresar Hash / TxID'.</i>",
+        "invoice_title": f"{EMOJI_CARD} <b>SOLICITUD DE RECARGA USDT (BEP-20)</b>\n\n{EMOJI_WARN} <b>IMPORTANTE:</b> Envía <b>EXACTAMENTE</b> la cantidad indicada a continuación para que la acreditación sea automática.\n\n{EMOJI_TARGET} <b>Monto Exacto a Enviar:</b>\n<code>{{exact_val}}</code> USDT\n\n{EMOJI_WALLET_ADDR} <b>Dirección de Billetera (BNB Smart Chain / BEP-20):</b>\n<code>{{wallet}}</code>\n\n{EMOJI_HOURGLASS} <b>Tiempo Límite:</b> <code>30 minutos</code>\n\n<i>Pulsa '📲 Ver Código QR' para escanear desde tu app o realiza la transferencia y luego pulsa 'Ingresar Hash / TxID'.</i>",
         "btn_show_qr": "📲 Ver Código QR",
         "btn_submit_hash": "🔗 Ingresar Hash / TxID",
         "btn_verify_payment": "🔄 Verificar Pago",
         "btn_cancel_request": "❌ Cancelar Solicitud",
         "btn_back_to_invoice": "🔙 Volver a la Solicitud",
-        "qr_caption": f"{EMOJI_PHONE} <b>CÓDIGO QR DE PAGO BSC (BEP-20)</b>\n\n{EMOJI_TARGET} <b>Monto a transferir:</b> <code>{{exact_val}}</code> USDT\n📬 <b>Billetera:</b> <code>{{wallet}}</code>\n\n<i>Escanea este código directamente desde Trust Wallet, Binance o MetaMask.</i>",
+        "qr_caption": f"{EMOJI_PHONE} <b>CÓDIGO QR DE PAGO BSC (BEP-20)</b>\n\n{EMOJI_TARGET} <b>Monto a transferir:</b> <code>{{exact_val}}</code> USDT\n{EMOJI_WALLET_ADDR} <b>Billetera:</b> <code>{{wallet}}</code>\n\n<i>Escanea este código directamente desde Trust Wallet, Binance o MetaMask.</i>",
         "custom_amount_prompt": f"{EMOJI_WRITE} <b>INGRESA EL MONTO A DEPOSITAR</b>\n\nEscribe la cantidad de USDT que deseas recargar en tu cuenta.\n\n{EMOJI_WARN} <b>Monto Mínimo:</b> <code>{{min_dep}} USDT</code>\n\n<i>Ejemplo: Envía un mensaje escribiendo <code>15</code> o <code>25.5</code></i>",
         "submit_hash_prompt": f"{EMOJI_LINK} <b>ENVÍA EL HASH / TXID DE LA TRANSACCIÓN</b>\n\nPega a continuación el Hash (TxID) de la transferencia realizada desde tu billetera (Trust Wallet, Binance, MetaMask, etc).\n\n<i>Ejemplo: <code>0x4a8c9b...</code></i>",
         "deposit_cancelled_screen": f"{EMOJI_CROSS} <b>SOLICITUD DE RECARGA CANCELADA</b>\n\nLa solicitud por <b>${{amount}} USDT</b> ha sido cancelada correctamente.\n\n<i>Puedes generar una nueva solicitud cuando desees.</i>",
@@ -205,13 +206,13 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # Wallet and Deposits
         "wallet_title": f"{EMOJI_CARD} <b>WALLET & USDT DEPOSITS</b>\n\n{EMOJI_MONEY} <b>Current Balance:</b> <code>${{balance}} USDT</code>\n{EMOJI_GLOBE} <b>Accepted Network:</b> <code>BNB Smart Chain (BEP-20)</code>\n{EMOJI_LOCK} <b>Minimum Deposit:</b> <code>${{min_dep}} USDT</code>\n\n<i>Select an amount to top up or tap 'Enter Other Amount':</i>",
         "btn_custom_amount": "✍️ Enter Other Amount",
-        "invoice_title": f"{EMOJI_CARD} <b>USDT (BEP-20) DEPOSIT INVOICE</b>\n\n{EMOJI_WARN} <b>IMPORTANT:</b> Send <b>EXACTLY</b> the amount shown below for automatic crediting.\n\n{EMOJI_TARGET} <b>Exact Amount to Send:</b>\n<code>{{exact_val}}</code> USDT\n\n📬 <b>Wallet Address (BNB Smart Chain / BEP-20):</b>\n<code>{{wallet}}</code>\n\n{EMOJI_HOURGLASS} <b>Time Limit:</b> <code>30 minutes</code>\n\n<i>Tap '📲 View QR Code' to scan from your app or transfer and tap 'Submit Hash / TxID'.</i>",
+        "invoice_title": f"{EMOJI_CARD} <b>USDT (BEP-20) DEPOSIT INVOICE</b>\n\n{EMOJI_WARN} <b>IMPORTANT:</b> Send <b>EXACTLY</b> the amount shown below for automatic crediting.\n\n{EMOJI_TARGET} <b>Exact Amount to Send:</b>\n<code>{{exact_val}}</code> USDT\n\n{EMOJI_WALLET_ADDR} <b>Wallet Address (BNB Smart Chain / BEP-20):</b>\n<code>{{wallet}}</code>\n\n{EMOJI_HOURGLASS} <b>Time Limit:</b> <code>30 minutes</code>\n\n<i>Tap '📲 View QR Code' to scan from your app or transfer and tap 'Submit Hash / TxID'.</i>",
         "btn_show_qr": "📲 View QR Code",
         "btn_submit_hash": "🔗 Submit Hash / TxID",
         "btn_verify_payment": "🔄 Verify Payment",
         "btn_cancel_request": "❌ Cancel Request",
         "btn_back_to_invoice": "🔙 Back to Invoice",
-        "qr_caption": f"{EMOJI_PHONE} <b>BSC (BEP-20) PAYMENT QR CODE</b>\n\n{EMOJI_TARGET} <b>Amount to send:</b> <code>{{exact_val}}</code> USDT\n📬 <b>Wallet:</b> <code>{{wallet}}</code>\n\n<i>Scan this code directly from Trust Wallet, Binance or MetaMask.</i>",
+        "qr_caption": f"{EMOJI_PHONE} <b>BSC (BEP-20) PAYMENT QR CODE</b>\n\n{EMOJI_TARGET} <b>Amount to send:</b> <code>{{exact_val}}</code> USDT\n{EMOJI_WALLET_ADDR} <b>Wallet:</b> <code>{{wallet}}</code>\n\n<i>Scan this code directly from Trust Wallet, Binance or MetaMask.</i>",
         "custom_amount_prompt": f"{EMOJI_WRITE} <b>ENTER AMOUNT TO DEPOSIT</b>\n\nType the amount of USDT you wish to add to your balance.\n\n{EMOJI_WARN} <b>Minimum Amount:</b> <code>{{min_dep}} USDT</code>\n\n<i>Example: Send a message typing <code>15</code> or <code>25.5</code></i>",
         "submit_hash_prompt": f"{EMOJI_LINK} <b>SUBMIT TRANSACTION HASH / TXID</b>\n\nPaste below the transaction Hash (TxID) from your wallet (Trust Wallet, Binance, MetaMask, etc).\n\n<i>Example: <code>0x4a8c9b...</code></i>",
         "deposit_cancelled_screen": f"{EMOJI_CROSS} <b>DEPOSIT REQUEST CANCELLED</b>\n\nThe deposit request for <b>${{amount}} USDT</b> has been cancelled.\n\n<i>You can generate a new request whenever you wish.</i>",
@@ -315,13 +316,13 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # Carteira e Depósitos
         "wallet_title": f"{EMOJI_CARD} <b>CARTEIRA & DEPÓSITOS USDT</b>\n\n{EMOJI_MONEY} <b>Saldo Atual:</b> <code>${{balance}} USDT</code>\n{EMOJI_GLOBE} <b>Rede Aceita:</b> <code>BNB Smart Chain (BEP-20)</code>\n{EMOJI_LOCK} <b>Depósito Mínimo:</b> <code>${{min_dep}} USDT</code>\n\n<i>Selecione o valor que deseja recarregar ou toque em 'Digitar Outro Valor':</i>",
         "btn_custom_amount": "✍️ Digitar Outro Valor",
-        "invoice_title": f"{EMOJI_CARD} <b>SOLICITAÇÃO DE RECARGA USDT (BEP-20)</b>\n\n{EMOJI_WARN} <b>IMPORTANTE:</b> Envie <b>EXACTAMENTE</b> o valor indicado abaixo para que a confirmação seja automática.\n\n{EMOJI_TARGET} <b>Valor Exato a Enviar:</b>\n<code>{{exact_val}}</code> USDT\n\n📬 <b>Endereço da Carteira (BNB Smart Chain / BEP-20):</b>\n<code>{{wallet}}</code>\n\n{EMOJI_HOURGLASS} <b>Tempo Limite:</b> <code>30 minutos</code>\n\n<i>Toque em '📲 Ver Código QR' para escanear no seu app ou transfira e toque em 'Informar Hash / TxID'.</i>",
+        "invoice_title": f"{EMOJI_CARD} <b>SOLICITAÇÃO DE RECARGA USDT (BEP-20)</b>\n\n{EMOJI_WARN} <b>IMPORTANTE:</b> Envie <b>EXACTAMENTE</b> o valor indicado abaixo para que a confirmação seja automática.\n\n{EMOJI_TARGET} <b>Valor Exato a Enviar:</b>\n<code>{{exact_val}}</code> USDT\n\n{EMOJI_WALLET_ADDR} <b>Endereço da Carteira (BNB Smart Chain / BEP-20):</b>\n<code>{{wallet}}</code>\n\n{EMOJI_HOURGLASS} <b>Tempo Limite:</b> <code>30 minutos</code>\n\n<i>Toque em '📲 Ver Código QR' para escanear no seu app ou transfira e toque em 'Informar Hash / TxID'.</i>",
         "btn_show_qr": "📲 Ver Código QR",
         "btn_submit_hash": "🔗 Informar Hash / TxID",
         "btn_verify_payment": "🔄 Verificar Pagamento",
         "btn_cancel_request": "❌ Cancelar Solicitação",
         "btn_back_to_invoice": "🔙 Voltar à Solicitação",
-        "qr_caption": f"{EMOJI_PHONE} <b>CÓDIGO QR DE PAGAMENTO BSC (BEP-20)</b>\n\n{EMOJI_TARGET} <b>Valor a transferir:</b> <code>{{exact_val}}</code> USDT\n📬 <b>Carteira:</b> <code>{{wallet}}</code>\n\n<i>Escaneie este código diretamente na Trust Wallet, Binance ou MetaMask.</i>",
+        "qr_caption": f"{EMOJI_PHONE} <b>CÓDIGO QR DE PAGAMENTO BSC (BEP-20)</b>\n\n{EMOJI_TARGET} <b>Valor a transferir:</b> <code>{{exact_val}}</code> USDT\n{EMOJI_WALLET_ADDR} <b>Carteira:</b> <code>{{wallet}}</code>\n\n<i>Escaneie este código diretamente na Trust Wallet, Binance ou MetaMask.</i>",
         "custom_amount_prompt": f"{EMOJI_WRITE} <b>DIGITE O VALOR DO DEPÓSITO</b>\n\nDigite a quantidade de USDT que deseja adicionar ao seu saldo.\n\n{EMOJI_WARN} <b>Valor Mínimo:</b> <code>{{min_dep}} USDT</code>\n\n<i>Exemplo: Envie uma mensagem digitando <code>15</code> ou <code>25.5</code></i>",
         "submit_hash_prompt": f"{EMOJI_LINK} <b>ENVIE O HASH / TXID DA TRANSAÇÃO</b>\n\nCole abaixo o Hash (TxID) da transferência realizada da sua carteira (Trust Wallet, Binance, MetaMask, etc).\n\n<i>Exemplo: <code>0x4a8c9b...</code></i>",
         "deposit_cancelled_screen": f"{EMOJI_CROSS} <b>SOLICITAÇÃO DE RECARGA CANCELADA</b>\n\nA solicitação de <b>${{amount}} USDT</b> foi cancelada com sucesso.\n\n<i>Você pode gerar uma nova solicitação quando quiser.</i>",

@@ -12,7 +12,7 @@ from bot.utils.translator import translate_text
 from bot.utils.emojis import (
     get_service_icon, EMOJI_TAG, EMOJI_DICE, EMOJI_SHIELD, EMOJI_MONEY,
     EMOJI_WALLET, EMOJI_BUY, EMOJI_RECHARGE, EMOJI_SHARE, EMOJI_NOTE,
-    EMOJI_BELL, EMOJI_BELL_OFF
+    EMOJI_BELL, EMOJI_BELL_OFF, EMOJI_CALC, EMOJI_STAR
 )
 
 SEARCH_STATES = {}
@@ -37,16 +37,16 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
     if total_pages > 1:
         nav_row = []
         if page > 1:
-            nav_row.append(InlineKeyboardButton("◀️", callback_data=f"catalog:{filter_mode}:{page - 1}"))
+            nav_row.append(InlineKeyboardButton("😀", callback_data=f"catalog:{filter_mode}:{page - 1}"))
         else:
-            nav_row.append(InlineKeyboardButton("⏺️", callback_data="noop"))
+            nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
 
         nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
 
         if page < total_pages:
-            nav_row.append(InlineKeyboardButton("▶️", callback_data=f"catalog:{filter_mode}:{page + 1}"))
+            nav_row.append(InlineKeyboardButton("⏩", callback_data=f"catalog:{filter_mode}:{page + 1}"))
         else:
-            nav_row.append(InlineKeyboardButton("⏺️", callback_data="noop"))
+            nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
         
         buttons.append(nav_row)
 
@@ -412,9 +412,9 @@ def register_catalog_handlers(app: Client):
                 f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
                 f"{EMOJI_TAG} <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT\n"
                 f"{EMOJI_DICE} <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
-                f"{EMOJI_SHIELD} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
+                f"{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
                 f"{offer_line}\n\n"
-                f"🧮 <b>{t('selected_qty', lang)}:</b> {qty}\n"
+                f"{EMOJI_CALC} <b>{t('selected_qty', lang)}:</b> {qty}\n"
                 f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT\n"
                 f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
             )
@@ -572,9 +572,9 @@ def register_catalog_handlers(app: Client):
                 f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
                 f"{EMOJI_TAG} <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT\n"
                 f"{EMOJI_DICE} <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
-                f"{EMOJI_SHIELD} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
+                f"{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
                 f"{offer_line}\n\n"
-                f"🧮 <b>{t('selected_qty', lang)}:</b> {new_qty}\n"
+                f"{EMOJI_CALC} <b>{t('selected_qty', lang)}:</b> {new_qty}\n"
                 f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT\n"
                 f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
             )

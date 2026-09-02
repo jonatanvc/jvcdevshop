@@ -57,9 +57,9 @@ def register_orders_handlers(app: Client):
                 ])
 
             if total_pages > 1:
-                nav = [InlineKeyboardButton("⏺️", callback_data="noop"), InlineKeyboardButton(f"1/{total_pages}", callback_data="noop")]
+                nav = [InlineKeyboardButton("🔵", callback_data="noop"), InlineKeyboardButton(f"1/{total_pages}", callback_data="noop")]
                 if total_pages > 1:
-                    nav.append(InlineKeyboardButton("▶️", callback_data="orders:page:2"))
+                    nav.append(InlineKeyboardButton("⏩", callback_data="orders:page:2"))
                 buttons.append(nav)
 
             buttons.append([
@@ -117,10 +117,14 @@ def register_orders_handlers(app: Client):
             if total_pages > 1:
                 nav = []
                 if page > 1:
-                    nav.append(InlineKeyboardButton("◀️", callback_data=f"orders:page:{page - 1}"))
+                    nav.append(InlineKeyboardButton("😀", callback_data=f"orders:page:{page - 1}"))
+                else:
+                    nav.append(InlineKeyboardButton("🔵", callback_data="noop"))
                 nav.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
                 if page < total_pages:
-                    nav.append(InlineKeyboardButton("▶️", callback_data=f"orders:page:{page + 1}"))
+                    nav.append(InlineKeyboardButton("⏩", callback_data=f"orders:page:{page + 1}"))
+                else:
+                    nav.append(InlineKeyboardButton("🔵", callback_data="noop"))
                 buttons.append(nav)
 
             buttons.append([

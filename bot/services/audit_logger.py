@@ -6,7 +6,8 @@ from bot.utils.time_utils import get_now_str
 from bot.utils.emojis import (
     EMOJI_SHOPPING, EMOJI_USER, EMOJI_BOX, EMOJI_MONEY, EMOJI_CARD,
     EMOJI_KEY, EMOJI_TARGET, EMOJI_HOURGLASS, EMOJI_CLOCK, EMOJI_CROSS,
-    EMOJI_CHECK, EMOJI_LINK, EMOJI_BROADCAST, EMOJI_SPARKLES, EMOJI_WARN
+    EMOJI_CHECK, EMOJI_LINK, EMOJI_BROADCAST, EMOJI_SPARKLES, EMOJI_WARN,
+    EMOJI_INBOX, EMOJI_BAR_CHART, EMOJI_NAME_TAG
 )
 
 class AuditLogger:
@@ -49,10 +50,10 @@ class AuditLogger:
         msg = (
             f"{EMOJI_SHOPPING} <b>NUEVA COMPRA REALIZADA #ORD_{order_id}</b>\n\n"
             f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
-            f"📛 <b>Nombre:</b> {first_name}\n"
+            f"{EMOJI_NAME_TAG} <b>Nombre:</b> {first_name}\n"
             f"{EMOJI_BOX} <b>Producto:</b> <code>{product_name}</code>\n"
             f"{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${paid_price:.2f} USDT</code>\n"
-            f"📊 <b>Saldo Restante Usuario:</b> <code>${remaining_balance:.2f} USDT</code>\n"
+            f"{EMOJI_BAR_CHART} <b>Saldo Restante Usuario:</b> <code>${remaining_balance:.2f} USDT</code>\n"
             f"🆔 <b>ID Orden Proveedor:</b> <code>{provider_order_id or 'N/A'}</code>\n"
             f"{EMOJI_CLOCK} <b>Fecha:</b> <code>{now}</code>\n\n"
             f"{EMOJI_KEY} <b>DATOS / CUENTAS ENTREGADAS:</b>\n"
@@ -74,7 +75,7 @@ class AuditLogger:
         now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
-            f"📥 <b>NUEVA SOLICITUD DE DEPÓSITO</b>\n\n"
+            f"{EMOJI_INBOX} <b>NUEVA SOLICITUD DE DEPÓSITO</b>\n\n"
             f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
             f"💵 <b>Monto Base Solicitado:</b> <code>${base_amount:.2f} USDT</code>\n"
             f"{EMOJI_TARGET} <b>Monto Exacto Asignado:</b> <code>{exact_amount:.4f} USDT</code>\n"
@@ -224,7 +225,7 @@ class AuditLogger:
         msg = (
             f"{EMOJI_USER} <b>NUEVO USUARIO REGISTRADO</b>\n\n"
             f"• <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
-            f"• <b>Nombre:</b> {first_name}\n"
+            f"{EMOJI_NAME_TAG} <b>Nombre:</b> {first_name}\n"
             f"• <b>Fecha:</b> <code>{now}</code>"
         )
         await self._send_log(client, msg)

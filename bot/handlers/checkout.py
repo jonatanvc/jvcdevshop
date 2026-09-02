@@ -11,6 +11,7 @@ from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.translator import translate_text
+from bot.utils.emojis import EMOJI_STAR, EMOJI_PIN
 
 def register_checkout_handlers(app: Client):
 
@@ -188,8 +189,8 @@ def register_checkout_handlers(app: Client):
         )
 
         # Pantalla de entrega traducida
-        warranty_text = f"\n🛡️ <b>{t('warranty_label', lang)}:</b> <code>{warranty_hours}h</code>" if warranty_hours > 0 else ""
-        after_note_block = f"\n\n📌 <b>Info:</b>\n<i>{after_note}</i>" if after_note else ""
+        warranty_text = f"\n{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> <code>{warranty_hours}h</code>" if warranty_hours > 0 else ""
+        after_note_block = f"\n\n{EMOJI_PIN} <b>Info:</b>\n<i>{after_note}</i>" if after_note else ""
 
         success_text = t(
             "purchase_success_title",

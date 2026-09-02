@@ -9,7 +9,7 @@ from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, Deposit, Order, Setting, CustomPricing
 from bot.utils.time_utils import get_now_str
-from bot.utils.emojis import EMOJI_CALENDAR, EMOJI_LOCK
+from bot.utils.emojis import EMOJI_CALENDAR, EMOJI_LOCK, EMOJI_DISK
 
 class BackupService:
     async def generate_backup_file(self) -> io.BytesIO:
@@ -115,7 +115,7 @@ class BackupService:
         try:
             backup_file = await self.generate_backup_file()
             caption = (
-                f"💾 <b>COPIA DE SEGURIDAD AUTOMÁTICA DE BASE DE DATOS</b>\n\n"
+                f"{EMOJI_DISK} <b>COPIA DE SEGURIDAD AUTOMÁTICA DE BASE DE DATOS</b>\n\n"
                 f"{EMOJI_CALENDAR} <b>Fecha:</b> <code>{get_now_str('%Y-%m-%d %H:%M:%S')}</code>\n"
                 f"{EMOJI_LOCK} <i>Guarda este archivo. Contiene todos los usuarios, órdenes, compras y balances.</i>"
             )

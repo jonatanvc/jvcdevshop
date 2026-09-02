@@ -16,7 +16,7 @@ from bot.utils.emojis import (
     EMOJI_ADMIN, EMOJI_USERS, EMOJI_CARD, EMOJI_SHOPPING, EMOJI_PROVIDER,
     EMOJI_CHART_DOWN, EMOJI_CHART_UP, EMOJI_SHIELD, EMOJI_TOOLS, EMOJI_RED_DOT,
     EMOJI_GREEN_DOT, EMOJI_WARN, EMOJI_CHECK, EMOJI_PARTY, EMOJI_BROADCAST,
-    EMOJI_WALLET, EMOJI_MONEY, EMOJI_TRASH
+    EMOJI_WALLET, EMOJI_MONEY, EMOJI_TRASH, EMOJI_ADMIN_PERSON
 )
 
 ADMIN_STATES: Dict[int, Dict[str, Any]] = {}
@@ -88,14 +88,14 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
     keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton(f"🛠️ {'Desactivar' if maintenance_active else 'Activar'} Mantenimiento", callback_data="admin:toggle_maintenance"),
-            InlineKeyboardButton("🔄 Sincronizar Catálogo", callback_data="admin:clear_cache")
+            InlineKeyboardButton("🌀 Sincronizar Catálogo", callback_data="admin:clear_cache")
         ],
         [
-            InlineKeyboardButton("📢 Enviar Difusión (Broadcast)", callback_data="admin:broadcast"),
+            InlineKeyboardButton("📣 Enviar Difusión (Broadcast)", callback_data="admin:broadcast"),
             InlineKeyboardButton("💾 Backup BD", callback_data="admin:download_backup")
         ],
         [
-            InlineKeyboardButton("Volver", callback_data="menu_main")
+            InlineKeyboardButton("😀 Volver", callback_data="menu_main")
         ]
     ])
 
@@ -174,7 +174,7 @@ def register_admin_handlers(app: Client):
             client=client,
             title="SALDO DE USUARIO RESTABLECIDO A CERO",
             details=(
-                f"👮‍♂️ <b>Admin:</b> <code>{user_id}</code>\n"
+                f"{EMOJI_ADMIN_PERSON} <b>Admin:</b> <code>{user_id}</code>\n"
                 f"{EMOJI_USER} <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
                 f"{EMOJI_MONEY} <b>Saldo Removido:</b> <code>${old_balance:.2f} USDT</code>\n"
                 f"{EMOJI_WALLET} <b>Saldo Actual:</b> <code>$0.00 USDT</code>"
@@ -282,7 +282,7 @@ def register_admin_handlers(app: Client):
             client=client,
             title="SALDO MANUAL AÑADIDO POR ADMIN",
             details=(
-                f"👮‍♂️ <b>Admin:</b> <code>{user_id}</code>\n"
+                f"{EMOJI_ADMIN_PERSON} <b>Admin:</b> <code>{user_id}</code>\n"
                 f"{EMOJI_USER} <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
                 f"➕ <b>Monto Añadido:</b> <code>+${amount:.2f} USDT</code>\n"
                 f"{EMOJI_MONEY} <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
