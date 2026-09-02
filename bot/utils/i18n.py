@@ -112,14 +112,14 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # Compras y Checkout
         "processing_order": f"{EMOJI_HOURGLASS} <b>Procesando tu orden de {{qty}}x {{product}}...</b>\n<i>Por favor espera unos segundos.</i>",
         "purchase_fail_title": f"{EMOJI_CROSS} <b>NO SE PUDO COMPLETAR LA COMPRA</b>\n\nEl proveedor rechazó la solicitud (posiblemente sin stock suficiente).\n\n{EMOJI_SHIELD} <b>Tu saldo de ${{total}} USDT ha sido reembolsado intacto a tu cuenta.</b>",
-        "purchase_success_title": f"{EMOJI_PARTY} <b>¡COMPRA REALIZADA CON ÉXITO!</b>\n\n{EMOJI_BOX} <b>Producto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Pagado:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Orden #:</b> <code>ORD_{{{order_id}}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>DATOS DE TU SERVICIO:</b>\n<pre>{{items}}</pre>{{after_note}}\n\n<i>{EMOJI_IDEA} Puedes consultar tus compras y garantías en cualquier momento desde 'Mis Pedidos'.</i>",
+        "purchase_success_title": f"{EMOJI_PARTY} <b>¡COMPRA REALIZADA CON ÉXITO!</b>\n\n{EMOJI_BOX} <b>Producto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Pagado:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Orden #:</b> <code>ORD_{{order_id}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>DATOS DE TU SERVICIO:</b>\n<pre>{{items}}</pre>{{after_note}}\n\n<i>{EMOJI_IDEA} Puedes consultar tus compras y garantías en cualquier momento desde 'Mis Pedidos'.</i>",
         "btn_view_in_orders": "💼 Ver en 'Mis Pedidos'",
         "btn_continue_shopping": "👆 Seguir Comprando",
 
         # Mis Pedidos
         "orders_title": f"{EMOJI_ORDERS} <b>MIS PEDIDOS ({{count}} Total)</b>\n<i>Selecciona un pedido para ver los datos entregados:</i>\n",
         "orders_empty": f"{EMOJI_ORDERS} <b>MIS PEDIDOS</b>\n\nAún no has realizado ningún pedido.\n\n<i>Explora nuestro catálogo y adquiere tus cuentas y licencias al mejor precio.</i>",
-        "order_detail_title": f"{EMOJI_SHOPPING} <b>DETALLES DEL PEDIDO #ORD_{{{order_id}}}</b>\n\n{EMOJI_BOX} <b>Producto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${{total}} USDT</code>\n{EMOJI_SHIELD} <b>Garantía:</b> <code>{{warranty}}</code>\n{EMOJI_CALENDAR} <b>Fecha:</b> <code>{{date}}</code>\n{EMOJI_ID} <b>ID Proveedor:</b> <code>{{prov_id}}</code>\n\n{EMOJI_KEY} <b>DATOS / CREDENCIALES ENTREGADAS:</b>\n<pre>{{items}}</pre>",
+        "order_detail_title": f"{EMOJI_SHOPPING} <b>DETALLES DEL PEDIDO #ORD_{{order_id}}</b>\n\n{EMOJI_BOX} <b>Producto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${{total}} USDT</code>\n{EMOJI_SHIELD} <b>Garantía:</b> <code>{{warranty}}</code>\n{EMOJI_CALENDAR} <b>Fecha:</b> <code>{{date}}</code>\n{EMOJI_ID} <b>ID Proveedor:</b> <code>{{prov_id}}</code>\n\n{EMOJI_KEY} <b>DATOS / CREDENCIALES ENTREGADAS:</b>\n<pre>{{items}}</pre>",
 
         # Referidos
         "referrals_title": f"{EMOJI_LINK} <b>SISTEMA DE REFERIDOS & AFILIADOS</b>\n\n¡Invita a tus amigos y gana el <b>{{percent}}% de comisión</b> automática sobre cada recarga de saldo que realicen!\n\n{EMOJI_USERS} <b>Tus Referidos Registrados:</b> <code>{{count}} usuarios</code>\n{EMOJI_MONEY} <b>Comisiones Ganadas:</b> <code>${{earnings}} USDT</code>\n\n{EMOJI_TARGET} <b>Tu Enlace Exclusivo de Invitación:</b>\n<code>{{ref_link}}</code>\n\n<i>Comparte tu enlace y empieza a generar ingresos pasivos.</i>",
@@ -222,14 +222,14 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # Purchases and Checkout
         "processing_order": f"{EMOJI_HOURGLASS} <b>Processing your order for {{qty}}x {{product}}...</b>\n<i>Please wait a few seconds.</i>",
         "purchase_fail_title": f"{EMOJI_CROSS} <b>PURCHASE COULD NOT BE COMPLETED</b>\n\nThe provider rejected the request (likely out of stock).\n\n{EMOJI_SHIELD} <b>Your balance of ${{total}} USDT has been fully refunded to your account.</b>",
-        "purchase_success_title": f"{EMOJI_PARTY} <b>PURCHASE COMPLETED SUCCESSFULLY!</b>\n\n{EMOJI_BOX} <b>Product:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Paid:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Order #:</b> <code>ORD_{{{order_id}}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>YOUR SERVICE CREDENTIALS:</b>\n<pre>{{items}}</pre>{{after_note}}\n\n<i>{EMOJI_IDEA} You can view your purchased credentials anytime under 'My Orders'.</i>",
+        "purchase_success_title": f"{EMOJI_PARTY} <b>PURCHASE COMPLETED SUCCESSFULLY!</b>\n\n{EMOJI_BOX} <b>Product:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Paid:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Order #:</b> <code>ORD_{{order_id}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>YOUR SERVICE CREDENTIALS:</b>\n<pre>{{items}}</pre>{{after_note}}\n\n<i>{EMOJI_IDEA} You can view your purchased credentials anytime under 'My Orders'.</i>",
         "btn_view_in_orders": "💼 View in 'My Orders'",
         "btn_continue_shopping": "👆 Continue Shopping",
 
         # My Orders
         "orders_title": f"{EMOJI_ORDERS} <b>MY ORDERS ({{count}} Total)</b>\n<i>Select an order to view credentials:</i>\n",
         "orders_empty": f"{EMOJI_ORDERS} <b>MY ORDERS</b>\n\nYou haven't placed any orders yet.\n\n<i>Explore our catalog and get premium digital accounts at the best price.</i>",
-        "order_detail_title": f"{EMOJI_SHOPPING} <b>ORDER DETAILS #ORD_{{{order_id}}}</b>\n\n{EMOJI_BOX} <b>Product:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Price Paid:</b> <code>${{total}} USDT</code>\n{EMOJI_SHIELD} <b>Warranty:</b> <code>{{warranty}}</code>\n{EMOJI_CALENDAR} <b>Date:</b> <code>{{date}}</code>\n{EMOJI_ID} <b>Provider ID:</b> <code>{{prov_id}}</code>\n\n{EMOJI_KEY} <b>DELIVERED CREDENTIALS:</b>\n<pre>{{items}}</pre>",
+        "order_detail_title": f"{EMOJI_SHOPPING} <b>ORDER DETAILS #ORD_{{order_id}}</b>\n\n{EMOJI_BOX} <b>Product:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Price Paid:</b> <code>${{total}} USDT</code>\n{EMOJI_SHIELD} <b>Warranty:</b> <code>{{warranty}}</code>\n{EMOJI_CALENDAR} <b>Date:</b> <code>{{date}}</code>\n{EMOJI_ID} <b>Provider ID:</b> <code>{{prov_id}}</code>\n\n{EMOJI_KEY} <b>DELIVERED CREDENTIALS:</b>\n<pre>{{items}}</pre>",
 
         # Referrals
         "referrals_title": f"{EMOJI_LINK} <b>REFERRAL & AFFILIATE SYSTEM</b>\n\nInvite your friends and earn an automatic <b>{{percent}}% commission</b> on every balance deposit they make!\n\n{EMOJI_USERS} <b>Your Registered Referrals:</b> <code>{{count}} users</code>\n{EMOJI_MONEY} <b>Earned Commissions:</b> <code>${{earnings}} USDT</code>\n\n{EMOJI_TARGET} <b>Your Exclusive Referral Link:</b>\n<code>{{ref_link}}</code>\n\n<i>Share your link and start earning passive income.</i>",
@@ -332,14 +332,14 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         # Compras e Checkout
         "processing_order": f"{EMOJI_HOURGLASS} <b>Processando seu pedido de {{qty}}x {{product}}...</b>\n<i>Por favor, aguarde alguns segundos.</i>",
         "purchase_fail_title": f"{EMOJI_CROSS} <b>NÃO FOI POSSÍVEL CONCLUIR A COMPRA</b>\n\nO provedor recusou o pedido (provavelmente sem estoque).\n\n{EMOJI_SHIELD} <b>Seu saldo de ${{total}} USDT foi estornado integralmente para sua conta.</b>",
-        "purchase_success_title": f"{EMOJI_PARTY} <b>COMPRA REALIZADA COM SUCESSO!</b>\n\n{EMOJI_BOX} <b>Produto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Pago:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Pedido #:</b> <code>ORD_{{{order_id}}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>DADOS DO SEU SERVIÇO:</b>\n<pre>{{items}}</pre>{{after_note}}\n\n<i>{EMOJI_IDEA} Você pode consultar suas compras e credenciais a qualquer momento em 'Meus Pedidos'.</i>",
+        "purchase_success_title": f"{EMOJI_PARTY} <b>COMPRA REALIZADA COM SUCESSO!</b>\n\n{EMOJI_BOX} <b>Produto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Pago:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Pedido #:</b> <code>ORD_{{order_id}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>DADOS DO SEU SERVIÇO:</b>\n<pre>{{items}}</pre>{{after_note}}\n\n<i>{EMOJI_IDEA} Você pode consultar suas compras e credenciais a qualquer momento em 'Meus Pedidos'.</i>",
         "btn_view_in_orders": "💼 Ver em 'Meus Pedidos'",
         "btn_continue_shopping": "👆 Continuar Comprando",
 
         # Meus Pedidos
         "orders_title": f"{EMOJI_ORDERS} <b>MEUS PEDIDOS ({{count}} Total)</b>\n<i>Selecione um pedido para ver as credenciais:</i>\n",
         "orders_empty": f"{EMOJI_ORDERS} <b>MEUS PEDIDOS</b>\n\nVocê ainda não fez nenhum pedido.\n\n<i>Explore nosso catálogo e adquira contas premium pelo melhor preço.</i>",
-        "order_detail_title": f"{EMOJI_SHOPPING} <b>DETALHES DO PEDIDO #ORD_{{{order_id}}}</b>\n\n{EMOJI_BOX} <b>Produto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Preço Pago:</b> <code>${{total}} USDT</code>\n{EMOJI_SHIELD} <b>Garantia:</b> <code>{{warranty}}</code>\n{EMOJI_CALENDAR} <b>Data:</b> <code>{{date}}</code>\n{EMOJI_ID} <b>ID Provedor:</b> <code>{{prov_id}}</code>\n\n{EMOJI_KEY} <b>CREDENCIAS ENTREGUES:</b>\n<pre>{{items}}</pre>",
+        "order_detail_title": f"{EMOJI_SHOPPING} <b>DETALHES DO PEDIDO #ORD_{{order_id}}</b>\n\n{EMOJI_BOX} <b>Produto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Preço Pago:</b> <code>${{total}} USDT</code>\n{EMOJI_SHIELD} <b>Garantia:</b> <code>{{warranty}}</code>\n{EMOJI_CALENDAR} <b>Data:</b> <code>{{date}}</code>\n{EMOJI_ID} <b>ID Provedor:</b> <code>{{prov_id}}</code>\n\n{EMOJI_KEY} <b>CREDENCIAS ENTREGUES:</b>\n<pre>{{items}}</pre>",
 
         # Indicações
         "referrals_title": f"{EMOJI_LINK} <b>SISTEMA DE INDICAÇÕES & AFILIADOS</b>\n\nConvide seus amigos e ganhe <b>{{percent}}% de comissão</b> automática sobre cada recarga de saldo que eles fizerem!\n\n{EMOJI_USERS} <b>Seus Indicados Registrados:</b> <code>{{count}} usuários</code>\n{EMOJI_MONEY} <b>Comissões Ganhas:</b> <code>${{earnings}} USDT</code>\n\n{EMOJI_TARGET} <b>Seu Link Exclusivo de Convite:</b>\n<code>{{ref_link}}</code>\n\n<i>Compartilhe seu link e comece a gerar renda passiva.</i>",
