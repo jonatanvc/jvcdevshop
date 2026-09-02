@@ -98,6 +98,8 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
 
     await render_screen(client, target, text, keyboard)
 
+def register_admin_handlers(app: Client):
+
     @app.on_message(filters.command("del") & filters.private)
     async def cmd_del_balance(client: Client, message: Message):
         user_id = message.from_user.id
