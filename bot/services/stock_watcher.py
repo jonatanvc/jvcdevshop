@@ -1,11 +1,10 @@
 import asyncio
 from datetime import datetime
-from typing import Dict, Set, Optional
+from typing import Dict, Set
 from pyrogram import Client
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
 from sqlalchemy import select
-from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, StockAlert
 from bot.services.bunai_client import bunai_api

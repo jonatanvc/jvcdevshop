@@ -1,5 +1,5 @@
 from decimal import Decimal
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, Optional
 import httpx
 from bot.config import settings
 

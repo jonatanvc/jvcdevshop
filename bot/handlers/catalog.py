@@ -1,6 +1,6 @@
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from sqlalchemy import select, update
+from sqlalchemy import select
 from bot.database.session import async_session
 from bot.database.models import User, StockAlert
 from bot.services.pricing import pricing_service, PAGE_SIZE
@@ -10,9 +10,8 @@ from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.translator import translate_text
 from bot.utils.emojis import (
-    get_service_icon, EMOJI_TAG, EMOJI_DICE, EMOJI_SHIELD, EMOJI_MONEY,
-    EMOJI_WALLET, EMOJI_BUY, EMOJI_RECHARGE, EMOJI_SHARE, EMOJI_NOTE,
-    EMOJI_BELL, EMOJI_BELL_OFF, EMOJI_CALC, EMOJI_STAR
+    get_service_icon, EMOJI_TAG, EMOJI_DICE, EMOJI_MONEY,
+    EMOJI_WALLET, EMOJI_CALC, EMOJI_STAR
 )
 
 SEARCH_STATES = {}

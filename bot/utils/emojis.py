@@ -1,6 +1,6 @@
 import re
-from typing import Any, Optional
-from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton as _PyrogramInlineKeyboardButton
+from typing import Any
+from pyrogram.types import InlineKeyboardButton as _PyrogramInlineKeyboardButton
 
 def pe(emoji_id: str, fallback: str) -> str:
     """Retorna la etiqueta HTML de Telegram Custom Emoji compatible con Pyrogram"""
@@ -63,9 +63,6 @@ EMOJI_RECHARGE = pe("5769248574499983619", "🌟")
 
 # 58- Botón Compartir Enlace - (5210952531676504517)
 EMOJI_SHARE = pe("5210952531676504517", "🔗")
-
-# 59- Botón Ver Nota - (5424976816530014958)
-EMOJI_NOTE = pe("5424976816530014958", "📝")
 
 # 60- Botón Activar Alerta Stock - (5424818078833715060)
 EMOJI_BELL = pe("5424818078833715060", "🔔")

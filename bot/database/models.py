@@ -11,8 +11,7 @@ from sqlalchemy import (
     Text,
     Enum,
     ForeignKey,
-    Index,
-    UniqueConstraint
+    Index
 )
 from sqlalchemy.orm import declarative_base, relationship
 

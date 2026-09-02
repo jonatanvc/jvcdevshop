@@ -1,4 +1,4 @@
-from typing import Optional, Any
+from typing import Optional
 from pyrogram import Client
 from pyrogram.enums import ParseMode
 from bot.config import settings

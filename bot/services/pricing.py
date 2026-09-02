@@ -1,5 +1,4 @@
 import time
-from decimal import Decimal
 from typing import Dict, List, Any, Optional, Tuple
 from sqlalchemy import select
 from bot.config import settings
@@ -39,7 +38,7 @@ class PricingService:
         await session.commit()
         self.invalidate_cache()
 
-    async def calculate_product_price(self, base_price: float, product_id: str, session) -> float:
+    def calculate_price_from_custom(self, base_price: float, custom: Optional[CustomPricing] = None) -> float:
         """
         Calcula el precio de venta final aplicando la Estrategia Escalonada Progresiva:
         1. Prioridad: Precios o márgenes personalizados en la BD (CustomPricing).
@@ -48,10 +47,6 @@ class PricingService:
         4. Tramo 3 (Costo $1.00 a $2.99): Multiplicador x2.5 (+150% margen).
         5. Tramo 4 (Costo >= $3.00): Multiplicador x2.0 (+100% margen / el doble).
         """
-        stmt = select(CustomPricing).where(CustomPricing.product_id == product_id)
-        result = await session.execute(stmt)
-        custom = result.scalar_one_or_none()
-
         if custom:
             if custom.custom_price is not None:
                 return round(float(custom.custom_price), 2)
@@ -70,6 +65,14 @@ class PricingService:
             final_price = base_price * 2.0
 
         return round(final_price, 2)
+
+    async def calculate_product_price(self, base_price: float, product_id: str, session, custom: Optional[CustomPricing] = None) -> float:
+        """Consulta CustomPricing en BD si no se proporcionó y calcula el precio final"""
+        if custom is None and session is not None:
+            stmt = select(CustomPricing).where(CustomPricing.product_id == product_id)
+            result = await session.execute(stmt)
+            custom = result.scalar_one_or_none()
+        return self.calculate_price_from_custom(base_price, custom)
 
     def calculate_adjusted_warranty(self, bunai_warranty_hours: int) -> int:
         """
@@ -119,7 +122,7 @@ class PricingService:
                     continue
 
                 base_price = float(p.get("price", 0.0))
-                user_price = await self.calculate_product_price(base_price, pid, session)
+                user_price = self.calculate_price_from_custom(base_price, custom)
 
                 stock_raw = p.get("stock_count", 0)
                 try:
