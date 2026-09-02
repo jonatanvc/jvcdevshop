@@ -1,5 +1,6 @@
 import asyncio
-from typing import Dict, Any
+from decimal import Decimal
+from typing import Dict, Any, Optional
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy import select, func
@@ -9,12 +10,31 @@ from bot.database.models import User, Order, Deposit, DepositStatus, Setting
 from bot.services.bunai_client import bunai_api
 from bot.services.pricing import pricing_service
 from bot.services.backup_service import backup_service
+from bot.services.audit_logger import audit_logger
 from bot.utils.navigation import render_screen
 
 ADMIN_STATES: Dict[int, Dict[str, Any]] = {}
 
 def is_admin(user_id: int) -> bool:
     return user_id in settings.admin_ids
+
+async def find_user_by_identifier(session, identifier: str) -> Optional[User]:
+    """Busca un usuario por @username (case-insensitive) o por telegram_id numérico."""
+    clean_id = identifier.strip()
+    if clean_id.startswith("@"):
+        uname = clean_id[1:].strip().lower()
+        stmt = select(User).where(func.lower(User.username) == uname)
+        res = await session.execute(stmt)
+        return res.scalar_one_or_none()
+    elif clean_id.isdigit():
+        tid = int(clean_id)
+        stmt = select(User).where(User.telegram_id == tid)
+        res = await session.execute(stmt)
+        return res.scalar_one_or_none()
+    else:
+        stmt = select(User).where(func.lower(User.username) == clean_id.lower())
+        res = await session.execute(stmt)
+        return res.scalar_one_or_none()
 
 async def show_admin_panel(client: Client, target: Any, user_id: int):
     async with async_session() as session:
@@ -78,7 +98,200 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
 
     await render_screen(client, target, text, keyboard)
 
-def register_admin_handlers(app: Client):
+    @app.on_message(filters.command("del") & filters.private)
+    async def cmd_del_balance(client: Client, message: Message):
+        user_id = message.from_user.id
+        if not is_admin(user_id):
+            return
+
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        if len(message.command) < 2:
+            help_text = (
+                "⚠️ <b>Uso correcto del comando:</b>\n"
+                "<code>/del @usuario</code> o <code>/del 123456789</code>\n\n"
+                "<i>Este comando restablece el saldo del usuario a 0.00 USDT.</i>"
+            )
+            await client.send_message(chat_id=user_id, text=help_text)
+            return
+
+        target_ident = message.command[1].strip()
+        async with async_session() as session:
+            user = await find_user_by_identifier(session, target_ident)
+            if not user:
+                await client.send_message(
+                    chat_id=user_id,
+                    text=f"❌ <b>Usuario no encontrado:</b> No se encontró a ningún usuario con el identificador <code>{target_ident}</code> en la base de datos."
+                )
+                return
+
+            old_balance = float(user.balance)
+            user.balance = Decimal("0.0000")
+            target_uid = user.telegram_id
+            target_uname = user.username or "N/A"
+            lang = user.language or "es"
+            await session.commit()
+
+        # Notificar al Administrador
+        conf_text = (
+            "🗑️ <b>SALDO RESTABLECIDO A CERO</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            f"👤 <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
+            f"💰 <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
+            f"👛 <b>Saldo Actual:</b> <code>$0.00 USDT</code>"
+        )
+        await client.send_message(chat_id=user_id, text=conf_text)
+
+        # Notificar por DM al usuario
+        try:
+            user_dm_text = (
+                "⚠️ <b>Aviso de Billetera:</b>\n"
+                "━━━━━━━━━━━━━━━\n"
+                "Tu saldo ha sido restablecido a <code>0.00 USDT</code> por la administración."
+            )
+            if lang == "en":
+                user_dm_text = (
+                    "⚠️ <b>Wallet Notice:</b>\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "Your balance has been reset to <code>0.00 USDT</code> by administration."
+                )
+            elif lang == "pt":
+                user_dm_text = (
+                    "⚠️ <b>Aviso de Carteira:</b>\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    "Seu saldo foi redefinido para <code>0.00 USDT</code> pela administração."
+                )
+            await client.send_message(chat_id=target_uid, text=user_dm_text)
+        except Exception:
+            pass
+
+        # Canal de auditoría
+        await audit_logger.log_system_alert(
+            client=client,
+            title="SALDO DE USUARIO RESTABLECIDO A CERO",
+            details=(
+                f"👮‍♂️ <b>Admin:</b> <code>{user_id}</code>\n"
+                f"👤 <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
+                f"💰 <b>Saldo Removido:</b> <code>${old_balance:.2f} USDT</code>\n"
+                f"👛 <b>Saldo Actual:</b> <code>$0.00 USDT</code>"
+            )
+        )
+
+    @app.on_message(filters.command("dep") & filters.private)
+    async def cmd_dep_balance(client: Client, message: Message):
+        user_id = message.from_user.id
+        if not is_admin(user_id):
+            return
+
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        if len(message.command) < 3:
+            help_text = (
+                "⚠️ <b>Uso correcto del comando:</b>\n"
+                "<code>/dep 5.50 @usuario</code> o <code>/dep 5.50 123456789</code>\n\n"
+                "<i>Añade saldo en USDT directamente a la billetera del usuario.</i>"
+            )
+            await client.send_message(chat_id=user_id, text=help_text)
+            return
+
+        arg1 = message.command[1].strip()
+        arg2 = message.command[2].strip()
+
+        # Permitir tanto /dep 5.50 @user como /dep @user 5.50
+        amount = None
+        target_ident = None
+
+        try:
+            amount = float(arg1.replace(",", "."))
+            target_ident = arg2
+        except ValueError:
+            try:
+                amount = float(arg2.replace(",", "."))
+                target_ident = arg1
+            except ValueError:
+                pass
+
+        if amount is None or amount <= 0 or not target_ident:
+            await client.send_message(
+                chat_id=user_id,
+                text="❌ <b>Monto inválido:</b> Asegúrate de indicar un monto numérico mayor a 0.\nEjemplo: <code>/dep 5.50 @usuario</code>"
+            )
+            return
+
+        amount_dec = Decimal(f"{amount:.4f}")
+
+        async with async_session() as session:
+            user = await find_user_by_identifier(session, target_ident)
+            if not user:
+                await client.send_message(
+                    chat_id=user_id,
+                    text=f"❌ <b>Usuario no encontrado:</b> No se encontró a ningún usuario con el identificador <code>{target_ident}</code> en la base de datos."
+                )
+                return
+
+            old_balance = float(user.balance)
+            user.balance += amount_dec
+            new_balance = float(user.balance)
+            target_uid = user.telegram_id
+            target_uname = user.username or "N/A"
+            lang = user.language or "es"
+            await session.commit()
+
+        # Confirmación al Admin
+        conf_text = (
+            "✅ <b>SALDO AGREGADO EXITOSAMENTE</b>\n"
+            "━━━━━━━━━━━━━━━\n"
+            f"👤 <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
+            f"➕ <b>Monto Añadido:</b> <code>+${amount:.2f} USDT</code>\n"
+            f"💰 <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
+            f"👛 <b>Nuevo Saldo:</b> <code>${new_balance:.2f} USDT</code>"
+        )
+        await client.send_message(chat_id=user_id, text=conf_text)
+
+        # Notificación por DM al Usuario
+        try:
+            user_dm_text = (
+                "🎉 <b>¡Saldo Acreditado!</b>\n"
+                "━━━━━━━━━━━━━━━\n"
+                f"Se han añadido <b>+${amount:.2f} USDT</b> a tu saldo por la administración.\n"
+                f"👛 <b>Tu Saldo Actual:</b> <code>${new_balance:.2f} USDT</code>"
+            )
+            if lang == "en":
+                user_dm_text = (
+                    "🎉 <b>Balance Credited!</b>\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    f"<b>+${amount:.2f} USDT</b> has been added to your balance by administration.\n"
+                    f"👛 <b>Current Balance:</b> <code>${new_balance:.2f} USDT</code>"
+                )
+            elif lang == "pt":
+                user_dm_text = (
+                    "🎉 <b>Saldo Creditado!</b>\n"
+                    "━━━━━━━━━━━━━━━\n"
+                    f"Foram adicionados <b>+${amount:.2f} USDT</b> ao seu saldo pela administração.\n"
+                    f"👛 <b>Saldo Atual:</b> <code>${new_balance:.2f} USDT</code>"
+                )
+            await client.send_message(chat_id=target_uid, text=user_dm_text)
+        except Exception:
+            pass
+
+        # Canal de Auditoría
+        await audit_logger.log_system_alert(
+            client=client,
+            title="SALDO MANUAL AÑADIDO POR ADMIN",
+            details=(
+                f"👮‍♂️ <b>Admin:</b> <code>{user_id}</code>\n"
+                f"👤 <b>Usuario:</b> <code>{target_uid}</code> (@{target_uname})\n"
+                f"➕ <b>Monto Añadido:</b> <code>+${amount:.2f} USDT</code>\n"
+                f"💰 <b>Saldo Anterior:</b> <code>${old_balance:.2f} USDT</code>\n"
+                f"👛 <b>Nuevo Saldo:</b> <code>${new_balance:.2f} USDT</code>"
+            )
+        )
 
     @app.on_message(filters.command("admin") & filters.private)
     async def cmd_admin(client: Client, message: Message):
@@ -162,7 +375,7 @@ def register_admin_handlers(app: Client):
         ])
         await render_screen(client, callback, text, keyboard)
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "buscar"]), group=3)
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=3)
     async def handle_admin_text(client: Client, message: Message):
         user_id = message.from_user.id
         if not is_admin(user_id):

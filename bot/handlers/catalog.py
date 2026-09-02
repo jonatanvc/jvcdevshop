@@ -312,7 +312,7 @@ def register_catalog_handlers(app: Client):
         query = " ".join(message.command[1:]).lower()
         await execute_search(client, user_id, query, lang)
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help"]), group=1)
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=1)
     async def handle_search_text(client: Client, message: Message):
         user_id = message.from_user.id
         if not SEARCH_STATES.get(user_id):

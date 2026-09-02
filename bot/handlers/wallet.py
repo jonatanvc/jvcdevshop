@@ -381,7 +381,7 @@ def register_wallet_handlers(app: Client):
         text = t("wallet_title", lang, balance=f"{balance:.4f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}")
         await render_screen(client, user_id, text, get_deposit_menu_keyboard(lang))
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help"]), group=2)
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=2)
     async def handle_text_inputs(client: Client, message: Message):
         user_id = message.from_user.id
         state = USER_STATES.get(user_id)
