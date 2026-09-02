@@ -448,33 +448,16 @@ def register_wallet_handlers(app: Client):
                 res = await session.execute(stmt)
                 deposit = res.scalar_one_or_none()
 
-                if not deposit or deposit.status != DepositStatus.PENDING:
+                if not deposit or deposit.status == DepositStatus.CONFIRMED:
                     kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
-                    await render_screen(client, user_id, "❌ Error / Expired", kb)
-                    return
-
-                if datetime.utcnow() > deposit.expires_at:
-                    deposit.status = DepositStatus.EXPIRED
-                    log_msg_id = deposit.log_message_id
-                    await session.commit()
-                    await audit_logger.log_deposit_cancelled(
-                        client=client,
-                        user_id=user_id,
-                        username=message.from_user.username,
-                        first_name=message.from_user.first_name or "Usuario",
-                        amount_cancelled=float(deposit.exact_amount),
-                        deposit_id=deposit_id,
-                        log_message_id=log_msg_id
-                    )
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
-                    await render_screen(client, user_id, "❌ Time Expired", kb)
+                    await render_screen(client, user_id, "❌ Solicitud no disponible o ya confirmada.", kb)
                     return
 
                 dup_stmt = select(Deposit).where(Deposit.tx_hash == tx_hash, Deposit.status == DepositStatus.CONFIRMED).with_for_update()
                 dup_res = await session.execute(dup_stmt)
                 if dup_res.scalar_one_or_none():
                     kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
-                    await render_screen(client, user_id, "❌ Hash already claimed.", kb)
+                    await render_screen(client, user_id, "❌ Este Hash / TxID ya fue utilizado y acreditado anteriormente.", kb)
                     return
 
                 val_res = await bsc_validator.verify_deposit(tx_hash, float(deposit.exact_amount))
