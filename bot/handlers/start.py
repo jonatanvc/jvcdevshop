@@ -10,7 +10,7 @@ from bot.database.models import User, Order, Setting
 from bot.services.bunai_client import bunai_api
 from bot.utils.emojis import (
     EMOJI_USER, EMOJI_ID, EMOJI_MONEY, EMOJI_PROVIDER, EMOJI_SHOPPING,
-    EMOJI_WALLET, EMOJI_LANG, EMOJI_GLOBE, EMOJI_CALENDAR
+    EMOJI_WALLET, EMOJI_LANG, EMOJI_GLOBE, EMOJI_CALENDAR, clean_popup_text
 )
 from bot.utils.navigation import render_screen, USER_LAST_MESSAGES
 from bot.utils.rate_limit import rate_limiter
@@ -315,7 +315,7 @@ def register_start_handlers(app: Client):
                     await session.commit()
 
             lang_name = LANGUAGES.get(new_lang, new_lang.upper())
-            await callback.answer(t("lang_changed", new_lang, lang_name=lang_name), show_alert=True)
+            await callback.answer(clean_popup_text(t("lang_changed", new_lang, lang_name=lang_name)), show_alert=True)
             await cb_account_view(client, callback)
         except Exception as e:
             print(f"[Error in cb_set_language]: {e}")

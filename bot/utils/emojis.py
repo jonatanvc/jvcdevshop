@@ -11,50 +11,51 @@ def pe(emoji_id: str, fallback: str) -> str:
     return f'<emoji id={emoji_id}>{fallback}</emoji>'
 
 # --- BOTONES Y MENÚS PRINCIPALES ---
-# 40- Botón Catálogo - (5278413853577734640)
-EMOJI_CART = pe("5278413853577734640", "🛒")
+# --- BOTONES Y MENÚS PRINCIPALES ---
+# 7- Catálogo de Servicios - (5278613311858959074)
+EMOJI_CART = pe("5278613311858959074", "🛒")
 
-# 41- Botón Depositar - (5805550320985578625)
-EMOJI_CARD = pe("5805550320985578625", "🪙")
+# 8- Depositar USDT / Billetera - (5445353829304387411)
+EMOJI_CARD = pe("5445353829304387411", "💳")
 
-# 42- Botón Mis Pedidos - (5211182849297762045)
-EMOJI_ORDERS = pe("5211182849297762045", "💼")
+# 9- Mis Pedidos - (5445221832074483553)
+EMOJI_ORDERS = pe("5445221832074483553", "💼")
 
-# 43- Botón Referidos - (5846191689542145823)
-EMOJI_LINK = pe("5846191689542145823", "🔗")
+# 10- Sistema de Referidos - (5289511602393984968)
+EMOJI_LINK = pe("5289511602393984968", "🔗")
 
-# 44- Botón Mi Perfil - (5208429100951159058)
-EMOJI_USER = pe("5208429100951159058", "👤")
+# 2- Mi Perfil / Usuario - (5275979556308674886)
+EMOJI_USER = pe("5275979556308674886", "👤")
 
-# 45- Botón Soporte - (5282843764451195532)
-EMOJI_SUPPORT = pe("5282843764451195532", "🆘")
+# 11- Soporte & Ayuda - (6021798595739523148)
+EMOJI_SUPPORT = pe("6021798595739523148", "🆘")
 
-# 46- Botón Panel Admin - (5764638872000533034)
-EMOJI_ADMIN = pe("5764638872000533034", "⚙️")
+# 12- Panel de Administración - (5341715473882955310)
+EMOJI_ADMIN = pe("5341715473882955310", "⚙️")
 
 # 47- Botón Volver / Atrás - (5339226763673232550)
 EMOJI_BACK = pe("5339226763673232550", "😀")
 
-# 48- Botón Menú Principal - (6028171274939797252)
-EMOJI_HOME = pe("6028171274939797252", "🏠")
+# 13- Volver al Menú Principal - (5350404270032166927)
+EMOJI_HOME = pe("5350404270032166927", "🏠")
 
-# 49- Botón Buscar Servicio - (5334882760735598374)
-EMOJI_SEARCH = pe("5334882760735598374", "🔍")
+# 15- Buscar Servicio - (5276395476646653290)
+EMOJI_SEARCH = pe("5276395476646653290", "🔍")
 
-# 50- Botón Contactar Admin - (5242628160297641831)
-EMOJI_CHAT = pe("5242628160297641831", "💬")
+# 16- Contactar Administrador - (5443038326535759644)
+EMOJI_CHAT = pe("5443038326535759644", "💬")
 
-# 51- Botón Categorías - (6039630677182254664)
+# 26- Catálogo / Categorías - (6039630677182254664)
 EMOJI_FOLDER = pe("6039630677182254664", "📁")
 
-# 52- Filtro Disponibles - (5884106131822875141)
-EMOJI_GREEN_DOT = pe("5884106131822875141", "🟢")
+# 27- Categoría Disponibles - (5211182849297762045)
+EMOJI_GREEN_DOT = pe("5211182849297762045", "🟢")
 
-# 53- Filtro En Oferta - (5276398496008663230)
-EMOJI_GIFT = pe("5276398496008663230", "🕶")
+# 28- Categoría En Oferta - (5276422526350681413)
+EMOJI_GIFT = pe("5276422526350681413", "🕶")
 
-# 54- Filtro Agotados - (5470060791883374114)
-EMOJI_RED_DOT = pe("5470060791883374114", "🔴")
+# 29- Categoría Agotados - (5208429100951159058)
+EMOJI_RED_DOT = pe("5208429100951159058", "🔴")
 
 # 55- Filtro Todos - (5406809207947142040)
 EMOJI_MONITOR = pe("5406809207947142040", "🖥")
@@ -84,19 +85,19 @@ EMOJI_WRITE = pe("5424818078833715060", "✍️")
 EMOJI_PHONE = pe("5276220667182736079", "📲")
 
 # --- ELEMENTOS VISUALES ADICIONALES ---
-# Encabezado principal de la tienda (jvcᵈᵉᵛ Store) - (5427168083074628963)
+# 1- Encabezado principal de la tienda - (5427168083074628963)
 EMOJI_STORE = pe("5427168083074628963", "💎")
 
-# ID de Usuario - (5884366771913233289)
+# 3- ID de Usuario - (5884366771913233289)
 EMOJI_ID = pe("5884366771913233289", "🆔")
 
-# Saldo / Dinero - (5375296873982604963)
+# 4- Saldo / Dinero - (5375296873982604963)
 EMOJI_MONEY = pe("5375296873982604963", "💰")
 
-# Proveedor BunaiStore - (5264733042710181045)
+# 5- Saldo Proveedor BunaiStore - (5264733042710181045)
 EMOJI_PROVIDER = pe("5264733042710181045", "🏢")
 
-# Compras Realizadas - (5767288471685171967)
+# 6- Compras Realizadas - (5767288471685171967)
 EMOJI_SHOPPING = pe("5767288471685171967", "🛍️")
 
 # Actualizar Catálogo - (6030657343744644592)
@@ -494,133 +495,6 @@ def parse_emojis(text: str) -> str:
 
 p = parse_emojis
 
-# --- CONSTRUCTORES RAW MTPROTO PARA BOTONES CON EMOJI PREMIUM (CAPA 180+) ---
-
-class RawKeyboardButtonStyle(TLObject):
-    ID = 0x4fdd3430
-    QUALNAME = "types.KeyboardButtonStyle"
-
-    def __init__(self, *, icon: Optional[int] = None, bg_primary: bool = False, bg_danger: bool = False, bg_success: bool = False):
-        self.icon = int(icon) if icon is not None else None
-        self.bg_primary = bg_primary
-        self.bg_danger = bg_danger
-        self.bg_success = bg_success
-
-    @staticmethod
-    def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonStyle":
-        flags = Int.read(b)
-        bg_primary = bool(flags & (1 << 0))
-        bg_danger = bool(flags & (1 << 1))
-        bg_success = bool(flags & (1 << 2))
-        icon = Long.read(b) if bool(flags & (1 << 3)) else None
-        return RawKeyboardButtonStyle(icon=icon, bg_primary=bg_primary, bg_danger=bg_danger, bg_success=bg_success)
-
-    def write(self, *args: Any) -> bytes:
-        b = BytesIO()
-        b.write(Int(self.ID, False))
-        flags = 0
-        if self.bg_primary: flags |= (1 << 0)
-        if self.bg_danger: flags |= (1 << 1)
-        if self.bg_success: flags |= (1 << 2)
-        if self.icon is not None: flags |= (1 << 3)
-        b.write(Int(flags))
-        if self.icon is not None:
-            b.write(Long(self.icon))
-        return b.getvalue()
-
-class RawKeyboardButtonCallback(TLObject):
-    ID = 0xe62bc960
-    QUALNAME = "types.KeyboardButtonCallback"
-
-    def __init__(self, *, text: str, data: bytes, style: Optional[RawKeyboardButtonStyle] = None, requires_password: Optional[bool] = None):
-        self.text = text
-        self.data = data
-        self.style = style
-        self.requires_password = requires_password
-
-    @staticmethod
-    def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonCallback":
-        flags = Int.read(b)
-        requires_password = bool(flags & (1 << 0))
-        style = TLObject.read(b) if bool(flags & (1 << 10)) else None
-        text = String.read(b)
-        data = Bytes.read(b)
-        return RawKeyboardButtonCallback(text=text, data=data, style=style, requires_password=requires_password)
-
-    def write(self, *args: Any) -> bytes:
-        b = BytesIO()
-        b.write(Int(self.ID, False))
-        flags = 0
-        if self.requires_password: flags |= (1 << 0)
-        if self.style is not None: flags |= (1 << 10)
-        b.write(Int(flags))
-        if self.style is not None:
-            b.write(self.style.write())
-        b.write(String(self.text))
-        b.write(Bytes(self.data))
-        return b.getvalue()
-
-class RawKeyboardButtonUrl(TLObject):
-    ID = 0x258aff05
-    QUALNAME = "types.KeyboardButtonUrl"
-
-    def __init__(self, *, text: str, url: str, style: Optional[RawKeyboardButtonStyle] = None):
-        self.text = text
-        self.url = url
-        self.style = style
-
-    @staticmethod
-    def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonUrl":
-        flags = Int.read(b)
-        style = TLObject.read(b) if bool(flags & (1 << 10)) else None
-        text = String.read(b)
-        url = String.read(b)
-        return RawKeyboardButtonUrl(text=text, url=url, style=style)
-
-    def write(self, *args: Any) -> bytes:
-        b = BytesIO()
-        b.write(Int(self.ID, False))
-        flags = 0
-        if self.style is not None: flags |= (1 << 10)
-        b.write(Int(flags))
-        if self.style is not None:
-            b.write(self.style.write())
-        b.write(String(self.text))
-        b.write(String(self.url))
-        return b.getvalue()
-
-objects[RawKeyboardButtonStyle.ID] = RawKeyboardButtonStyle
-objects[RawKeyboardButtonCallback.ID] = RawKeyboardButtonCallback
-objects[RawKeyboardButtonUrl.ID] = RawKeyboardButtonUrl
-
-# Monkeypatch del serializador write() de Pyrogram para inyectar style.icon en MTProto
-_orig_btn_write = _PyrogramInlineKeyboardButton.write
-
-async def _custom_btn_write(self, client: Any):
-    icon_id = getattr(self, "icon_custom_emoji_id", None)
-    if icon_id:
-        try:
-            icon_int = int(str(icon_id).strip())
-            style = RawKeyboardButtonStyle(icon=icon_int)
-            if self.callback_data is not None:
-                data = bytes(self.callback_data, "utf-8") if isinstance(self.callback_data, str) else self.callback_data
-                return RawKeyboardButtonCallback(
-                    text=self.text,
-                    data=data,
-                    style=style
-                )
-            if self.url is not None:
-                return RawKeyboardButtonUrl(
-                    text=self.text,
-                    url=self.url,
-                    style=style
-                )
-        except Exception:
-            pass
-    return await _orig_btn_write(self, client)
-
-_PyrogramInlineKeyboardButton.write = _custom_btn_write
-
 _UNICODE_EMOJI_CLEANER = re.compile(
     r'[\U00010000-\U0010ffff\u2600-\u27ff\u2b00-\u2bfc\u2300-\u23ff\u200d\ufe0f\u20e3\u2190-\u21ff\u2934-\u2935\u3297\u3299]'
 )
@@ -709,3 +583,9 @@ def strip_keyboard_icons(reply_markup: Any) -> Any:
             if hasattr(btn, "_fallback_text"):
                 btn.text = btn._fallback_text
     return reply_markup
+
+def clean_popup_text(text: str) -> str:
+    """Remueve etiquetas HTML como <emoji id=...> para que los popups de Telegram se muestren limpios sin tags."""
+    if not text:
+        return ""
+    return re.sub(r'<[^>]+>', '', str(text)).strip()
