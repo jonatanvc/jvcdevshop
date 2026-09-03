@@ -36,14 +36,14 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
     if total_pages > 1:
         nav_row = []
         if page > 1:
-            nav_row.append(InlineKeyboardButton("😀", callback_data=f"catalog:{filter_mode}:{page - 1}"))
+            nav_row.append(InlineKeyboardButton("◀️", callback_data=f"catalog:{filter_mode}:{page - 1}"))
         else:
             nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
 
         nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
 
         if page < total_pages:
-            nav_row.append(InlineKeyboardButton("⏩", callback_data=f"catalog:{filter_mode}:{page + 1}"))
+            nav_row.append(InlineKeyboardButton("▶️", callback_data=f"catalog:{filter_mode}:{page + 1}"))
         else:
             nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
         
