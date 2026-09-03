@@ -84,6 +84,7 @@ async def render_screen(
                     pass
             return None
         except (BadRequest, MessageIdInvalid) as e:
+            USER_LAST_MESSAGES.pop(user_id, None)
             if reply_markup and ("BUTTON" in str(e).upper() or "CONSTRUCTOR" in str(e).upper()):
                 try:
                     clean_kb = strip_keyboard_icons(reply_markup)
@@ -105,7 +106,7 @@ async def render_screen(
                 except Exception:
                     pass
         except Exception:
-            pass
+            USER_LAST_MESSAGES.pop(user_id, None)
 
     # 2. Si no se pudo editar o era una foto previa, enviamos el mensaje y guardamos su ID
     try:

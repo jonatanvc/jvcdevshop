@@ -621,11 +621,15 @@ async def _custom_btn_write(self, client: Any):
 
 _PyrogramInlineKeyboardButton.write = _custom_btn_write
 
+_UNICODE_EMOJI_CLEANER = re.compile(
+    r'[\U00010000-\U0010ffff\u2600-\u27ff\u2b00-\u2bfc\u2300-\u23ff\u200d\ufe0f\u20e3\u2190-\u21ff\u2934-\u2935\u3297\u3299]'
+)
+
 def format_button_info(text: str) -> Tuple[str, Optional[str], str]:
     """
     Construye la información del botón (idéntico al bot de confesiones):
     - Extrae icon_custom_emoji_id según el catálogo de Emojis Animados Premium.
-    - Remueve el emoji unicode del texto para evitar que aparezcan 2 emojis duplicados
+    - Remueve TODOS los emojis unicode del texto para evitar que aparezcan 2 emojis duplicados
       cuando Telegram renderiza el icono animado en el botón.
     - Retorna (texto_sin_emoji, icon_id, texto_completo_con_emoji).
     """
@@ -647,6 +651,9 @@ def format_button_info(text: str) -> Tuple[str, Optional[str], str]:
                 icon_id = em_id
                 text_str = text_str.replace(emoji_char, "").strip()
                 break
+
+    if icon_id:
+        text_str = _UNICODE_EMOJI_CLEANER.sub('', text_str).strip()
 
     final_text = text_str if text_str else clean_text
     return final_text, icon_id, clean_text

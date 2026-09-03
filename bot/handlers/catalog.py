@@ -332,17 +332,19 @@ def register_catalog_handlers(app: Client):
     @app.on_callback_query(filters.regex(r"^product:view:([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))
     async def cb_product_view(client: Client, callback: CallbackQuery):
         """Muestra la vista del producto con calculadora interactiva y garantías traducidas"""
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
-            await callback.answer()
             return
 
         product_id = callback.matches[0].group(1)
         filter_mode = callback.matches[0].group(2)
         page = int(callback.matches[0].group(3))
         qty = int(callback.matches[0].group(4))
-
-        bot_info = await client.get_me()
 
         async with async_session() as session:
             p_data = await bunai_api.get_product(product_id)

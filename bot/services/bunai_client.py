@@ -14,6 +14,16 @@ class BunaiAPIClient:
         # Caché en memoria para evitar saturar el rate limit de BunaiStore (60 req/min)
         self._cache: Dict[str, Any] = {}
         self._cache_ttl = 30  # 30 segundos de TTL
+        self._client: Optional[httpx.AsyncClient] = None
+
+    def _get_client(self) -> httpx.AsyncClient:
+        if self._client is None or self._client.is_closed:
+            self._client = httpx.AsyncClient(
+                headers=self.headers,
+                timeout=10.0,
+                limits=httpx.Limits(max_keepalive_connections=20, max_connections=50)
+            )
+        return self._client
 
     def _get_from_cache(self, key: str) -> Optional[Any]:
         if key in self._cache:
@@ -37,26 +47,26 @@ class BunaiAPIClient:
         if cached is not None:
             return cached
 
-        async with httpx.AsyncClient(timeout=10.0) as client:
-            # 1. Probar endpoint /developer/me
-            try:
-                res_dev = await client.get(f"{self.base_url}/developer/me", headers=self.headers)
-                if res_dev.status_code == 200:
-                    data = res_dev.json()
-                    self._set_cache("bunai_me", data, ttl=15)
-                    return data
-            except Exception:
-                pass
+        client = self._get_client()
+        # 1. Probar endpoint /developer/me
+        try:
+            res_dev = await client.get(f"{self.base_url}/developer/me")
+            if res_dev.status_code == 200:
+                data = res_dev.json()
+                self._set_cache("bunai_me", data, ttl=15)
+                return data
+        except Exception:
+            pass
 
-            # 2. Fallback a endpoint /me
-            try:
-                res = await client.get(f"{self.base_url}/me", headers=self.headers)
-                if res.status_code == 200:
-                    data = res.json()
-                    self._set_cache("bunai_me", data, ttl=15)
-                    return data
-            except Exception:
-                pass
+        # 2. Fallback a endpoint /me
+        try:
+            res = await client.get(f"{self.base_url}/me")
+            if res.status_code == 200:
+                data = res.json()
+                self._set_cache("bunai_me", data, ttl=15)
+                return data
+        except Exception:
+            pass
 
         return {"balance": 0.0, "api_spent": 0.0}
 
@@ -70,13 +80,13 @@ class BunaiAPIClient:
 
         url = f"{self.base_url}/products?view={view}&limit={limit}"
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.get(url, headers=self.headers)
-                if res.status_code == 200:
-                    data = res.json()
-                    self._set_cache(cache_key, data)
-                    return data
-                return []
+            client = self._get_client()
+            res = await client.get(url)
+            if res.status_code == 200:
+                data = res.json()
+                self._set_cache(cache_key, data)
+                return data
+            return []
         except Exception as e:
             print(f"[BunaiAPIClient Error] get_products: {e}")
             return []
@@ -91,13 +101,13 @@ class BunaiAPIClient:
 
         url = f"{self.base_url}/product-groups?include_variants={'true' if include_variants else 'false'}&limit=100"
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.get(url, headers=self.headers)
-                if res.status_code == 200:
-                    data = res.json()
-                    self._set_cache(cache_key, data)
-                    return data
-                return []
+            client = self._get_client()
+            res = await client.get(url)
+            if res.status_code == 200:
+                data = res.json()
+                self._set_cache(cache_key, data)
+                return data
+            return []
         except Exception as e:
             print(f"[BunaiAPIClient Error] get_product_groups: {e}")
             return []
@@ -111,13 +121,13 @@ class BunaiAPIClient:
 
         url = f"{self.base_url}/products/{product_id}"
         try:
-            async with httpx.AsyncClient(timeout=15.0) as client:
-                res = await client.get(url, headers=self.headers)
-                if res.status_code == 200:
-                    data = res.json()
-                    self._set_cache(cache_key, data, ttl=20)
-                    return data
-                return None
+            client = self._get_client()
+            res = await client.get(url)
+            if res.status_code == 200:
+                data = res.json()
+                self._set_cache(cache_key, data, ttl=20)
+                return data
+            return None
         except Exception as e:
             print(f"[BunaiAPIClient Error] get_product: {e}")
             return None
@@ -131,22 +141,22 @@ class BunaiAPIClient:
             "include_after_note": True
         }
         try:
-            async with httpx.AsyncClient(timeout=25.0) as client:
-                res = await client.post(url, headers=self.headers, json=payload)
-                data = res.json()
-                if res.status_code in (200, 201):
-                    # Invalidar caché de saldo para reflejar el nuevo saldo tras la compra
-                    self._cache.pop("bunai_me", None)
-                    return {
-                        "success": True,
-                        "data": data.get("order", data),
-                        "status_code": res.status_code
-                    }
+            client = self._get_client()
+            res = await client.post(url, json=payload)
+            data = res.json()
+            if res.status_code in (200, 201):
+                # Invalidar caché de saldo para reflejar el nuevo saldo tras la compra
+                self._cache.pop("bunai_me", None)
                 return {
-                    "success": False,
-                    "error": data.get("detail", data.get("message", "Error al procesar orden en proveedor")),
+                    "success": True,
+                    "data": data.get("order", data),
                     "status_code": res.status_code
                 }
+            return {
+                "success": False,
+                "error": data.get("detail", data.get("message", "Error al procesar orden en proveedor")),
+                "status_code": res.status_code
+            }
         except Exception as e:
             return {
                 "success": False,

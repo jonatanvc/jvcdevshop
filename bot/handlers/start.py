@@ -1,3 +1,5 @@
+import time
+import asyncio
 import traceback
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -10,11 +12,27 @@ from bot.utils.emojis import (
     EMOJI_USER, EMOJI_ID, EMOJI_MONEY, EMOJI_PROVIDER, EMOJI_SHOPPING,
     EMOJI_WALLET, EMOJI_LANG, EMOJI_GLOBE, EMOJI_CALENDAR
 )
-from bot.utils.navigation import render_screen
+from bot.utils.navigation import render_screen, USER_LAST_MESSAGES
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t, LANGUAGES
 from bot.utils.time_utils import format_dt
 from bot.services.audit_logger import audit_logger
+
+_BUNAI_BALANCE_CACHE = {"balance": 0.0, "ts": 0.0}
+
+async def get_cached_bunai_balance() -> float:
+    """Obtiene el saldo de BunaiStore con caché en memoria (60s TTL) y timeout de 1.5s para no demorar la interfaz"""
+    now = time.time()
+    if now - _BUNAI_BALANCE_CACHE["ts"] < 60.0 and _BUNAI_BALANCE_CACHE["ts"] > 0:
+        return _BUNAI_BALANCE_CACHE["balance"]
+    try:
+        bunai_data = await asyncio.wait_for(bunai_api.get_me(), timeout=1.5)
+        bal = float(bunai_data.get("balance", 0.0))
+        _BUNAI_BALANCE_CACHE["balance"] = bal
+        _BUNAI_BALANCE_CACHE["ts"] = now
+        return bal
+    except Exception:
+        return _BUNAI_BALANCE_CACHE["balance"]
 
 def get_main_menu_keyboard(user_id: int, lang: str = "es") -> InlineKeyboardMarkup:
     """Genera la botonera inline del menú principal limpia (sin duplicar Mis Pedidos)"""
@@ -62,8 +80,7 @@ async def build_main_menu_text(user: User, orders_count: int, session) -> str:
     bunai_line = ""
     if user.telegram_id in settings.admin_ids:
         try:
-            bunai_data = await bunai_api.get_me()
-            bunai_balance = float(bunai_data.get("balance", 0.0))
+            bunai_balance = await get_cached_bunai_balance()
             bunai_line = f"{EMOJI_PROVIDER} <b>{t('balance_provider', lang)}:</b> <code>${bunai_balance:.2f} USD</code>\n"
         except Exception:
             bunai_line = ""
@@ -102,6 +119,9 @@ def register_start_handlers(app: Client):
         user_id = message.from_user.id
         username = message.from_user.username
         first_name = message.from_user.first_name or "Usuario"
+
+        # Al recibir /start, limpiamos el rastreo de mensaje previo para enviar uno nuevo sin importar si el usuario limpió el chat
+        USER_LAST_MESSAGES.pop(user_id, None)
 
         # Borrar el comando /start del usuario para mantener pantalla limpia
         try:
@@ -168,9 +188,13 @@ def register_start_handlers(app: Client):
 
     @app.on_callback_query(filters.regex("^menu_main$"))
     async def cb_main_menu(client: Client, callback: CallbackQuery):
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
-            await callback.answer("⏳ ...", show_alert=False)
             return
 
         try:
@@ -207,6 +231,11 @@ def register_start_handlers(app: Client):
     @app.on_callback_query(filters.regex("^account:view$"))
     async def cb_account_view(client: Client, callback: CallbackQuery):
         """Pantalla de Perfil de Usuario con soporte de idioma y acceso a Mis Pedidos"""
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         user_id = callback.from_user.id
         try:
             async with async_session() as session:
@@ -223,8 +252,7 @@ def register_start_handlers(app: Client):
                 bunai_owner_line = ""
                 if user_id in settings.admin_ids:
                     try:
-                        bunai_data = await bunai_api.get_me()
-                        bunai_bal = float(bunai_data.get("balance", 0.0))
+                        bunai_bal = await get_cached_bunai_balance()
                         bunai_owner_line = f"{EMOJI_PROVIDER} <b>{t('balance_provider', lang)}:</b> <code>${bunai_bal:.2f} USD</code>\n"
                     except Exception:
                         pass
