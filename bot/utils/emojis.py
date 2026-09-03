@@ -323,6 +323,27 @@ def get_service_icon(name: str, for_html: bool = False) -> str:
             
     return pe("5890883384057533697", "🏷️") if for_html else "🏷️"
 
+def get_service_custom_emoji_id(name: str) -> str:
+    """
+    Retorna directamente el ID numérico del emoji animado correspondiente al servicio.
+    Garantiza que cada marca (Spotify, Netflix, YouTube, Figma, etc.) obtenga su icono único.
+    """
+    name_lower = name.lower()
+    if "onedrive" in name_lower:
+        return "5370857634440170316"
+    if "2fa gmail" in name_lower or "gmail" in name_lower:
+        return "5796209712009581332"
+    if "outlook" in name_lower or "hotmail" in name_lower:
+        return "5796683820564484775"
+    if "windows" in name_lower:
+        return "5798553402648565182"
+
+    for keywords, eid, fb in SERVICE_EMOJIS:
+        if any(k in name_lower for k in keywords):
+            return eid
+
+    return "5890883384057533697"
+
 # ==============================================================================
 # SISTEMA DINÁMICO DE PARSEO DE EMOJIS (Compatible con Pyrogram)
 # ==============================================================================
@@ -680,7 +701,7 @@ def format_button_info(text: str) -> Tuple[str, Optional[str], str]:
     if icon_id:
         text_str = _UNICODE_EMOJI_CLEANER.sub('', text_str).strip()
 
-    final_text = text_str if text_str else clean_text
+    final_text = text_str if text_str else " "
     return final_text, icon_id, clean_text
 
 def parse_keyboard(reply_markup: Any) -> Any:

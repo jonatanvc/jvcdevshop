@@ -10,7 +10,7 @@ from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.translator import translate_text
 from bot.utils.emojis import (
-    get_service_icon, EMOJI_TAG, EMOJI_DICE, EMOJI_MONEY,
+    get_service_icon, get_service_custom_emoji_id, EMOJI_TAG, EMOJI_DICE, EMOJI_MONEY,
     EMOJI_WALLET, EMOJI_CALC, EMOJI_STAR
 )
 
@@ -26,11 +26,9 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
 
     # 1. Botones de cada producto (solo nombre e icono)
     for p in items:
-        icon = get_service_icon(p["name"], for_html=False)
-        btn_text = f"{icon} {p['name']}"
-        buttons.append([
-            InlineKeyboardButton(btn_text, callback_data=f"product:view:{p['product_id']}:{filter_mode}:{page}:0")
-        ])
+        btn = InlineKeyboardButton(p["name"], callback_data=f"product:view:{p['product_id']}:{filter_mode}:{page}:0")
+        btn.icon_custom_emoji_id = get_service_custom_emoji_id(p["name"])
+        buttons.append([btn])
 
     # 2. Fila de paginación (si hay más de 1 página)
     if total_pages > 1:
