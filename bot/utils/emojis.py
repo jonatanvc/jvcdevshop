@@ -1,7 +1,7 @@
 import re
 from io import BytesIO
 from typing import Any, Optional, Tuple
-from pyrogram.raw.core.primitives import Int, Long, String, Bytes
+from pyrogram.raw.core.primitives import Int, Long, String, Bytes, Vector
 from pyrogram.raw.core import TLObject
 from pyrogram.raw.all import objects
 from pyrogram.types import InlineKeyboardButton as _PyrogramInlineKeyboardButton
@@ -494,6 +494,155 @@ def parse_emojis(text: str) -> str:
     return "".join(segments)
 
 p = parse_emojis
+
+# --- CONSTRUCTORES RAW MTPROTO PARA BOTONES CON EMOJI PREMIUM (CAPA 180+) ---
+
+class RawKeyboardButtonStyle(TLObject):
+    ID = 0x4fdd3430
+    QUALNAME = "types.KeyboardButtonStyle"
+
+    def __init__(self, *, icon: Optional[int] = None, bg_primary: bool = False, bg_danger: bool = False, bg_success: bool = False):
+        self.icon = int(icon) if icon is not None else None
+        self.bg_primary = bg_primary
+        self.bg_danger = bg_danger
+        self.bg_success = bg_success
+
+    @staticmethod
+    def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonStyle":
+        flags = Int.read(b)
+        bg_primary = bool(flags & (1 << 0))
+        bg_danger = bool(flags & (1 << 1))
+        bg_success = bool(flags & (1 << 2))
+        icon = Long.read(b) if bool(flags & (1 << 3)) else None
+        return RawKeyboardButtonStyle(icon=icon, bg_primary=bg_primary, bg_danger=bg_danger, bg_success=bg_success)
+
+    def write(self, *args: Any) -> bytes:
+        b = BytesIO()
+        b.write(Int(self.ID, False))
+        flags = 0
+        if self.bg_primary: flags |= (1 << 0)
+        if self.bg_danger: flags |= (1 << 1)
+        if self.bg_success: flags |= (1 << 2)
+        if self.icon is not None: flags |= (1 << 3)
+        b.write(Int(flags))
+        if self.icon is not None:
+            b.write(Long(self.icon))
+        return b.getvalue()
+
+class RawKeyboardButtonCallback(TLObject):
+    ID = 0xe62bc960
+    QUALNAME = "types.KeyboardButtonCallback"
+
+    def __init__(self, *, text: str, data: bytes, style: Optional[RawKeyboardButtonStyle] = None, requires_password: Optional[bool] = None):
+        self.text = text
+        self.data = data
+        self.style = style
+        self.requires_password = requires_password
+
+    @staticmethod
+    def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonCallback":
+        flags = Int.read(b)
+        requires_password = bool(flags & (1 << 0))
+        style = TLObject.read(b) if bool(flags & (1 << 10)) else None
+        text = String.read(b)
+        data = Bytes.read(b)
+        return RawKeyboardButtonCallback(text=text, data=data, style=style, requires_password=requires_password)
+
+    def write(self, *args: Any) -> bytes:
+        b = BytesIO()
+        b.write(Int(self.ID, False))
+        flags = 0
+        if self.requires_password: flags |= (1 << 0)
+        if self.style is not None: flags |= (1 << 10)
+        b.write(Int(flags))
+        if self.style is not None:
+            b.write(self.style.write())
+        b.write(String(self.text))
+        b.write(Bytes(self.data))
+        return b.getvalue()
+
+class RawKeyboardButtonUrl(TLObject):
+    ID = 0x258aff05
+    QUALNAME = "types.KeyboardButtonUrl"
+
+    def __init__(self, *, text: str, url: str, style: Optional[RawKeyboardButtonStyle] = None):
+        self.text = text
+        self.url = url
+        self.style = style
+
+    @staticmethod
+    def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonUrl":
+        flags = Int.read(b)
+        style = TLObject.read(b) if bool(flags & (1 << 10)) else None
+        text = String.read(b)
+        url = String.read(b)
+        return RawKeyboardButtonUrl(text=text, url=url, style=style)
+
+    def write(self, *args: Any) -> bytes:
+        b = BytesIO()
+        b.write(Int(self.ID, False))
+        flags = 0
+        if self.style is not None: flags |= (1 << 10)
+        b.write(Int(flags))
+        if self.style is not None:
+            b.write(self.style.write())
+        b.write(String(self.text))
+        b.write(String(self.url))
+        return b.getvalue()
+
+class RawKeyboardButtonRow(TLObject):
+    ID = 0x61422080
+    QUALNAME = "types.KeyboardButtonRow"
+
+    def __init__(self, buttons: list = None):
+        self.buttons = buttons or []
+
+    @staticmethod
+    def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonRow":
+        vec_id = Int.read(b)
+        count = Int.read(b)
+        buttons = [TLObject.read(b) for _ in range(count)]
+        return RawKeyboardButtonRow(buttons=buttons)
+
+    def write(self, *args: Any) -> bytes:
+        b = BytesIO()
+        b.write(Int(self.ID, False))
+        b.write(Vector(self.buttons))
+        return b.getvalue()
+
+objects[RawKeyboardButtonStyle.ID] = RawKeyboardButtonStyle
+objects[RawKeyboardButtonCallback.ID] = RawKeyboardButtonCallback
+objects[RawKeyboardButtonUrl.ID] = RawKeyboardButtonUrl
+objects[RawKeyboardButtonRow.ID] = RawKeyboardButtonRow
+objects[0x2767] = RawKeyboardButtonRow
+
+# Monkeypatch del serializador write() de Pyrogram para inyectar style.icon en MTProto
+_orig_btn_write = _PyrogramInlineKeyboardButton.write
+
+async def _custom_btn_write(self, client: Any):
+    icon_id = getattr(self, "icon_custom_emoji_id", None)
+    if icon_id:
+        try:
+            icon_int = int(str(icon_id).strip())
+            style = RawKeyboardButtonStyle(icon=icon_int)
+            if self.callback_data is not None:
+                data = bytes(self.callback_data, "utf-8") if isinstance(self.callback_data, str) else self.callback_data
+                return RawKeyboardButtonCallback(
+                    text=self.text,
+                    data=data,
+                    style=style
+                )
+            if self.url is not None:
+                return RawKeyboardButtonUrl(
+                    text=self.text,
+                    url=self.url,
+                    style=style
+                )
+        except Exception:
+            pass
+    return await _orig_btn_write(self, client)
+
+_PyrogramInlineKeyboardButton.write = _custom_btn_write
 
 _UNICODE_EMOJI_CLEANER = re.compile(
     r'[\U00010000-\U0010ffff\u2600-\u27ff\u2b00-\u2bfc\u2300-\u23ff\u200d\ufe0f\u20e3\u2190-\u21ff\u2934-\u2935\u3297\u3299]'

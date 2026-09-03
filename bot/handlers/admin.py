@@ -81,7 +81,7 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
         f"• <b>Costo $1.00 - $2.99:</b> <code>x2.5 (+150%)</code>\n"
         f"• <b>Costo &ge; $3.00:</b> <code>x2.0 (+100%)</code>\n"
         f"{EMOJI_SHIELD} <b>Garantías:</b> <code>50% de BunaiStore</code>\n\n"
-        f"{EMOJI_TOOLS} <b>Modo Mantenimiento:</b> <code>{status_tag}</code>\n\n"
+        f"{EMOJI_WARN} <b>Modo Mantenimiento:</b> <code>{status_tag}</code>\n\n"
         f"<i>Selecciona una acción administrativa:</i>"
     )
 
