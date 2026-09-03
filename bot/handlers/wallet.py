@@ -12,7 +12,7 @@ from bot.database.models import User, Deposit, DepositStatus
 from bot.services.blockchain import bsc_validator
 from bot.services.audit_logger import audit_logger
 from bot.services.qr_generator import get_wallet_qr_media
-from bot.utils.navigation import render_screen, USER_LAST_MESSAGES
+from bot.utils.navigation import render_screen, USER_LAST_MESSAGES, USER_LAST_MESSAGES_IS_MEDIA
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.emojis import parse_emojis, parse_keyboard
@@ -260,6 +260,7 @@ def register_wallet_handlers(app: Client):
                 reply_markup=parse_keyboard(keyboard)
             )
             USER_LAST_MESSAGES[user_id] = photo_msg.id
+            USER_LAST_MESSAGES_IS_MEDIA[user_id] = True
             await callback.answer()
         except Exception as e:
             await callback.answer(f"Error: {e}", show_alert=True)

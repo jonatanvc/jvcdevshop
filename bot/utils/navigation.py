@@ -7,6 +7,7 @@ from bot.utils.emojis import parse_emojis, parse_keyboard, strip_keyboard_icons
 
 # Diccionario en memoria para rastrear el ID del único mensaje activo por usuario
 USER_LAST_MESSAGES: Dict[int, int] = {}
+USER_LAST_MESSAGES_IS_MEDIA: Dict[int, bool] = {}
 
 async def render_screen(
     client: Client,
@@ -48,6 +49,17 @@ async def render_screen(
 
     if reply_markup:
         reply_markup = parse_keyboard(reply_markup)
+
+    # Si el mensaje previo registrado era un archivo/foto (como el QR), eliminarlo y enviar texto limpio
+    if user_id and USER_LAST_MESSAGES_IS_MEDIA.get(user_id):
+        old_media_id = USER_LAST_MESSAGES.get(user_id)
+        if old_media_id:
+            try:
+                await client.delete_messages(chat_id=user_id, message_ids=old_media_id)
+            except Exception:
+                pass
+        USER_LAST_MESSAGES_IS_MEDIA[user_id] = False
+        msg_to_edit_id = None
 
     # Si el mensaje actual es una foto/media, no se puede editar a solo texto con edit_message_text
     # En este caso borramos el mensaje de foto anterior y creamos uno nuevo limpio

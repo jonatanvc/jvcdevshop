@@ -59,24 +59,30 @@ def register_orders_handlers(app: Client):
             if total_pages > 1:
                 nav = [InlineKeyboardButton("🔵", callback_data="noop"), InlineKeyboardButton(f"1/{total_pages}", callback_data="noop")]
                 if total_pages > 1:
-                    nav.append(InlineKeyboardButton("⏩", callback_data="orders:page:2"))
+                    nav.append(InlineKeyboardButton("▶️", callback_data="orders:page:2:main"))
                 buttons.append(nav)
 
             buttons.append([
                 InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1"),
-                InlineKeyboardButton(t("btn_back", lang), callback_data="account:view")
+                InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")
             ])
 
             await render_screen(client, user_id, text, InlineKeyboardMarkup(buttons))
 
-    @app.on_callback_query(filters.regex(r"^orders:page:(\d+)$"))
+    @app.on_callback_query(filters.regex(r"^orders:page:(\d+)(?::([a-z_]+))?$"))
     async def cb_orders_list(client: Client, callback: CallbackQuery):
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
-            await callback.answer()
             return
 
         page = int(callback.matches[0].group(1))
+        src = callback.matches[0].group(2) or "main"
+        back_target = "menu_main" if src == "main" else "account:view"
 
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
@@ -91,7 +97,7 @@ def register_orders_handlers(app: Client):
                 text = t("orders_empty", lang)
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
-                    [InlineKeyboardButton(t("btn_back", lang), callback_data="account:view")]
+                    [InlineKeyboardButton(t("btn_back", lang), callback_data=back_target)]
                 ])
                 await render_screen(client, callback, text, keyboard)
                 return
@@ -111,38 +117,43 @@ def register_orders_handlers(app: Client):
                 date_str = format_dt(ord.created_at, "%d/%m/%Y")
                 btn_text = f"🛍️ #{ord.id} - {ord.product_name[:24]} (${float(ord.total_price):.2f}) [{date_str}]"
                 buttons.append([
-                    InlineKeyboardButton(btn_text, callback_data=f"order:view:{ord.id}:{page}")
+                    InlineKeyboardButton(btn_text, callback_data=f"order:view:{ord.id}:{page}:{src}")
                 ])
 
             if total_pages > 1:
                 nav = []
                 if page > 1:
-                    nav.append(InlineKeyboardButton("😀", callback_data=f"orders:page:{page - 1}"))
+                    nav.append(InlineKeyboardButton("◀️", callback_data=f"orders:page:{page - 1}:{src}"))
                 else:
                     nav.append(InlineKeyboardButton("🔵", callback_data="noop"))
                 nav.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
                 if page < total_pages:
-                    nav.append(InlineKeyboardButton("⏩", callback_data=f"orders:page:{page + 1}"))
+                    nav.append(InlineKeyboardButton("▶️", callback_data=f"orders:page:{page + 1}:{src}"))
                 else:
                     nav.append(InlineKeyboardButton("🔵", callback_data="noop"))
                 buttons.append(nav)
 
             buttons.append([
                 InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1"),
-                InlineKeyboardButton(t("btn_back", lang), callback_data="account:view")
+                InlineKeyboardButton(t("btn_back", lang), callback_data=back_target)
             ])
 
             await render_screen(client, callback, text, InlineKeyboardMarkup(buttons))
 
-    @app.on_callback_query(filters.regex(r"^order:view:(\d+):(\d+)$"))
+    @app.on_callback_query(filters.regex(r"^order:view:(\d+):(\d+)(?::([a-z_]+))?$"))
     async def cb_order_detail(client: Client, callback: CallbackQuery):
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
-            await callback.answer()
             return
 
         order_id = int(callback.matches[0].group(1))
         page = int(callback.matches[0].group(2))
+        src = callback.matches[0].group(3) or "main"
 
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
@@ -180,7 +191,7 @@ def register_orders_handlers(app: Client):
             )
 
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(t("btn_back", lang), callback_data=f"orders:page:{page}")],
+                [InlineKeyboardButton(t("btn_back", lang), callback_data=f"orders:page:{page}:{src}")],
                 [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
             ])
 

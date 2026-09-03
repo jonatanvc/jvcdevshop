@@ -12,13 +12,16 @@ def register_referrals_handlers(app: Client):
 
     @app.on_callback_query(filters.regex("^referrals:view$"))
     async def cb_referrals_view(client: Client, callback: CallbackQuery):
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
-            await callback.answer()
             return
 
-        bot_info = await client.get_me()
-        bot_username = bot_info.username
+        bot_username = client.me.username if client.me else ""
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
 
         async with async_session() as session:
