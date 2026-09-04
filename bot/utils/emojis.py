@@ -584,35 +584,6 @@ class RawKeyboardButtonCallback(TLObject):
         b.write(Bytes(self.data))
         return b.getvalue()
 
-class RawKeyboardButtonUrl(TLObject):
-    ID = 0x258aff05
-    QUALNAME = "types.KeyboardButtonUrl"
-
-    def __init__(self, *, text: str, url: str, style: Optional[RawKeyboardButtonStyle] = None):
-        self.text = text
-        self.url = url
-        self.style = style
-
-    @staticmethod
-    def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonUrl":
-        flags = Int.read(b)
-        style = TLObject.read(b) if bool(flags & (1 << 10)) else None
-        text = String.read(b)
-        url = String.read(b)
-        return RawKeyboardButtonUrl(text=text, url=url, style=style)
-
-    def write(self, *args: Any) -> bytes:
-        b = BytesIO()
-        b.write(Int(self.ID, False))
-        flags = 0
-        if self.style is not None: flags |= (1 << 10)
-        b.write(Int(flags))
-        if self.style is not None:
-            b.write(self.style.write())
-        b.write(String(self.text))
-        b.write(String(self.url))
-        return b.getvalue()
-
 class RawKeyboardButtonRow(TLObject):
     ID = 0x61422080
     QUALNAME = "types.KeyboardButtonRow"
@@ -635,7 +606,6 @@ class RawKeyboardButtonRow(TLObject):
 
 objects[RawKeyboardButtonStyle.ID] = RawKeyboardButtonStyle
 objects[RawKeyboardButtonCallback.ID] = RawKeyboardButtonCallback
-objects[RawKeyboardButtonUrl.ID] = RawKeyboardButtonUrl
 objects[RawKeyboardButtonRow.ID] = RawKeyboardButtonRow
 objects[0x2767] = RawKeyboardButtonRow
 
@@ -644,23 +614,16 @@ _orig_btn_write = _PyrogramInlineKeyboardButton.write
 
 async def _custom_btn_write(self, client: Any):
     icon_id = getattr(self, "icon_custom_emoji_id", None)
-    if icon_id:
+    if icon_id and self.callback_data is not None:
         try:
             icon_int = int(str(icon_id).strip())
             style = RawKeyboardButtonStyle(icon=icon_int)
-            if self.callback_data is not None:
-                data = bytes(self.callback_data, "utf-8") if isinstance(self.callback_data, str) else self.callback_data
-                return RawKeyboardButtonCallback(
-                    text=self.text,
-                    data=data,
-                    style=style
-                )
-            if self.url is not None:
-                return RawKeyboardButtonUrl(
-                    text=self.text,
-                    url=self.url,
-                    style=style
-                )
+            data = bytes(self.callback_data, "utf-8") if isinstance(self.callback_data, str) else self.callback_data
+            return RawKeyboardButtonCallback(
+                text=self.text,
+                data=data,
+                style=style
+            )
         except Exception:
             pass
     return await _orig_btn_write(self, client)
@@ -717,6 +680,8 @@ def parse_keyboard(reply_markup: Any) -> Any:
     for row in reply_markup.inline_keyboard:
         for btn in row:
             if btn and hasattr(btn, "text") and btn.text:
+                if getattr(btn, "url", None) is not None:
+                    continue
                 final_text, icon_id, full_text = format_button_info(btn.text)
                 btn._fallback_text = full_text
                 if icon_id:
@@ -730,9 +695,14 @@ def parse_keyboard(reply_markup: Any) -> Any:
 def InlineKeyboardButton(text: str, *args: Any, **kwargs: Any) -> _PyrogramInlineKeyboardButton:
     """
     Construye InlineKeyboardButton inyectando icon_custom_emoji_id cuando coincide
-    con el catálogo de Emojis Animados Premium de Telegram, y remueve el emoji unicode
-    del texto para evitar que aparezcan 2 emojis duplicados en el botón (idéntico al bot de confesiones).
+    con el catálogo de Emojis Animados Premium de Telegram.
+    Para botones con URL, mantiene el texto completo directamente (Telegram MTProto no admite estilos en URL buttons).
     """
+    if kwargs.get("url") is not None:
+        btn = _PyrogramInlineKeyboardButton(text=text, *args, **kwargs)
+        btn._fallback_text = text
+        return btn
+
     final_text, icon_id, full_text = format_button_info(text)
     if icon_id:
         btn = _PyrogramInlineKeyboardButton(text=final_text, *args, **kwargs)

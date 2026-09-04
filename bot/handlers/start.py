@@ -346,6 +346,11 @@ def register_start_handlers(app: Client):
 
     @app.on_callback_query(filters.regex("^support:view$"))
     async def cb_support_view(client: Client, callback: CallbackQuery):
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
         user_id = callback.from_user.id
         try:
             async with async_session() as session:

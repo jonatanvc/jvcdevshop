@@ -117,7 +117,10 @@ async def render_screen(
                     return edited_msg
                 except Exception:
                     pass
-        except Exception:
+        except Exception as e:
+            if isinstance(target, CallbackQuery):
+                print(f"[render_screen edit error on callback]: {e}")
+                return None
             USER_LAST_MESSAGES.pop(user_id, None)
 
     # 2. Si no se pudo editar o era una foto previa, enviamos el mensaje y guardamos su ID
