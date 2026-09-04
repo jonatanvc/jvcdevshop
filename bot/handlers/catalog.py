@@ -421,6 +421,8 @@ def register_catalog_handlers(app: Client):
             raw_note = p_data.get("note", "")
             has_note = bool(raw_note and str(raw_note).strip())
 
+            bot_username = getattr(client.me, "username", "") or (await client.get_me()).username
+
             keyboard = build_product_calculator_keyboard(
                 product_id=product_id,
                 filter_mode=filter_mode,
@@ -430,7 +432,7 @@ def register_catalog_handlers(app: Client):
                 has_stock=has_stock,
                 is_alert_active=is_alert_active,
                 total_price=total_price,
-                bot_username=bot_info.username,
+                bot_username=bot_username,
                 has_note=has_note,
                 lang=lang
             )
@@ -503,7 +505,7 @@ def register_catalog_handlers(app: Client):
                 new_qty_str = f"{current_qty}{digit}"
                 new_qty = min(999, int(new_qty_str))
 
-        bot_info = await client.get_me()
+        bot_username = getattr(client.me, "username", "") or (await client.get_me()).username
 
         async with async_session() as session:
             p_data = await bunai_api.get_product(product_id)
@@ -590,7 +592,7 @@ def register_catalog_handlers(app: Client):
                 has_stock=has_stock,
                 is_alert_active=is_alert_active,
                 total_price=total_price,
-                bot_username=bot_info.username,
+                bot_username=bot_username,
                 has_note=has_note,
                 lang=lang
             )
