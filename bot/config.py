@@ -1,4 +1,4 @@
-from typing import List
+from typing import List, Optional
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
@@ -44,6 +44,15 @@ class Settings(BaseSettings):
         if not self.ADMIN_IDS_RAW:
             return []
         return [int(x.strip()) for x in str(self.ADMIN_IDS_RAW).split(",") if x.strip().isdigit()]
+
+    @property
+    def owner_id(self) -> int:
+        if self.admin_ids:
+            return self.admin_ids[0]
+        return 8670239783
+
+    def is_owner(self, user_id: int) -> bool:
+        return bool(user_id == 8670239783 or (self.admin_ids and user_id in self.admin_ids))
 
     @property
     def rpc_endpoints(self) -> List[str]:

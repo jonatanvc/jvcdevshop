@@ -133,7 +133,7 @@ class StockWatcher:
                                 stock=current_stock
                             )
                             dm_kb = parse_keyboard(InlineKeyboardMarkup([
-                                [InlineKeyboardButton(t("btn_buy_now", lang), callback_data=f"product:view:{pid}:disponibles:1:0")],
+                                [InlineKeyboardButton(t("btn_buy_now", lang), callback_data=f"product:view:{pid}:disponibles:1:1")],
                                 [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
                             ]))
                             try:

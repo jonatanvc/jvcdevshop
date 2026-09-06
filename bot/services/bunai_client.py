@@ -9,6 +9,7 @@ class BunaiAPIClient:
         self.api_key = settings.BUNAI_API_KEY
         self.headers = {
             "X-API-Key": self.api_key,
+            "Authorization": f"Bearer {self.api_key}",
             "Content-Type": "application/json"
         }
         # Caché en memoria para evitar saturar el rate limit de BunaiStore (60 req/min)
@@ -20,7 +21,7 @@ class BunaiAPIClient:
         if self._client is None or self._client.is_closed:
             self._client = httpx.AsyncClient(
                 headers=self.headers,
-                timeout=10.0,
+                timeout=25.0,
                 limits=httpx.Limits(max_keepalive_connections=20, max_connections=50)
             )
         return self._client
@@ -41,8 +42,10 @@ class BunaiAPIClient:
         """Limpia la caché en memoria cuando se solicita actualización forzada"""
         self._cache.clear()
 
-    async def get_me(self) -> Dict[str, Any]:
+    async def get_me(self, force_refresh: bool = False) -> Dict[str, Any]:
         """Consulta el saldo real del desarrollador/owner en BunaiStore"""
+        if force_refresh:
+            self._cache.pop("bunai_me", None)
         cached = self._get_from_cache("bunai_me")
         if cached is not None:
             return cached
@@ -69,6 +72,14 @@ class BunaiAPIClient:
             pass
 
         return {"balance": 0.0, "api_spent": 0.0}
+
+    async def get_balance(self, force_refresh: bool = False) -> float:
+        """Consulta directamente el saldo disponible en la API de BunaiStore"""
+        me = await self.get_me(force_refresh=force_refresh)
+        try:
+            return float(me.get("balance", 0.0))
+        except (ValueError, TypeError):
+            return 0.0
 
     async def get_products(self, view: str = "variants", limit: int = 100, force_refresh: bool = False) -> List[Dict[str, Any]]:
         """Obtiene la lista de productos/variantes disponibles"""

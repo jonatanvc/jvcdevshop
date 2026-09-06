@@ -21,12 +21,12 @@ from bot.services.audit_logger import audit_logger
 _BUNAI_BALANCE_CACHE = {"balance": 0.0, "ts": 0.0}
 
 async def get_cached_bunai_balance() -> float:
-    """Obtiene el saldo de BunaiStore con caché en memoria (60s TTL) y timeout de 1.5s para no demorar la interfaz"""
+    """Obtiene el saldo de BunaiStore con caché en memoria (60s TTL) y timeout adecuado"""
     now = time.time()
     if now - _BUNAI_BALANCE_CACHE["ts"] < 60.0 and _BUNAI_BALANCE_CACHE["ts"] > 0:
         return _BUNAI_BALANCE_CACHE["balance"]
     try:
-        bunai_data = await asyncio.wait_for(bunai_api.get_me(), timeout=1.5)
+        bunai_data = await asyncio.wait_for(bunai_api.get_me(), timeout=8.0)
         bal = float(bunai_data.get("balance", 0.0))
         _BUNAI_BALANCE_CACHE["balance"] = bal
         _BUNAI_BALANCE_CACHE["ts"] = now
@@ -78,10 +78,10 @@ async def build_main_menu_text(user: User, orders_count: int, session) -> str:
     user_name = user.first_name or user.username or f"Usuario {user.telegram_id}"
 
     bunai_line = ""
-    if user.telegram_id in settings.admin_ids:
+    if settings.is_owner(user.telegram_id):
         try:
             bunai_balance = await get_cached_bunai_balance()
-            bunai_line = f"{EMOJI_PROVIDER} <b>{t('balance_provider', lang)}:</b> <code>${bunai_balance:.2f} USD</code>\n"
+            bunai_line = f"👑 <b>Saldo API BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>\n"
         except Exception:
             bunai_line = ""
 

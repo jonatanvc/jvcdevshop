@@ -43,19 +43,24 @@ class AuditLogger:
         paid_price: float,
         remaining_balance: float,
         provider_order_id: Optional[str],
-        delivered_items: str
+        delivered_items: str,
+        is_owner: bool = False
     ):
         """Registra una compra exitosa en el canal de auditoría con la hora local exacta"""
         user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
         now = get_now_str("%Y-%m-%d %H:%M:%S")
 
+        title = f"👑 <b>COMPRA OWNER (PROVEEDOR API) #ORD_{order_id}</b>" if is_owner else f"{EMOJI_SHOPPING} <b>NUEVA COMPRA REALIZADA #ORD_{order_id}</b>"
+        paid_label = f"{EMOJI_MONEY} <b>Costo Pagado:</b> <code>${paid_price:.2f} USD (API BunaiStore)</code>" if is_owner else f"{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${paid_price:.2f} USDT</code>"
+        bal_label = f"{EMOJI_BAR_CHART} <b>Saldo Restante API:</b> <code>${remaining_balance:.2f} USD</code>" if is_owner else f"{EMOJI_BAR_CHART} <b>Saldo Restante Usuario:</b> <code>${remaining_balance:.2f} USDT</code>"
+
         msg = (
-            f"{EMOJI_SHOPPING} <b>NUEVA COMPRA REALIZADA #ORD_{order_id}</b>\n\n"
-            f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
+            f"{title}\n\n"
+            f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>){' 👑 (Owner)' if is_owner else ''}\n"
             f"{EMOJI_NAME_TAG} <b>Nombre:</b> {first_name}\n"
             f"{EMOJI_BOX} <b>Producto:</b> <code>{product_name}</code>\n"
-            f"{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${paid_price:.2f} USDT</code>\n"
-            f"{EMOJI_BAR_CHART} <b>Saldo Restante Usuario:</b> <code>${remaining_balance:.2f} USDT</code>\n"
+            f"{paid_label}\n"
+            f"{bal_label}\n"
             f"🆔 <b>ID Orden Proveedor:</b> <code>{provider_order_id or 'N/A'}</code>\n"
             f"{EMOJI_CLOCK} <b>Fecha:</b> <code>{now}</code>\n\n"
             f"{EMOJI_KEY} <b>DATOS / CUENTAS ENTREGADAS:</b>\n"

@@ -367,7 +367,7 @@ def register_admin_handlers(app: Client):
             "<i>Puedes usar formato HTML (negritas, enlaces, etc).</i>"
         )
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("Volver", callback_data="admin:menu")]
+            [InlineKeyboardButton("😀 Volver", callback_data="admin:menu")]
         ])
         await render_screen(client, callback, text, keyboard)
 
