@@ -14,15 +14,16 @@ from bot.services.audit_logger import audit_logger
 from bot.utils.navigation import render_screen
 from bot.utils.emojis import (
     EMOJI_ADMIN, EMOJI_USERS, EMOJI_CARD, EMOJI_SHOPPING, EMOJI_PROVIDER,
-    EMOJI_CHART_DOWN, EMOJI_CHART_UP, EMOJI_SHIELD, EMOJI_TOOLS, EMOJI_RED_DOT,
+    EMOJI_CHART_DOWN, EMOJI_CHART_UP, EMOJI_SHIELD, EMOJI_RED_DOT,
     EMOJI_GREEN_DOT, EMOJI_WARN, EMOJI_CHECK, EMOJI_PARTY, EMOJI_BROADCAST,
-    EMOJI_WALLET, EMOJI_MONEY, EMOJI_TRASH, EMOJI_ADMIN_PERSON, parse_emojis
+    EMOJI_WALLET, EMOJI_MONEY, EMOJI_TRASH, EMOJI_ADMIN_PERSON, EMOJI_USER,
+    EMOJI_CROSS, EMOJI_HOURGLASS, parse_emojis
 )
 
 ADMIN_STATES: Dict[int, Dict[str, Any]] = {}
 
 def is_admin(user_id: int) -> bool:
-    return user_id in settings.admin_ids
+    return settings.is_owner(user_id) or (bool(settings.admin_ids) and user_id in settings.admin_ids)
 
 async def find_user_by_identifier(session, identifier: str) -> Optional[User]:
     """Busca un usuario por @username (case-insensitive) o por telegram_id numérico."""
@@ -395,7 +396,7 @@ def register_admin_handlers(app: Client):
             ADMIN_STATES.pop(user_id, None)
             broadcast_text = message.text
 
-            status_msg = await render_screen(client, user_id, f"{EMOJI_HOURGLASS} <b>Iniciando difusión masiva...</b>", None)
+            await render_screen(client, user_id, f"{EMOJI_HOURGLASS} <b>Iniciando difusión masiva...</b>", None)
 
             async with async_session() as session:
                 users_res = await session.execute(select(User.telegram_id))

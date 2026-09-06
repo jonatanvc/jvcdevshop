@@ -54,7 +54,7 @@ def get_main_menu_keyboard(user_id: int, lang: str = "es") -> InlineKeyboardMark
     ]
 
     # Botón exclusivo de panel de administración
-    if user_id in settings.admin_ids:
+    if settings.is_owner(user_id) or (bool(settings.admin_ids) and user_id in settings.admin_ids):
         buttons.append([
             InlineKeyboardButton(t("btn_admin", lang), callback_data="admin:menu")
         ])
@@ -335,7 +335,7 @@ def register_start_handlers(app: Client):
                 lang = getattr(user, "language", "es") or "es"
 
             text = t("support_text", lang)
-            admin_tg_url = f"tg://user?id={settings.admin_ids[0]}" if settings.admin_ids else "https://t.me/telegram"
+            admin_tg_url = f"tg://user?id={settings.owner_id}"
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(t("btn_contact_admin", lang), url=admin_tg_url)],
                 [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
@@ -360,7 +360,7 @@ def register_start_handlers(app: Client):
                 lang = getattr(user, "language", "es") or "es"
 
             text = t("support_text", lang)
-            admin_tg_url = f"tg://user?id={settings.admin_ids[0]}" if settings.admin_ids else "https://t.me/telegram"
+            admin_tg_url = f"tg://user?id={settings.owner_id}"
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(t("btn_contact_admin", lang), url=admin_tg_url)],
                 [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]

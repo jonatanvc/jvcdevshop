@@ -1,5 +1,5 @@
 import asyncio
-from typing import Union, Optional
+from typing import Union
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy import select
@@ -606,8 +606,8 @@ def register_catalog_handlers(app: Client):
             lang = getattr(user, "language", "es") or "es"
 
         text = (
-            f"✍️ <b>Ingresar Cantidad Personalizada</b>\n\n"
-            f"Por favor, escribe en este chat el número exacto de unidades que deseas comprar (ej: <code>5</code>, <code>25</code>, <code>100</code>, <code>500</code>):"
+            "✍️ <b>Ingresar Cantidad Personalizada</b>\n\n"
+            "Por favor, escribe en este chat el número exacto de unidades que deseas comprar (ej: <code>5</code>, <code>25</code>, <code>100</code>, <code>500</code>):"
         )
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(t("btn_cancel", lang), callback_data=f"product:view:{product_id}:{filter_mode}:{page}:{qty}")]

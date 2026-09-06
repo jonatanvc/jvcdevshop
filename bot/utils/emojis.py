@@ -593,7 +593,7 @@ class RawKeyboardButtonRow(TLObject):
 
     @staticmethod
     def read(b: BytesIO, *args: Any) -> "RawKeyboardButtonRow":
-        vec_id = Int.read(b)
+        _ = Int.read(b)
         count = Int.read(b)
         buttons = [TLObject.read(b) for _ in range(count)]
         return RawKeyboardButtonRow(buttons=buttons)

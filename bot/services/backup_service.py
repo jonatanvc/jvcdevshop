@@ -1,7 +1,7 @@
 import io
 import json
 import gzip
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Optional
 from pyrogram import Client
 from sqlalchemy import select
@@ -82,7 +82,7 @@ class BackupService:
             ]
 
         data = {
-            "timestamp": datetime.utcnow().isoformat(),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
             "counts": {
                 "users": len(users),
                 "deposits": len(deposits),

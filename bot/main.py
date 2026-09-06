@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from pyrogram import Client, idle
 from sqlalchemy import update
 from bot.config import settings
@@ -37,7 +37,7 @@ async def deposit_expiry_worker():
         try:
             await asyncio.sleep(300)  # Cada 5 minutos
             async with async_session() as session:
-                now = datetime.utcnow()
+                now = datetime.now(timezone.utc).replace(tzinfo=None)
                 stmt = (
                     update(Deposit)
                     .where(Deposit.status == DepositStatus.PENDING, Deposit.expires_at < now)

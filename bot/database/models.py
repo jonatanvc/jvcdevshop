@@ -1,5 +1,5 @@
 import enum
-from datetime import datetime
+from datetime import datetime, timezone
 from sqlalchemy import (
     Column,
     BigInteger,
@@ -17,6 +17,9 @@ from sqlalchemy.orm import declarative_base, relationship
 
 Base = declarative_base()
 
+def utc_now() -> datetime:
+    return datetime.now(timezone.utc).replace(tzinfo=None)
+
 class DepositStatus(str, enum.Enum):
     PENDING = "PENDING"
     CONFIRMED = "CONFIRMED"
@@ -32,8 +35,8 @@ class User(Base):
     total_spent = Column(Numeric(12, 4), default=0.0000, nullable=False)
     language = Column(String(5), default="es", nullable=False)
     referred_by = Column(BigInteger, nullable=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
-    updated_at = Column(DateTime, default=datetime.utcnow, onupdate=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
     deposits = relationship("Deposit", back_populates="user", cascade="all, delete-orphan")
     orders = relationship("Order", back_populates="user", cascade="all, delete-orphan")
@@ -49,7 +52,7 @@ class Deposit(Base):
     tx_hash = Column(String(128), unique=True, nullable=True, index=True)
     status = Column(Enum(DepositStatus), default=DepositStatus.PENDING, nullable=False, index=True)
     expires_at = Column(DateTime, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
     confirmed_at = Column(DateTime, nullable=True)
     log_message_id = Column(BigInteger, nullable=True)
 
@@ -72,7 +75,7 @@ class Order(Base):
     provider_order_id = Column(String(128), nullable=True)
     delivered_items = Column(Text, nullable=False)
     warranty_hours = Column(Integer, default=0, nullable=False)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
 
     user = relationship("User", back_populates="orders")
 
@@ -84,7 +87,7 @@ class StockAlert(Base):
     product_id = Column(String(64), nullable=False, index=True)
     product_name = Column(String(255), nullable=False)
     is_active = Column(Boolean, default=True, nullable=False, index=True)
-    created_at = Column(DateTime, default=datetime.utcnow, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
     notified_at = Column(DateTime, nullable=True)
 
     user = relationship("User", back_populates="stock_alerts")

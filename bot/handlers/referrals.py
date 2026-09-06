@@ -21,7 +21,7 @@ def register_referrals_handlers(app: Client):
         if rate_limiter.is_rate_limited(user_id):
             return
 
-        bot_username = client.me.username if client.me else ""
+        bot_username = getattr(client.me, "username", "") or (await client.get_me()).username
         ref_link = f"https://t.me/{bot_username}?start=ref_{user_id}"
 
         async with async_session() as session:

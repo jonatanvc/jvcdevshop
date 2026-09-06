@@ -1,6 +1,6 @@
 import random
 from decimal import Decimal
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, Any
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -59,7 +59,7 @@ def get_invoice_keyboard(deposit_id: int, lang: str = "es") -> InlineKeyboardMar
 async def create_deposit_invoice(client: Client, user_id: int, username: str, first_name: str, base_amount: float, target, lang: str = "es") -> None:
     """Crea la solicitud de depósito y guarda el log_message_id para editar el mismo mensaje en logs"""
     async with async_session() as session:
-        now = datetime.utcnow()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         expires_at = now + timedelta(minutes=30)
 
         # Si ya existe una solicitud PENDING activa previa, la marcamos como expirada
@@ -138,7 +138,7 @@ def register_wallet_handlers(app: Client):
             lang = getattr(user, "language", "es") or "es"
 
             # Comprobar si el usuario tiene una solicitud de depósito activa pendiente
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             active_stmt = select(Deposit).where(
                 Deposit.user_id == user_id,
                 Deposit.status == DepositStatus.PENDING,
@@ -374,7 +374,7 @@ def register_wallet_handlers(app: Client):
             balance = float(user.balance) if user else 0.0
             lang = getattr(user, "language", "es") or "es"
 
-            now = datetime.utcnow()
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
             active_stmt = select(Deposit).where(
                 Deposit.user_id == user_id,
                 Deposit.status == DepositStatus.PENDING,
@@ -490,7 +490,7 @@ def register_wallet_handlers(app: Client):
                 credited_amount = Decimal(str(val_res["amount"]))
                 deposit.status = DepositStatus.CONFIRMED
                 deposit.tx_hash = tx_hash
-                deposit.confirmed_at = datetime.utcnow()
+                deposit.confirmed_at = datetime.now(timezone.utc).replace(tzinfo=None)
                 log_msg_id = deposit.log_message_id
 
                 user_stmt = select(User).where(User.telegram_id == user_id).with_for_update()

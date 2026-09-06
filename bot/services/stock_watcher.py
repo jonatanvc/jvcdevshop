@@ -1,5 +1,5 @@
 import asyncio
-from datetime import datetime
+from datetime import datetime, timezone
 from typing import Dict, Set
 from pyrogram import Client
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -148,7 +148,7 @@ class StockWatcher:
                                 pass
 
                             alert.is_active = False
-                            alert.notified_at = datetime.utcnow()
+                            alert.notified_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
                         await session.commit()
 

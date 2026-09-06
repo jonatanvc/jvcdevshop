@@ -33,7 +33,7 @@ def register_orders_handlers(app: Client):
                 text = t("orders_empty", lang)
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
-                    [InlineKeyboardButton(t("btn_back", lang), callback_data="account:view")]
+                    [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
                 ])
                 await render_screen(client, user_id, text, keyboard)
                 return
