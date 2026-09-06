@@ -88,7 +88,7 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
 
     keyboard = InlineKeyboardMarkup([
         [
-            InlineKeyboardButton(f"🛠️ {'Desactivar' if maintenance_active else 'Activar'} Mantenimiento", callback_data="admin:toggle_maintenance"),
+            InlineKeyboardButton(f"⚙️ {'Desactivar' if maintenance_active else 'Activar'} Mantenimiento", callback_data="admin:toggle_maintenance"),
             InlineKeyboardButton("🌀 Sincronizar Catálogo", callback_data="admin:clear_cache")
         ],
         [

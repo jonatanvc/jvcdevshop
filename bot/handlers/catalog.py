@@ -104,7 +104,7 @@ def build_product_calculator_keyboard(
 
     # Fila 3: Botón para ingresar cualquier cantidad personalizada
     buttons.append([
-        InlineKeyboardButton("✍️ Ingresar Cantidad Personalizada", callback_data=f"pqty_custom:{product_id}:{filter_mode}:{page}:{qty}")
+        InlineKeyboardButton("📝 Ingresar Cantidad Personalizada", callback_data=f"pqty_custom:{product_id}:{filter_mode}:{page}:{qty}")
     ])
 
     # Fila 4: Botones de acción principal
@@ -118,33 +118,33 @@ def build_product_calculator_keyboard(
                 buttons.append([
                     InlineKeyboardButton(
                         f"👑 Comprar {calc_qty} con Saldo API (${total_price:.2f} USD)",
-                        callback_data=f"checkout:confirm:{product_id}:{calc_qty}:api"
-                    )
-                ])
-            else:
-                buttons.append([
-                    InlineKeyboardButton(
-                        f"⚠️ Saldo API Insuficiente (${api_balance:.2f} USD)",
-                        callback_data="admin:menu"
+                        callback_data=f"pbuy_owner_api:{product_id}:{filter_mode}:{page}:{calc_qty}"
                     )
                 ])
 
             if can_buy_bot:
                 buttons.append([
                     InlineKeyboardButton(
-                        f"💳 Comprar {calc_qty} con Saldo Bot (${total_price:.2f} USDT)",
-                        callback_data=f"checkout:confirm:{product_id}:{calc_qty}:bot"
+                        f"🛍️ Comprar {calc_qty} con Saldo Bot (${total_price:.2f} USD)",
+                        callback_data=f"pbuy_flow:{product_id}:{filter_mode}:{page}:{calc_qty}"
                     )
+                ])
+
+            if not can_buy_api and not can_buy_bot:
+                buttons.append([
+                    InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet_main")
                 ])
         else:
             if can_buy:
-                btn_buy_text = t("btn_buy_qty", lang, qty=qty, total=f"{total_price:.2f}")
                 buttons.append([
-                    InlineKeyboardButton(btn_buy_text, callback_data=f"checkout:confirm:{product_id}:{qty}:bot")
+                    InlineKeyboardButton(
+                        f"🛍️ Comprar {calc_qty} por ${total_price:.2f} USD",
+                        callback_data=f"pbuy_flow:{product_id}:{filter_mode}:{page}:{calc_qty}"
+                    )
                 ])
             else:
                 buttons.append([
-                    InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet:deposit_menu")
+                    InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet_main")
                 ])
     else:
         if is_alert_active:
@@ -156,12 +156,11 @@ def build_product_calculator_keyboard(
                 InlineKeyboardButton(t("btn_notify_stock", lang), callback_data=f"stock_alert:sub:{product_id}:{filter_mode}:{page}:{qty}")
             ])
 
-    # Fila 5: Compartir Enlace y Ver Nota (solo si el producto tiene nota configurada)
-    share_url = f"https://t.me/share/url?url=https://t.me/{bot_username}&text=Check%20out%20this%20service!"
-    row_5 = [InlineKeyboardButton(t("btn_share_link", lang), url=share_url)]
+    # Fila 5: Ver Nota (solo si el producto tiene nota configurada)
     if has_note:
-        row_5.append(InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{qty}"))
-    buttons.append(row_5)
+        buttons.append([
+            InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{qty}")
+        ])
 
     # Fila 6: Botón Volver
     buttons.append([
