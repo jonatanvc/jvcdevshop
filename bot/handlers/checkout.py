@@ -276,3 +276,15 @@ def register_checkout_handlers(app: Client):
         ])
 
         await render_screen(client, callback, success_text, success_keyboard)
+
+    @app.on_callback_query(filters.regex(r"^pbuy_(?:owner_api|flow):([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))
+    async def cb_pbuy_alias(client: Client, callback: CallbackQuery):
+        """Compatibilidad retroactiva con callbacks de compra directa"""
+        import re
+        is_owner_api = callback.data.startswith("pbuy_owner_api:")
+        product_id = callback.matches[0].group(1)
+        qty = int(callback.matches[0].group(4))
+        method = "api" if is_owner_api else "bot"
+        m = re.match(r"^([a-zA-Z0-9_\-]+):(\d+):([a-z]+)$", f"{product_id}:{qty}:{method}")
+        callback.matches = [m]
+        await cb_checkout_confirm(client, callback)

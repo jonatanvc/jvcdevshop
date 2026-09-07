@@ -14,7 +14,7 @@ from bot.utils.i18n import t
 from bot.utils.translator import translate_text
 from bot.utils.emojis import (
     get_service_icon, get_service_custom_emoji_id, EMOJI_TAG, EMOJI_DICE, EMOJI_MONEY,
-    EMOJI_WALLET, EMOJI_CALC, EMOJI_STAR, EMOJI_PROVIDER
+    EMOJI_WALLET, EMOJI_CALC, EMOJI_STAR, EMOJI_PROVIDER, EMOJI_WARN, EMOJI_BELL
 )
 
 SEARCH_STATES = {}
@@ -79,74 +79,16 @@ def build_product_calculator_keyboard(
     lang: str = "es",
     is_owner: bool = False,
     api_balance: float = 0.0,
-    user_balance: float = 0.0
+    user_balance: float = 0.0,
+    stock_count: int = 0,
+    infinite_stock: bool = False
 ) -> InlineKeyboardMarkup:
     """Construye la botonera interactiva y limpia para seleccionar cantidad y comprar"""
     buttons = []
 
-    # Fila 1: Stepper interactivo (+ / -) y cantidad actual
-    prev_qty = max(1, qty - 1)
-    next_qty = qty + 1
-    buttons.append([
-        InlineKeyboardButton("➖ 1", callback_data=f"pqty:{product_id}:{filter_mode}:{page}:{prev_qty}"),
-        InlineKeyboardButton(f"🧮 Cant: {qty}", callback_data="noop"),
-        InlineKeyboardButton("➕ 1", callback_data=f"pqty:{product_id}:{filter_mode}:{page}:{next_qty}")
-    ])
-
-    # Fila 2: Presets de cantidades comunes (1, 5, 10, 25, 50)
-    buttons.append([
-        InlineKeyboardButton("1", callback_data=f"pqty:{product_id}:{filter_mode}:{page}:1"),
-        InlineKeyboardButton("5", callback_data=f"pqty:{product_id}:{filter_mode}:{page}:5"),
-        InlineKeyboardButton("10", callback_data=f"pqty:{product_id}:{filter_mode}:{page}:10"),
-        InlineKeyboardButton("25", callback_data=f"pqty:{product_id}:{filter_mode}:{page}:25"),
-        InlineKeyboardButton("50", callback_data=f"pqty:{product_id}:{filter_mode}:{page}:50"),
-    ])
-
-    # Fila 3: Botón para ingresar cualquier cantidad personalizada
-    buttons.append([
-        InlineKeyboardButton("📝 Ingresar Cantidad Personalizada", callback_data=f"pqty_custom:{product_id}:{filter_mode}:{page}:{qty}")
-    ])
-
-    # Fila 4: Botones de acción principal
-    if has_stock:
-        calc_qty = max(1, qty)
-        if is_owner:
-            can_buy_api = (api_balance >= total_price)
-            can_buy_bot = (user_balance >= total_price)
-
-            if can_buy_api:
-                buttons.append([
-                    InlineKeyboardButton(
-                        f"👑 Comprar {calc_qty} con Saldo API (${total_price:.2f} USD)",
-                        callback_data=f"pbuy_owner_api:{product_id}:{filter_mode}:{page}:{calc_qty}"
-                    )
-                ])
-
-            if can_buy_bot:
-                buttons.append([
-                    InlineKeyboardButton(
-                        f"🛍️ Comprar {calc_qty} con Saldo Bot (${total_price:.2f} USD)",
-                        callback_data=f"pbuy_flow:{product_id}:{filter_mode}:{page}:{calc_qty}"
-                    )
-                ])
-
-            if not can_buy_api and not can_buy_bot:
-                buttons.append([
-                    InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet_main")
-                ])
-        else:
-            if can_buy:
-                buttons.append([
-                    InlineKeyboardButton(
-                        f"🛍️ Comprar {calc_qty} por ${total_price:.2f} USD",
-                        callback_data=f"pbuy_flow:{product_id}:{filter_mode}:{page}:{calc_qty}"
-                    )
-                ])
-            else:
-                buttons.append([
-                    InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet_main")
-                ])
-    else:
+    # Si el producto NO tiene stock disponible:
+    if not has_stock:
+        # Fila principal destacada: Botón de Alerta de Stock
         if is_alert_active:
             buttons.append([
                 InlineKeyboardButton(t("btn_cancel_stock_alert", lang), callback_data=f"stock_alert:unsub:{product_id}:{filter_mode}:{page}:{qty}")
@@ -156,10 +98,90 @@ def build_product_calculator_keyboard(
                 InlineKeyboardButton(t("btn_notify_stock", lang), callback_data=f"stock_alert:sub:{product_id}:{filter_mode}:{page}:{qty}")
             ])
 
+        # Ver Nota si existe
+        if has_note:
+            buttons.append([
+                InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{qty}")
+            ])
+
+        # Botón Volver
+        buttons.append([
+            InlineKeyboardButton(t("btn_back", lang), callback_data=f"catalog:{filter_mode}:{page}")
+        ])
+        return InlineKeyboardMarkup(buttons)
+
+    # Si el producto TIENE stock disponible:
+    calc_qty = max(1, qty)
+    prev_qty = max(1, qty - 1)
+    next_qty = min(stock_count, qty + 1) if not infinite_stock else qty + 1
+
+    # Fila 1: Stepper interactivo (+ / -) y cantidad actual (sin poder superar el stock disponible)
+    buttons.append([
+        InlineKeyboardButton("➖ 1", callback_data=f"pqty:{product_id}:{filter_mode}:{page}:{prev_qty}"),
+        InlineKeyboardButton(f"🧮 Cant: {calc_qty}", callback_data="noop"),
+        InlineKeyboardButton("➕ 1", callback_data=f"pqty:{product_id}:{filter_mode}:{page}:{next_qty}")
+    ])
+
+    # Fila 2: Presets de cantidades comunes que no excedan el stock disponible
+    preset_options = [1, 5, 10, 25, 50]
+    preset_vals = [p for p in preset_options if infinite_stock or p <= stock_count]
+    if not infinite_stock and stock_count > 1 and stock_count not in preset_vals:
+        preset_vals.append(stock_count)
+
+    if preset_vals:
+        preset_row = []
+        for p in preset_vals:
+            lbl = f"{p}" if (infinite_stock or p != stock_count or p in preset_options) else f"Máx ({p})"
+            preset_row.append(InlineKeyboardButton(lbl, callback_data=f"pqty:{product_id}:{filter_mode}:{page}:{p}"))
+        buttons.append(preset_row)
+
+    # Fila 3: Botón para ingresar cualquier cantidad personalizada
+    buttons.append([
+        InlineKeyboardButton("📝 Ingresar Cantidad Personalizada", callback_data=f"pqty_custom:{product_id}:{filter_mode}:{page}:{calc_qty}")
+    ])
+
+    # Fila 4: Botones de acción principal (compra)
+    if is_owner:
+        can_buy_api = (api_balance >= total_price)
+        can_buy_bot = (user_balance >= total_price)
+
+        if can_buy_api:
+            buttons.append([
+                InlineKeyboardButton(
+                    f"👑 Comprar {calc_qty} con Saldo API (${total_price:.2f} USD)",
+                    callback_data=f"checkout:confirm:{product_id}:{calc_qty}:api"
+                )
+            ])
+
+        if can_buy_bot:
+            buttons.append([
+                InlineKeyboardButton(
+                    f"🛍️ Comprar {calc_qty} con Saldo Bot (${total_price:.2f} USD)",
+                    callback_data=f"checkout:confirm:{product_id}:{calc_qty}:bot"
+                )
+            ])
+
+        if not can_buy_api and not can_buy_bot:
+            buttons.append([
+                InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet_main")
+            ])
+    else:
+        if can_buy:
+            buttons.append([
+                InlineKeyboardButton(
+                    f"🛍️ Comprar {calc_qty} por ${total_price:.2f} USD",
+                    callback_data=f"checkout:confirm:{product_id}:{calc_qty}:bot"
+                )
+            ])
+        else:
+            buttons.append([
+                InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet_main")
+            ])
+
     # Fila 5: Ver Nota (solo si el producto tiene nota configurada)
     if has_note:
         buttons.append([
-            InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{qty}")
+            InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{calc_qty}")
         ])
 
     # Fila 6: Botón Volver
@@ -347,7 +369,27 @@ def register_catalog_handlers(app: Client):
                     pass
                 return
 
-            new_val = min(999999, int(raw_txt))
+            input_val = int(raw_txt)
+            stock_count = state.get("stock_count", 0)
+            infinite_stock = state.get("infinite_stock", False)
+
+            if not infinite_stock and stock_count > 0 and input_val > stock_count:
+                new_val = stock_count
+                warn_msg = await client.send_message(
+                    chat_id=user_id,
+                    text=f"⚠️ <i>Has solicitado {input_val} unidades, pero solo hay <b>{stock_count}</b> disponibles en stock. Se ha ajustado la cantidad al máximo disponible ({stock_count}).</i>"
+                )
+
+                async def _del_warn(m):
+                    await asyncio.sleep(3.5)
+                    try:
+                        await m.delete()
+                    except Exception:
+                        pass
+                asyncio.create_task(_del_warn(warn_msg))
+            else:
+                new_val = input_val
+
             await render_product_screen(
                 client=client,
                 target=user_id,
@@ -412,6 +454,11 @@ def register_catalog_handlers(app: Client):
         async with async_session() as session:
             p_data = await bunai_api.get_product(product_id)
             if not p_data:
+                # Buscar en el catálogo en caché local como respaldo
+                cached_items = pricing_service._cached_catalog or []
+                p_data = next((item for item in cached_items if item.get("product_id") == product_id), None)
+
+            if not p_data:
                 if isinstance(target, CallbackQuery):
                     try:
                         await target.answer("❌ No disponible / Not available", show_alert=True)
@@ -443,8 +490,17 @@ def register_catalog_handlers(app: Client):
             has_promo = bool(p_data.get("has_promo", False))
             has_stock = infinite_stock or stock_count > 0
 
+            # Si no hay stock disponible, la cantidad es 0.
+            # Si hay stock, la cantidad seleccionada NO puede superar el stock disponible
+            if not has_stock:
+                qty = 0
+            elif not infinite_stock and stock_count > 0:
+                qty = max(1, min(qty, stock_count))
+            else:
+                qty = max(1, qty)
+
             stock_display = t("stock_unlimited", lang) if infinite_stock else (f"{stock_count}" if stock_count > 0 else f"0 ({t('stock_out', lang)})")
-            
+
             if adjusted_warranty == 0:
                 warranty_display = t("no_warranty", lang)
             elif adjusted_warranty >= 24 and adjusted_warranty % 24 == 0:
@@ -456,7 +512,15 @@ def register_catalog_handlers(app: Client):
             base_price = float(p_data.get("price", 0.0))
             api_balance = 0.0
 
-            if is_owner:
+            if not has_stock:
+                total_price = 0.0
+                can_buy = False
+                unit_price = base_price if is_owner else (await pricing_service.calculate_product_price(base_price, product_id, session))
+                price_line = f"{EMOJI_TAG} <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT"
+                total_line = f"{EMOJI_WARN} <b>Estado:</b> <code>Agotado / Sin Stock</code>"
+                balance_line = f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
+                offer_line = ""
+            elif is_owner:
                 unit_price = base_price
                 api_balance = await bunai_api.get_balance()
                 effective_balance = api_balance
@@ -487,27 +551,38 @@ def register_catalog_handlers(app: Client):
                         first_min = next(iter(promo_tiers))
                         offer_line = f"\n\n{t('promo_offer_text', lang, qty=first_min, discount=promo_tiers[first_min])}"
 
-                calc_qty = max(1, qty) if qty > 0 else 0
+                calc_qty = max(1, qty)
                 subtotal = calc_qty * unit_price
                 if discount_pct > 0:
                     subtotal = subtotal * (1.0 - (discount_pct / 100.0))
-                total_price = round(subtotal if qty > 0 else unit_price, 2)
+                total_price = round(subtotal, 2)
                 can_buy = (effective_balance >= total_price) and (infinite_stock or stock_count >= qty)
 
                 price_line = f"{EMOJI_TAG} <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT"
                 total_line = f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT"
                 balance_line = f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {effective_balance:.2f} USDT"
 
-            text = (
-                f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
-                f"{price_line}\n"
-                f"{EMOJI_DICE} <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
-                f"{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
-                f"{offer_line}\n\n"
-                f"{EMOJI_CALC} <b>{t('selected_qty', lang)}:</b> {qty}\n"
-                f"{total_line}\n"
-                f"{balance_line}"
-            )
+            if not has_stock:
+                text = (
+                    f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
+                    f"{price_line}\n"
+                    f"{EMOJI_DICE} <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
+                    f"{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> {warranty_display}\n\n"
+                    f"{total_line}\n"
+                    f"{balance_line}\n\n"
+                    f"<i>{EMOJI_BELL} Toca el botón de abajo para que el bot te notifique de inmediato cuando este servicio tenga stock disponible.</i>"
+                )
+            else:
+                text = (
+                    f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
+                    f"{price_line}\n"
+                    f"{EMOJI_DICE} <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
+                    f"{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
+                    f"{offer_line}\n\n"
+                    f"{EMOJI_CALC} <b>{t('selected_qty', lang)}:</b> {qty}\n"
+                    f"{total_line}\n"
+                    f"{balance_line}"
+                )
 
             raw_note = p_data.get("note", "")
             has_note = bool(raw_note and str(raw_note).strip())
@@ -528,7 +603,9 @@ def register_catalog_handlers(app: Client):
                 lang=lang,
                 is_owner=is_owner,
                 api_balance=api_balance,
-                user_balance=user_balance
+                user_balance=user_balance,
+                stock_count=stock_count,
+                infinite_stock=infinite_stock
             )
 
             await render_screen(client, target, text, keyboard)
@@ -592,11 +669,21 @@ def register_catalog_handlers(app: Client):
         page = int(callback.matches[0].group(3))
         qty = int(callback.matches[0].group(4))
 
+        p_data = await bunai_api.get_product(product_id)
+        if not p_data:
+            cached_items = pricing_service._cached_catalog or []
+            p_data = next((item for item in cached_items if item.get("product_id") == product_id), None)
+
+        stock_count = int(p_data.get("stock_count", 0)) if p_data else 0
+        infinite_stock = bool(p_data.get("infinite_stock", False)) if p_data else False
+
         CUSTOM_QTY_STATES[user_id] = {
             "product_id": product_id,
             "filter_mode": filter_mode,
             "page": page,
-            "qty": qty
+            "qty": qty,
+            "stock_count": stock_count,
+            "infinite_stock": infinite_stock
         }
 
         async with async_session() as session:
@@ -604,9 +691,14 @@ def register_catalog_handlers(app: Client):
             user = user_res.scalar_one_or_none()
             lang = getattr(user, "language", "es") or "es"
 
+        if not infinite_stock and stock_count > 0:
+            prompt_hint = f"entre <code>1</code> y <code>{stock_count}</code> unidades (máximo disponible: <b>{stock_count}</b>)"
+        else:
+            prompt_hint = "la cantidad que deseas comprar (ej: <code>5</code>, <code>25</code>, <code>100</code>)"
+
         text = (
-            "✍️ <b>Ingresar Cantidad Personalizada</b>\n\n"
-            "Por favor, escribe en este chat el número exacto de unidades que deseas comprar (ej: <code>5</code>, <code>25</code>, <code>100</code>, <code>500</code>):"
+            "📝 <b>Ingresar Cantidad Personalizada</b>\n\n"
+            f"Por favor, escribe en este chat {prompt_hint}:"
         )
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(t("btn_cancel", lang), callback_data=f"product:view:{product_id}:{filter_mode}:{page}:{qty}")]

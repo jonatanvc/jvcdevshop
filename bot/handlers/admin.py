@@ -365,14 +365,14 @@ def register_admin_handlers(app: Client):
         text = (
             f"{EMOJI_BROADCAST} <b>DIFUSIÓN MASIVA (BROADCAST)</b>\n\n"
             "Envía a continuación el mensaje que deseas transmitir a <b>todos los usuarios registrados</b> en el bot.\n\n"
-            "<i>Puedes usar formato HTML (negritas, enlaces, etc).</i>"
+            "<i>Soporta todos los formatos de Telegram (negritas, cursivas, spoilers, citas, enlaces), emojis premium y multimedia (fotos, videos, documentos) con subtítulos.</i>"
         )
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("😀 Volver", callback_data="admin:menu")]
         ])
         await render_screen(client, callback, text, keyboard)
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=3)
+    @app.on_message(filters.private & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=3)
     async def handle_admin_text(client: Client, message: Message):
         user_id = message.from_user.id
         if not is_admin(user_id):
@@ -384,17 +384,19 @@ def register_admin_handlers(app: Client):
             message.continue_propagation()
             return
 
-        # Borrar el texto del administrador para mantener limpia la pantalla única
-        try:
-            await message.delete()
-        except Exception:
-            pass
-
         action = state.get("action")
 
         if action == "waiting_broadcast":
             ADMIN_STATES.pop(user_id, None)
-            broadcast_text = message.text
+
+            is_media = bool(message.media)
+            formatted_text = ""
+            formatted_caption = None
+
+            if message.text:
+                formatted_text = parse_emojis(message.text.html)
+            elif is_media and message.caption:
+                formatted_caption = parse_emojis(message.caption.html)
 
             await render_screen(client, user_id, f"{EMOJI_HOURGLASS} <b>Iniciando difusión masiva...</b>", None)
 
@@ -407,11 +409,29 @@ def register_admin_handlers(app: Client):
 
             for uid in user_ids:
                 try:
-                    await client.send_message(chat_id=uid, text=parse_emojis(broadcast_text))
+                    if is_media:
+                        await client.copy_message(
+                            chat_id=uid,
+                            from_chat_id=message.chat.id,
+                            message_id=message.id,
+                            caption=formatted_caption
+                        )
+                    else:
+                        await client.send_message(
+                            chat_id=uid,
+                            text=formatted_text,
+                            disable_web_page_preview=False
+                        )
                     sent_count += 1
-                    await asyncio.sleep(0.05)
+                    await asyncio.sleep(0.04)
                 except Exception:
                     fail_count += 1
+
+            # Borrar el mensaje del admin una vez terminada la difusión
+            try:
+                await message.delete()
+            except Exception:
+                pass
 
             result_text = (
                 f"{EMOJI_CHECK} <b>DIFUSIÓN COMPLETADA</b>\n\n"
