@@ -249,6 +249,16 @@ def register_start_handlers(app: Client):
                 lang = getattr(user, "language", "es") or "es"
                 reg_date = format_dt(user.created_at, "%Y-%m-%d")
 
+                now = datetime.now(timezone.utc).replace(tzinfo=None)
+                is_active_vip = bool(user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
+
+                if is_active_vip:
+                    vip_status_text = f"👑 <b>Estado:</b> <code>⭐ Revendedor VIP</code>\n📅 <b>Vence VIP:</b> <code>{user.vip_expires_at.strftime('%Y-%m-%d')}</code>\n"
+                    vip_btn = InlineKeyboardButton(t("btn_vip_my_plan", lang), callback_data="account:vip")
+                else:
+                    vip_status_text = f"👑 <b>Estado:</b> <code>Regular</code>\n"
+                    vip_btn = InlineKeyboardButton(t("btn_vip_plan", lang), callback_data="account:vip")
+
                 bunai_owner_line = ""
                 if user_id in settings.admin_ids:
                     try:
@@ -261,6 +271,7 @@ def register_start_handlers(app: Client):
                     f"{t('profile_title', lang)}\n\n"
                     f"{EMOJI_ID} <b>ID:</b> <code>{user.telegram_id}</code>\n"
                     f"{EMOJI_WALLET} <b>{t('balance_bot', lang)}:</b> <code>{float(user.balance):.2f} USDT</code>\n"
+                    f"{vip_status_text}"
                     f"{bunai_owner_line}"
                     f"{EMOJI_LANG} <b>{t('lang_label', lang)}:</b> <code>{lang.upper()}</code> ({LANGUAGES.get(lang, 'Español')})\n"
                     f"{EMOJI_GLOBE} <b>Timezone:</b> <code>{settings.TIMEZONE}</code>\n"
@@ -268,6 +279,9 @@ def register_start_handlers(app: Client):
                 )
 
                 keyboard = InlineKeyboardMarkup([
+                    [
+                        vip_btn
+                    ],
                     [
                         InlineKeyboardButton(t("btn_my_orders", lang), callback_data="orders:page:1:profile"),
                         InlineKeyboardButton(t("btn_language", lang), callback_data="account:language")

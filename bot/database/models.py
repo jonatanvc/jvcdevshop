@@ -35,6 +35,10 @@ class User(Base):
     total_spent = Column(Numeric(12, 4), default=0.0000, nullable=False)
     language = Column(String(5), default="es", nullable=False)
     referred_by = Column(BigInteger, nullable=True)
+    is_vip = Column(Boolean, default=False, nullable=False, index=True)
+    vip_expires_at = Column(DateTime, nullable=True, index=True)
+    vip_warned_24h = Column(Boolean, default=False, nullable=False)
+    vip_warned_2h = Column(Boolean, default=False, nullable=False)
     created_at = Column(DateTime, default=utc_now, nullable=False)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 

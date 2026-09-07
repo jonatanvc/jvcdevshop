@@ -55,12 +55,17 @@ def register_checkout_handlers(app: Client):
 
             base_price = float(p_data.get("price", 0.0))
 
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            is_active_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
+
             if is_owner:
                 # El owner siempre paga el precio de costo exacto del proveedor (0% margen)
                 unit_price = base_price
                 discount_pct = 0.0
             else:
                 unit_price = await pricing_service.calculate_product_price(base_price, product_id, session)
+                if is_active_vip:
+                    unit_price = pricing_service.calculate_vip_price(unit_price)
                 discount_pct = 0.0
                 has_promo = bool(p_data.get("has_promo", False))
                 if has_promo:
@@ -269,12 +274,17 @@ def register_checkout_handlers(app: Client):
                 after_note=after_note_block
             )
 
-        success_keyboard = InlineKeyboardMarkup([
+        buttons_success = []
+        if is_active_vip or is_owner:
+            buttons_success.append([InlineKeyboardButton(t("btn_copy_client", lang), callback_data=f"vip:copy_client:{internal_order_id}")])
+
+        buttons_success.extend([
             [InlineKeyboardButton(t("btn_view_in_orders", lang), callback_data="orders:page:1:main")],
             [InlineKeyboardButton(t("btn_continue_shopping", lang), callback_data="catalog:disponibles:1")],
             [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
         ])
 
+        success_keyboard = InlineKeyboardMarkup(buttons_success)
         await render_screen(client, callback, success_text, success_keyboard)
 
     @app.on_callback_query(filters.regex(r"^pbuy_(?:owner_api|flow):([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))

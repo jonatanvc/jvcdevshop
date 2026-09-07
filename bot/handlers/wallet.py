@@ -504,7 +504,10 @@ def register_wallet_handlers(app: Client):
                     ref_res = await session.execute(ref_stmt)
                     referrer = ref_res.scalar_one_or_none()
                     if referrer:
-                        comm_rate = Decimal(str(settings.REFERRAL_COMMISSION_PERCENT)) / Decimal("100")
+                        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+                        is_ref_vip = bool(referrer.is_vip and referrer.vip_expires_at and referrer.vip_expires_at > now_utc)
+                        comm_pct = settings.VIP_REFERRAL_COMMISSION_PERCENT if is_ref_vip else settings.REFERRAL_COMMISSION_PERCENT
+                        comm_rate = Decimal(str(comm_pct)) / Decimal("100")
                         commission = credited_amount * comm_rate
                         referrer.balance += commission
 

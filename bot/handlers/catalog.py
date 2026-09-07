@@ -24,13 +24,18 @@ def get_product_icon(name: str, for_html: bool = False) -> str:
     """Asigna un icono representativo según el catálogo de servicios"""
     return get_service_icon(name, for_html=for_html)
 
-def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode: str, lang: str = "es") -> InlineKeyboardMarkup:
-    """Construye la botonera inline del catálogo ultra limpia con botón de categorías dedicado"""
+def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode: str, lang: str = "es", is_vip: bool = False) -> InlineKeyboardMarkup:
+    """Construye la botonera inline del catálogo ultra limpia con botón de categorías dedicado y precios VIP"""
     buttons = []
 
-    # 1. Botones de cada producto (solo nombre e icono)
+    # 1. Botones de cada producto
     for p in items:
-        btn = InlineKeyboardButton(p["name"], callback_data=f"product:view:{p['product_id']}:{filter_mode}:{page}:1")
+        if is_vip:
+            vip_price = p.get("vip_price") or round(p["user_price"] * 0.80, 2)
+            btn_title = f"{p['name']} (${vip_price:.2f} ⭐)"
+        else:
+            btn_title = p["name"]
+        btn = InlineKeyboardButton(btn_title, callback_data=f"product:view:{p['product_id']}:{filter_mode}:{page}:1")
         btn.icon_custom_emoji_id = get_service_custom_emoji_id(p["name"])
         buttons.append([btn])
 
@@ -245,13 +250,17 @@ def register_catalog_handlers(app: Client):
             products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=False)
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
+
+            vip_banner = "👑 <i>(Modo Revendedor VIP: 20% OFF aplicado en todo el catálogo)</i>\n\n" if is_vip else ""
             header_key = f"catalog_header_{filter_mode}"
-            header_text = f"{t(header_key, lang, count=len(products))}\n\n"
+            header_text = f"{vip_banner}{t(header_key, lang, count=len(products))}\n\n"
 
             if not items_page:
                 header_text += f"<i>{t('catalog_empty', lang)}</i>\n"
 
-            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, filter_mode, lang)
+            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, filter_mode, lang, is_vip=is_vip)
             await render_screen(client, callback, header_text, keyboard)
 
     @app.on_callback_query(filters.regex(r"^catalog_refresh:([a-z_]+):(\d+)$"))
@@ -273,13 +282,17 @@ def register_catalog_handlers(app: Client):
             products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=True)
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
+
+            vip_banner = "👑 <i>(Modo Revendedor VIP: 20% OFF aplicado en todo el catálogo)</i>\n\n" if is_vip else ""
             header_key = f"catalog_header_{filter_mode}"
-            header_text = f"{t(header_key, lang, count=len(products))}\n\n"
+            header_text = f"{vip_banner}{t(header_key, lang, count=len(products))}\n\n"
 
             if not items_page:
                 header_text += f"<i>{t('catalog_empty', lang)}</i>\n"
 
-            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, filter_mode, lang)
+            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, filter_mode, lang, is_vip=is_vip)
             await render_screen(client, callback, header_text, keyboard)
 
     @app.on_callback_query(filters.regex("^catalog:search_prompt$"))
@@ -314,11 +327,15 @@ def register_catalog_handlers(app: Client):
             products = await pricing_service.get_processed_catalog(session, filter_mode="disponibles", force_refresh=False)
             items_page, total_pages, current_page = pricing_service.paginate(products, page=1, page_size=PAGE_SIZE)
 
-            header_text = f"{t('catalog_header_disponibles', lang, count=len(products))}\n\n"
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
+
+            vip_banner = "👑 <i>(Modo Revendedor VIP: 20% OFF aplicado en todo el catálogo)</i>\n\n" if is_vip else ""
+            header_text = f"{vip_banner}{t('catalog_header_disponibles', lang, count=len(products))}\n\n"
             if not items_page:
                 header_text += f"<i>{t('catalog_empty', lang)}</i>\n"
 
-            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, "disponibles", lang)
+            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, "disponibles", lang, is_vip=is_vip)
             await render_screen(client, user_id, header_text, keyboard)
 
     @app.on_message(filters.command(["buscar", "search"]) & filters.private)
@@ -433,9 +450,15 @@ def register_catalog_handlers(app: Client):
                 await render_screen(client, user_id, text, keyboard)
                 return
 
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
+
             items_page, total_pages, current_page = pricing_service.paginate(results, page=1, page_size=PAGE_SIZE)
-            text = t("search_results_title", lang, query=query, count=len(results)) + "\n"
-            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, "todos", lang)
+            vip_banner = "👑 <i>(Modo Revendedor VIP: 20% OFF aplicado)</i>\n\n" if is_vip else ""
+            text = f"{vip_banner}" + t("search_results_title", lang, query=query, count=len(results)) + "\n"
+            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, "todos", lang, is_vip=is_vip)
             await render_screen(client, user_id, text, keyboard)
 
     async def render_product_screen(
@@ -512,11 +535,18 @@ def register_catalog_handlers(app: Client):
             base_price = float(p_data.get("price", 0.0))
             api_balance = 0.0
 
+            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+            is_active_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
+
             if not has_stock:
                 total_price = 0.0
                 can_buy = False
                 unit_price = base_price if is_owner else (await pricing_service.calculate_product_price(base_price, product_id, session))
-                price_line = f"{EMOJI_TAG} <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT"
+                if is_active_vip and not is_owner:
+                    vip_unit_price = pricing_service.calculate_vip_price(unit_price)
+                    price_line = f"{EMOJI_TAG} <b>Precio Normal:</b> <s>{unit_price:.2f} USDT</s> ➡️ <b>VIP (-20%):</b> <code>{vip_unit_price:.2f} USDT</code> ⭐"
+                else:
+                    price_line = f"{EMOJI_TAG} <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT"
                 total_line = f"{EMOJI_WARN} <b>Estado:</b> <code>Agotado / Sin Stock</code>"
                 balance_line = f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
                 offer_line = ""
@@ -551,6 +581,13 @@ def register_catalog_handlers(app: Client):
                         first_min = next(iter(promo_tiers))
                         offer_line = f"\n\n{t('promo_offer_text', lang, qty=first_min, discount=promo_tiers[first_min])}"
 
+                if is_active_vip:
+                    vip_unit_price = pricing_service.calculate_vip_price(unit_price)
+                    price_line = f"{EMOJI_TAG} <b>Precio Normal:</b> <s>{unit_price:.2f} USDT</s> ➡️ <b>VIP (-20%):</b> <code>{vip_unit_price:.2f} USDT</code> ⭐"
+                    unit_price = vip_unit_price
+                else:
+                    price_line = f"{EMOJI_TAG} <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT"
+
                 calc_qty = max(1, qty)
                 subtotal = calc_qty * unit_price
                 if discount_pct > 0:
@@ -558,8 +595,8 @@ def register_catalog_handlers(app: Client):
                 total_price = round(subtotal, 2)
                 can_buy = (effective_balance >= total_price) and (infinite_stock or stock_count >= qty)
 
-                price_line = f"{EMOJI_TAG} <b>{t('base_price_label', lang)}:</b> {unit_price:.2f} USDT"
-                total_line = f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT"
+                vip_tag = " <i>(⭐ Tarifa VIP 20% OFF)</i>" if is_active_vip else ""
+                total_line = f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT{vip_tag}"
                 balance_line = f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {effective_balance:.2f} USDT"
 
             if not has_stock:

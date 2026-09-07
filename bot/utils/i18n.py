@@ -125,7 +125,79 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_share_ref": "📢 Compartir Enlace",
 
         # Soporte
-        "support_text": f"{EMOJI_SUPPORT} <b>SOPORTE & AYUDA</b>\n\n¿Tienes alguna duda sobre tus compras, depósitos o necesitas asistencia?\n\n• <b>Garantía:</b> Si algún servicio con garantía presenta inconvenientes durante el período activo, contáctanos inmediatamente con tu <b>ID de Orden</b>.\n• <b>Depósitos:</b> Los depósitos en USDT BEP-20 se acreditan automáticamente tras la confirmación de la red.\n\n{EMOJI_CHAT} <i>Para contactar directamente a un administrador pulsa el botón inferior:</i>"
+        "support_text": f"{EMOJI_SUPPORT} <b>SOPORTE & AYUDA</b>\n\n¿Tienes alguna duda sobre tus compras, depósitos o necesitas asistencia?\n\n• <b>Garantía:</b> Si algún servicio con garantía presenta inconvenientes durante el período activo, contáctanos inmediatamente con tu <b>ID de Orden</b>.\n• <b>Depósitos:</b> Los depósitos en USDT BEP-20 se acreditan automáticamente tras la confirmación de la red.\n\n{EMOJI_CHAT} <i>Para contactar directamente a un administrador pulsa el botón inferior:</i>",
+
+        # Plan Revendedor VIP
+        "btn_vip_plan": "👑 Plan Revendedor VIP (20% OFF)",
+        "btn_vip_my_plan": "👑 Mi Membresía VIP",
+        "btn_activate_vip": "⭐ Activar Plan VIP (10 USDT / 30 días)",
+        "btn_renew_vip": "🔄 Renovar Plan VIP (10 USDT)",
+        "btn_copy_client": "📋 Copiar para Cliente",
+        "vip_status_regular": "Regular",
+        "vip_status_active": "⭐ Revendedor VIP",
+        "vip_info_title": (
+            f"👑 <b>PLAN PARA REVENDEDORES VIP</b>\n\n"
+            f"¿Revendes servicios digitales o quieres maximizar tus ganancias? Conviértete en <b>Socio VIP</b> y accede a los mejores márgenes del mercado:\n\n"
+            f"💎 <b>20% de Descuento Automático:</b> Precios mayoristas aplicados directamente en todo nuestro catálogo.\n"
+            f"⚡ <b>Alertas de Stock Prioritarias:</b> Entérate antes que nadie cuando reponemos servicios de alta demanda.\n"
+            f"📋 <b>Entrega Marca Blanca:</b> Botón exclusivo para copiar los accesos limpios y formateados, listos para enviar a tus clientes por WhatsApp sin marcas ni logos.\n"
+            f"👥 <b>Doble Comisión en Referidos:</b> Gana el <b>20% de comisión</b> sobre cada recarga de tus invitados (vs 5% regular).\n"
+            f"🛡️ <b>Atención Prioritaria:</b> Soporte y garantías rápidas.\n\n"
+            f"💵 <b>Inversión:</b> <code>10.00 USDT</code> / 30 días\n"
+            f"<i>(¡La mitad de lo que cobra la competencia por los mismos beneficios!)</i>"
+        ),
+        "vip_active_title": (
+            f"👑 <b>TU MEMBRESÍA VIP ESTÁ ACTIVA</b>\n\n"
+            f"Disfrutas de todas las ventajas y el <b>20% OFF</b> en todo el catálogo.\n\n"
+            f"📅 <b>Vence el:</b> <code>{{expires_at}}</code>\n"
+            f"⏳ <b>Tiempo restante:</b> <code>{{days_left}} días</code>\n\n"
+            f"<i>Puedes renovar con anticipación en cualquier momento para extender tu período 30 días más.</i>"
+        ),
+        "vip_success_activated": (
+            f"🎉 <b>¡BIENVENIDO AL PLAN REVENDEDOR VIP!</b>\n\n"
+            f"Tu membresía ha sido activada con éxito por <b>30 días</b>.\n\n"
+            f"🌟 <b>Beneficios activos:</b>\n"
+            f"• 20% de descuento automático en todo el catálogo.\n"
+            f"• Alertas tempranas de stock.\n"
+            f"• Formato de entrega limpia para clientes.\n"
+            f"• 20% de comisiones por referidos.\n\n"
+            f"📅 <b>Válido hasta:</b> <code>{{expires_at}}</code>"
+        ),
+        "vip_insufficient_funds": (
+            f"⚠️ <b>SALDO INSUFICIENTE</b>\n\n"
+            f"Para activar el Plan VIP necesitas <b>10.00 USDT</b> en tu saldo del bot.\n"
+            f"Tu saldo actual es de: <code>${{balance}} USDT</code>.\n\n"
+            f"<i>Por favor recarga tu saldo para continuar.</i>"
+        ),
+        "vip_warn_24h_msg": (
+            f"⚠️ <b>¡TU MEMBRESÍA VIP VENCE EN 24 HORAS!</b> ⚠️\n\n"
+            f"Te recordamos que a tu Plan Revendedor VIP le quedan menos de <b>24 horas</b> de vigencia (Vence: <code>{{expires_at}}</code>).\n\n"
+            f"Renueva ahora para no perder tu <b>20% de descuento</b> ni tus beneficios exclusivos."
+        ),
+        "vip_warn_2h_msg": (
+            f"🚨 <b>¡URGENTE: TU MEMBRESÍA VIP VENCE EN 2 HORAS!</b> 🚨\n\n"
+            f"Tu Plan Revendedor VIP vencerá hoy a las <code>{{expires_at}}</code>.\n\n"
+            f"<i>Renueva tu suscripción inmediatamente para mantener tus tarifas preferenciales de distribuidor.</i>"
+        ),
+        "vip_expired_msg": (
+            f"❌ <b>TU MEMBRESÍA VIP HA FINALIZADO</b>\n\n"
+            f"Tu período de 30 días ha concluido y tu cuenta ha regresado al estado Regular.\n\n"
+            f"<i>Puedes reactivar tu membresía VIP en cualquier momento por 10 USDT para volver a disfrutar del 20% OFF.</i>"
+        ),
+        "vip_admin_granted_msg": (
+            f"👑 <b>¡MEMBRESÍA VIP OTORGADA POR ADMINISTRADOR!</b>\n\n"
+            f"Un administrador te ha otorgado acceso al <b>Plan Revendedor VIP</b> por <b>{{days}} días</b>.\n\n"
+            f"📅 <b>Vigente hasta:</b> <code>{{expires_at}}</code>\n\n"
+            f"<i>¡Aprovecha tu 20% de descuento en todo el catálogo!</i>"
+        ),
+        "vip_client_template": (
+            f"✨ <b>Tu Servicio Digital</b> ✨\n\n"
+            f"📦 <b>Producto:</b> {{product}}\n"
+            f"🔑 <b>Datos de Acceso:</b>\n<pre>{{items}}</pre>"
+            f"{{warranty_text}}"
+            f"{{after_note}}\n\n"
+            f"<i>¡Gracias por tu compra! Si necesitas soporte contáctanos.</i>"
+        )
     },
 
     "en": {
@@ -236,7 +308,79 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_share_ref": "📢 Share Referral Link",
 
         # Support
-        "support_text": f"{EMOJI_SUPPORT} <b>SUPPORT & HELP</b>\n\nDo you have questions about your purchases, deposits or need assistance?\n\n• <b>Warranty:</b> If any service under warranty experiences issues during the active period, contact us immediately with your <b>Order ID</b>.\n• <b>Deposits:</b> USDT BEP-20 deposits are credited automatically after network confirmation.\n\n{EMOJI_CHAT} <i>To contact an administrator directly tap the button below:</i>"
+        "support_text": f"{EMOJI_SUPPORT} <b>SUPPORT & HELP</b>\n\nDo you have questions about your purchases, deposits or need assistance?\n\n• <b>Warranty:</b> If any service under warranty experiences issues during the active period, contact us immediately with your <b>Order ID</b>.\n• <b>Deposits:</b> USDT BEP-20 deposits are credited automatically after network confirmation.\n\n{EMOJI_CHAT} <i>To contact an administrator directly tap the button below:</i>",
+
+        # VIP Reseller Plan
+        "btn_vip_plan": "👑 VIP Reseller Plan (20% OFF)",
+        "btn_vip_my_plan": "👑 My VIP Membership",
+        "btn_activate_vip": "⭐ Activate VIP Plan (10 USDT / 30 days)",
+        "btn_renew_vip": "🔄 Renew VIP Plan (10 USDT)",
+        "btn_copy_client": "📋 Copy for Customer",
+        "vip_status_regular": "Regular",
+        "vip_status_active": "⭐ VIP Reseller",
+        "vip_info_title": (
+            f"👑 <b>VIP RESELLER PLAN</b>\n\n"
+            f"Do you resell digital services or want to maximize profits? Become a <b>VIP Partner</b> and get the highest margins:\n\n"
+            f"💎 <b>20% Automatic Discount:</b> Wholesale prices across our entire catalog.\n"
+            f"⚡ <b>Priority Restock Alerts:</b> Get notified before anyone else when popular services restock.\n"
+            f"📋 <b>White-Label Delivery:</b> Clean, formatted credentials ready to forward to your WhatsApp clients with zero store branding.\n"
+            f"👥 <b>Double Referral Commission:</b> Earn <b>20% commission</b> on your referrals' deposits (vs 5% regular).\n"
+            f"🛡️ <b>Priority Support:</b> Fast warranty resolutions.\n\n"
+            f"💵 <b>Price:</b> <code>10.00 USDT</code> / 30 days\n"
+            f"<i>(Half of what competitors charge for identical perks!)</i>"
+        ),
+        "vip_active_title": (
+            f"👑 <b>YOUR VIP MEMBERSHIP IS ACTIVE</b>\n\n"
+            f"You enjoy all exclusive benefits and <b>20% OFF</b> catalog-wide.\n\n"
+            f"📅 <b>Expires on:</b> <code>{{expires_at}}</code>\n"
+            f"⏳ <b>Days left:</b> <code>{{days_left}} days</code>\n\n"
+            f"<i>You can renew anytime to extend your plan by another 30 days.</i>"
+        ),
+        "vip_success_activated": (
+            f"🎉 <b>WELCOME TO THE VIP RESELLER PLAN!</b>\n\n"
+            f"Your membership is now active for <b>30 days</b>.\n\n"
+            f"🌟 <b>Active Perks:</b>\n"
+            f"• 20% automatic discount on all services.\n"
+            f"• Early restock alerts.\n"
+            f"• White-label delivery format.\n"
+            f"• 20% referral commissions.\n\n"
+            f"📅 <b>Valid until:</b> <code>{{expires_at}}</code>"
+        ),
+        "vip_insufficient_funds": (
+            f"⚠️ <b>INSUFFICIENT BALANCE</b>\n\n"
+            f"To activate the VIP Plan you need <b>10.00 USDT</b> in your bot balance.\n"
+            f"Your current balance is: <code>${{balance}} USDT</code>.\n\n"
+            f"<i>Please top up your balance to proceed.</i>"
+        ),
+        "vip_warn_24h_msg": (
+            f"⚠️ <b>YOUR VIP MEMBERSHIP EXPIRES IN 24 HOURS!</b> ⚠️\n\n"
+            f"Your VIP Reseller Plan expires in less than <b>24 hours</b> (Expires: <code>{{expires_at}}</code>).\n\n"
+            f"Renew now to keep your <b>20% discount</b> and perks active."
+        ),
+        "vip_warn_2h_msg": (
+            f"🚨 <b>URGENT: YOUR VIP MEMBERSHIP EXPIRES IN 2 HOURS!</b> 🚨\n\n"
+            f"Your VIP Reseller Plan expires today at <code>{{expires_at}}</code>.\n\n"
+            f"<i>Renew immediately to maintain your wholesale pricing.</i>"
+        ),
+        "vip_expired_msg": (
+            f"❌ <b>YOUR VIP MEMBERSHIP HAS EXPIRED</b>\n\n"
+            f"Your 30-day period ended and your account reverted to Regular status.\n\n"
+            f"<i>You can reactivate anytime for 10 USDT to restore your 20% OFF.</i>"
+        ),
+        "vip_admin_granted_msg": (
+            f"👑 <b>VIP MEMBERSHIP GRANTED BY ADMIN!</b>\n\n"
+            f"An administrator has granted you <b>VIP Reseller</b> access for <b>{{days}} days</b>.\n\n"
+            f"📅 <b>Valid until:</b> <code>{{expires_at}}</code>\n\n"
+            f"<i>Enjoy your 20% discount on all digital services!</i>"
+        ),
+        "vip_client_template": (
+            f"✨ <b>Your Digital Service</b> ✨\n\n"
+            f"📦 <b>Product:</b> {{product}}\n"
+            f"🔑 <b>Login Details:</b>\n<pre>{{items}}</pre>"
+            f"{{warranty_text}}"
+            f"{{after_note}}\n\n"
+            f"<i>Thank you for your purchase!</i>"
+        )
     },
 
     "pt": {
@@ -347,7 +491,79 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_share_ref": "📢 Compartilhar Link de Indicação",
 
         # Suporte
-        "support_text": f"{EMOJI_SUPPORT} <b>SUPORTE & AJUDA</b>\n\nTem dúvidas sobre compras, depósitos ou precisa de assistência?\n\n• <b>Garantia:</b> Se algum serviço com garantia apresentar problemas durante o período ativo, entre em contato imediatamente com o seu <b>ID de Pedido</b>.\n• <b>Depósitos:</b> Os depósitos em USDT BEP-20 são creditados automaticamente após a confirmação da rede.\n\n{EMOJI_CHAT} <i>Para falar directamente com um administrador toque no botão abaixo:</i>"
+        "support_text": f"{EMOJI_SUPPORT} <b>SUPORTE & AJUDA</b>\n\nTem dúvidas sobre compras, depósitos ou precisa de assistência?\n\n• <b>Garantia:</b> Se algum serviço com garantia apresentar problemas durante o período ativo, entre em contato imediatamente com o seu <b>ID de Pedido</b>.\n• <b>Depósitos:</b> Os depósitos em USDT BEP-20 são creditados automaticamente após a confirmação da rede.\n\n{EMOJI_CHAT} <i>Para falar directamente com um administrador toque no botão abaixo:</i>",
+
+        # Plano Revendedor VIP
+        "btn_vip_plan": "👑 Plano Revendedor VIP (20% OFF)",
+        "btn_vip_my_plan": "👑 Minha Assinatura VIP",
+        "btn_activate_vip": "⭐ Ativar Plano VIP (10 USDT / 30 dias)",
+        "btn_renew_vip": "🔄 Renovar Plano VIP (10 USDT)",
+        "btn_copy_client": "📋 Copiar para Cliente",
+        "vip_status_regular": "Regular",
+        "vip_status_active": "⭐ Revendedor VIP",
+        "vip_info_title": (
+            f"👑 <b>PLANO PARA REVENDEDORES VIP</b>\n\n"
+            f"Revende serviços digitais ou quer maximizar seus lucros? Torne-se um <b>Parceiro VIP</b> e tenha as melhores margens do mercado:\n\n"
+            f"💎 <b>20% de Desconto Automático:</b> Preços no atacado aplicados diretamente em todo o catálogo.\n"
+            f"⚡ <b>Alertas de Estoque Prioritários:</b> Seja notificado antes de todo mundo quando serviços populares voltarem ao estoque.\n"
+            f"📋 <b>Entrega Marca Branca:</b> Botão exclusivo para copiar as credenciais limpas e formatadas, prontas para enviar aos seus clientes no WhatsApp sem links nem marcas.\n"
+            f"👥 <b>Comissão Dupla em Indicações:</b> Ganhe <b>20% de comissão</b> sobre cada recarga de saldo dos seus indicados (vs 5% regular).\n"
+            f"🛡️ <b>Suporte Prioritário:</b> Atendimento ágil e garantia rápida.\n\n"
+            f"💵 <b>Investimento:</b> <code>10.00 USDT</code> / 30 dias\n"
+            f"<i>(Metade do preço cobrado pelos concorrentes pelos mesmos benefícios!)</i>"
+        ),
+        "vip_active_title": (
+            f"👑 <b>SUA ASSINATURA VIP ESTÁ ATIVA</b>\n\n"
+            f"Você aproveita todas as vantagens e <b>20% OFF</b> em todo o catálogo.\n\n"
+            f"📅 <b>Expira em:</b> <code>{{expires_at}}</code>\n"
+            f"⏳ <b>Dias restantes:</b> <code>{{days_left}} dias</code>\n\n"
+            f"<i>Você pode renovar a qualquer momento para estender por mais 30 dias.</i>"
+        ),
+        "vip_success_activated": (
+            f"🎉 <b>BEM-VINDO AO PLANO REVENDEDOR VIP!</b>\n\n"
+            f"Sua assinatura foi ativada com sucesso por <b>30 dias</b>.\n\n"
+            f"🌟 <b>Benefícios ativos:</b>\n"
+            f"• 20% de desconto automático no catálogo.\n"
+            f"• Alertas de estoque antecipados.\n"
+            f"• Formato de entrega limpo para clientes.\n"
+            f"• 20% de comissão de indicações.\n\n"
+            f"📅 <b>Válido até:</b> <code>{{expires_at}}</code>"
+        ),
+        "vip_insufficient_funds": (
+            f"⚠️ <b>SALDO INSUFICIENTE</b>\n\n"
+            f"Para ativar o Plano VIP você precisa de <b>10.00 USDT</b> no seu saldo do bot.\n"
+            f"Seu saldo atual é de: <code>${{balance}} USDT</code>.\n\n"
+            f"<i>Por favor recarregue seu saldo para continuar.</i>"
+        ),
+        "vip_warn_24h_msg": (
+            f"⚠️ <b>SUA ASSINATURA VIP EXPIRA EM 24 HORAS!</b> ⚠️\n\n"
+            f"Lembramos que seu Plano Revendedor VIP tem menos de <b>24 horas</b> restantes (Expira: <code>{{expires_at}}</code>).\n\n"
+            f"Renove agora para não perder seus <b>20% de desconto</b> e vantagens exclusivas."
+        ),
+        "vip_warn_2h_msg": (
+            f"🚨 <b>URGENTE: SUA ASSINATURA VIP EXPIRA EM 2 HORAS!</b> 🚨\n\n"
+            f"Seu Plano Revendedor VIP vai expirar hoje às <code>{{expires_at}}</code>.\n\n"
+            f"<i>Renove imediatamente para manter seus preços de distribuidor.</i>"
+        ),
+        "vip_expired_msg": (
+            f"❌ <b>SUA ASSINATURA VIP TERMINOU</b>\n\n"
+            f"Seu período de 30 dias terminou e sua conta voltou ao status Regular.\n\n"
+            f"<i>Você pode reativar a qualquer momento por 10 USDT para recuperar o 20% OFF.</i>"
+        ),
+        "vip_admin_granted_msg": (
+            f"👑 <b>ASSINATURA VIP CONCEDIDA PELO ADMINISTRADOR!</b>\n\n"
+            f"Um administrador concedeu acesso ao <b>Plano Revendedor VIP</b> por <b>{{days}} dias</b>.\n\n"
+            f"📅 <b>Válido até:</b> <code>{{expires_at}}</code>\n\n"
+            f"<i>Aproveite seu desconto de 20% em todo o catálogo!</i>"
+        ),
+        "vip_client_template": (
+            f"✨ <b>Seu Serviço Digital</b> ✨\n\n"
+            f"📦 <b>Produto:</b> {{product}}\n"
+            f"🔑 <b>Dados de Acesso:</b>\n<pre>{{items}}</pre>"
+            f"{{warranty_text}}"
+            f"{{after_note}}\n\n"
+            f"<i>Obrigado pela sua compra!</i>"
+        )
     }
 }
 

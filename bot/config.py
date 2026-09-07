@@ -29,6 +29,12 @@ class Settings(BaseSettings):
     QR_IMAGE_PATH: str = "assets/TrustWalletQR.jpg"
     AUTO_BACKUP_HOURS: int = 24
     TIMEZONE: str = "America/Santo_Domingo"
+
+    # Plan Revendedor VIP
+    VIP_MONTHLY_PRICE_USDT: float = 10.0
+    VIP_DISCOUNT_PERCENT: float = 20.0
+    VIP_REFERRAL_COMMISSION_PERCENT: float = 20.0
+    VIP_DURATION_DAYS: int = 30
     
     # Base de Datos
     DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres_secure_pass@localhost:5432/services_bot"

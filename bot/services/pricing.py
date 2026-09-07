@@ -66,13 +66,28 @@ class PricingService:
 
         return round(final_price, 2)
 
-    async def calculate_product_price(self, base_price: float, product_id: str, session, custom: Optional[CustomPricing] = None) -> float:
-        """Consulta CustomPricing en BD si no se proporcionó y calcula el precio final"""
+    def calculate_vip_price(self, price: float) -> float:
+        """Calcula el precio de venta VIP aplicando el descuento de revendedor configurado (ej: 20% OFF)"""
+        discount_factor = 1.0 - (settings.VIP_DISCOUNT_PERCENT / 100.0)
+        return round(price * discount_factor, 2)
+
+    async def calculate_product_price(
+        self,
+        base_price: float,
+        product_id: str,
+        session,
+        custom: Optional[CustomPricing] = None,
+        is_vip: bool = False
+    ) -> float:
+        """Consulta CustomPricing en BD si no se proporcionó y calcula el precio final (con soporte VIP)"""
         if custom is None and session is not None:
             stmt = select(CustomPricing).where(CustomPricing.product_id == product_id)
             result = await session.execute(stmt)
             custom = result.scalar_one_or_none()
-        return self.calculate_price_from_custom(base_price, custom)
+        price = self.calculate_price_from_custom(base_price, custom)
+        if is_vip:
+            return self.calculate_vip_price(price)
+        return price
 
     def calculate_adjusted_warranty(self, bunai_warranty_hours: int) -> int:
         """
@@ -142,6 +157,7 @@ class PricingService:
                     "name": p.get("display_name") or p.get("name") or "Servicio Digital",
                     "base_price": base_price,
                     "user_price": user_price,
+                    "vip_price": self.calculate_vip_price(user_price),
                     "stock_count": stock_count,
                     "infinite_stock": infinite_stock,
                     "has_stock": has_stock,

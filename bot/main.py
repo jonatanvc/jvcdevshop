@@ -10,6 +10,7 @@ from bot.services.bunai_client import bunai_api
 from bot.services.audit_logger import audit_logger
 from bot.services.backup_service import backup_service
 from bot.services.stock_watcher import stock_watcher
+from bot.services.vip_service import vip_service
 
 async def provider_balance_monitor(app: Client):
     """Monitorea periódicamente el saldo en BunaiStore para alertar al Owner si está bajo"""
@@ -57,6 +58,16 @@ async def stock_restock_monitor(app: Client):
             await stock_watcher.check_and_notify_restocks(app)
         except Exception as e:
             print(f"[StockRestockMonitor Error] {e}")
+            await asyncio.sleep(60)
+
+async def vip_maintenance_monitor(app: Client):
+    """Monitorea periódicamente las membresías VIP para alertar a las 24h y 2h antes (fijando el mensaje) y gestionar expiraciones"""
+    while True:
+        try:
+            await asyncio.sleep(60)  # Cada 60 segundos
+            await vip_service.check_and_notify_expirations(app)
+        except Exception as e:
+            print(f"[VIPMaintenanceMonitor Error] {e}")
             await asyncio.sleep(60)
 
 async def daily_backup_worker(app: Client):
@@ -114,7 +125,8 @@ async def main():
             BotCommand("pedidos", "💼 Mis Pedidos y Licencias"),
             BotCommand("depositar", "💳 Recargar Saldo USDT"),
             BotCommand("soporte", "🆘 Ayuda y Contacto Admin"),
-            BotCommand("admin", "⚙️ Panel de Control (Admins)")
+            BotCommand("admin", "⚙️ Panel de Control (Admins)"),
+            BotCommand("vip", "👑 Gestión VIP (Admin)")
         ])
     except Exception as e:
         print(f"[SetBotCommands Warning]: {e}")
@@ -130,6 +142,7 @@ async def main():
     asyncio.create_task(provider_balance_monitor(app))
     asyncio.create_task(deposit_expiry_worker())
     asyncio.create_task(stock_restock_monitor(app))
+    asyncio.create_task(vip_maintenance_monitor(app))
     asyncio.create_task(daily_backup_worker(app))
 
     # Mantener en ejecución
