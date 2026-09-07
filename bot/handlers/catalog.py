@@ -386,7 +386,7 @@ def register_catalog_handlers(app: Client):
                     pass
                 return
 
-            input_val = int(raw_txt)
+            input_val = min(int(raw_txt), 10000)
             stock_count = state.get("stock_count", 0)
             infinite_stock = state.get("infinite_stock", False)
 

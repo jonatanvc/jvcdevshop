@@ -1,7 +1,7 @@
 import random
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any
+from typing import Dict, Any, Set
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
@@ -18,6 +18,7 @@ from bot.utils.i18n import t
 from bot.utils.emojis import parse_emojis, parse_keyboard
 
 USER_STATES: Dict[int, Dict[str, Any]] = {}
+_ACTIVE_HASH_VERIFICATIONS: Set[str] = set()
 
 def get_deposit_menu_keyboard(lang: str = "es") -> InlineKeyboardMarkup:
     """Botonera con montos rápidos de recarga traducida"""
@@ -448,70 +449,79 @@ def register_wallet_handlers(app: Client):
         # 2. Esperando TxHash
         elif action == "waiting_hash":
             deposit_id = state.get("deposit_id")
-            tx_hash = message.text.strip()
+            tx_hash = message.text.strip().lower()
 
+            if tx_hash in _ACTIVE_HASH_VERIFICATIONS:
+                await message.reply_text("⏳ Este hash ya está siendo verificado en este momento. Por favor espera.")
+                return
+
+            _ACTIVE_HASH_VERIFICATIONS.add(tx_hash)
             USER_STATES.pop(user_id, None)
-            await render_screen(
-                client,
-                user_id,
-                t("verifying_tx", lang),
-                None
-            )
 
-            log_msg_id = None
-            async with async_session() as session:
-                stmt = select(Deposit).where(Deposit.id == deposit_id, Deposit.user_id == user_id).with_for_update()
-                res = await session.execute(stmt)
-                deposit = res.scalar_one_or_none()
+            try:
+                await render_screen(
+                    client,
+                    user_id,
+                    t("verifying_tx", lang),
+                    None
+                )
 
-                if not deposit or deposit.status == DepositStatus.CONFIRMED:
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
-                    await render_screen(client, user_id, "❌ Solicitud no disponible o ya confirmada.", kb)
-                    return
+                log_msg_id = None
+                async with async_session() as session:
+                    stmt = select(Deposit).where(Deposit.id == deposit_id, Deposit.user_id == user_id).with_for_update()
+                    res = await session.execute(stmt)
+                    deposit = res.scalar_one_or_none()
 
-                dup_stmt = select(Deposit).where(Deposit.tx_hash == tx_hash, Deposit.status == DepositStatus.CONFIRMED).with_for_update()
-                dup_res = await session.execute(dup_stmt)
-                if dup_res.scalar_one_or_none():
-                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
-                    await render_screen(client, user_id, "❌ Este Hash / TxID ya fue utilizado y acreditado anteriormente.", kb)
-                    return
+                    if not deposit or deposit.status == DepositStatus.CONFIRMED:
+                        kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
+                        await render_screen(client, user_id, "❌ Solicitud no disponible o ya confirmada.", kb)
+                        return
 
-                val_res = await bsc_validator.verify_deposit(tx_hash, float(deposit.exact_amount))
+                    dup_stmt = select(Deposit).where(Deposit.tx_hash == tx_hash).with_for_update()
+                    dup_res = await session.execute(dup_stmt)
+                    if dup_res.scalar_one_or_none():
+                        kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
+                        await render_screen(client, user_id, "❌ Este Hash / TxID ya fue utilizado y acreditado anteriormente.", kb)
+                        return
 
-                if not val_res.get("success"):
-                    err_msg = val_res.get("error", "Invalid Tx")
-                    retry_kb = InlineKeyboardMarkup([
-                        [InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")],
-                        [InlineKeyboardButton(t("btn_cancel_request", lang), callback_data=f"deposit:cancel:{deposit_id}")]
-                    ])
-                    await render_screen(client, user_id, f"❌ <b>Error:</b>\n{err_msg}", retry_kb)
-                    return
+                    val_res = await bsc_validator.verify_deposit(tx_hash, float(deposit.exact_amount))
 
-                credited_amount = Decimal(str(val_res["amount"]))
-                deposit.status = DepositStatus.CONFIRMED
-                deposit.tx_hash = tx_hash
-                deposit.confirmed_at = datetime.now(timezone.utc).replace(tzinfo=None)
-                log_msg_id = deposit.log_message_id
+                    if not val_res.get("success"):
+                        err_msg = val_res.get("error", "Invalid Tx")
+                        retry_kb = InlineKeyboardMarkup([
+                            [InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")],
+                            [InlineKeyboardButton(t("btn_cancel_request", lang), callback_data=f"deposit:cancel:{deposit_id}")]
+                        ])
+                        await render_screen(client, user_id, f"❌ <b>Error:</b>\n{err_msg}", retry_kb)
+                        return
 
-                user_stmt = select(User).where(User.telegram_id == user_id).with_for_update()
-                u_res = await session.execute(user_stmt)
-                user = u_res.scalar_one_or_none()
-                user.balance += credited_amount
-                new_balance = float(user.balance)
+                    credited_amount = Decimal(str(val_res["amount"]))
+                    deposit.status = DepositStatus.CONFIRMED
+                    deposit.tx_hash = tx_hash
+                    deposit.confirmed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                    log_msg_id = deposit.log_message_id
 
-                if user.referred_by:
-                    ref_stmt = select(User).where(User.telegram_id == user.referred_by).with_for_update()
-                    ref_res = await session.execute(ref_stmt)
-                    referrer = ref_res.scalar_one_or_none()
-                    if referrer:
-                        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
-                        is_ref_vip = bool(referrer.is_vip and referrer.vip_expires_at and referrer.vip_expires_at > now_utc)
-                        comm_pct = settings.VIP_REFERRAL_COMMISSION_PERCENT if is_ref_vip else settings.REFERRAL_COMMISSION_PERCENT
-                        comm_rate = Decimal(str(comm_pct)) / Decimal("100")
-                        commission = credited_amount * comm_rate
-                        referrer.balance += commission
+                    user_stmt = select(User).where(User.telegram_id == user_id).with_for_update()
+                    u_res = await session.execute(user_stmt)
+                    user = u_res.scalar_one_or_none()
+                    user.balance += credited_amount
+                    new_balance = float(user.balance)
 
-                await session.commit()
+                    if user.referred_by:
+                        ref_stmt = select(User).where(User.telegram_id == user.referred_by).with_for_update()
+                        ref_res = await session.execute(ref_stmt)
+                        referrer = ref_res.scalar_one_or_none()
+                        if referrer:
+                            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+                            is_ref_vip = bool(referrer.is_vip and referrer.vip_expires_at and referrer.vip_expires_at > now_utc)
+                            comm_pct = settings.VIP_REFERRAL_COMMISSION_PERCENT if is_ref_vip else settings.REFERRAL_COMMISSION_PERCENT
+                            comm_rate = Decimal(str(comm_pct)) / Decimal("100")
+                            commission = credited_amount * comm_rate
+                            referrer.balance += commission
+
+                    await session.commit()
+            finally:
+                _ACTIVE_HASH_VERIFICATIONS.discard(tx_hash)
 
             # EDITAR el mismo mensaje en el canal de logs
             await audit_logger.log_deposit_confirmed(

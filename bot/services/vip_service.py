@@ -40,7 +40,7 @@ class VIPService:
                     lang = getattr(u, "language", "es") or "es"
                     text = t("vip_expired_msg", lang)
                     kb = InlineKeyboardMarkup([
-                        [InlineKeyboardButton(t("btn_renew_vip", lang), callback_data="vip:activate")],
+                        [InlineKeyboardButton(t("btn_renew_vip", lang), callback_data="vip:confirm_screen")],
                         [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
                     ])
 
@@ -85,7 +85,7 @@ class VIPService:
                     exp_fmt = u.vip_expires_at.strftime("%H:%M UTC (%Y-%m-%d)")
                     text = t("vip_warn_2h_msg", lang, expires_at=exp_fmt)
                     kb = InlineKeyboardMarkup([
-                        [InlineKeyboardButton(t("btn_renew_vip", lang), callback_data="vip:activate")],
+                        [InlineKeyboardButton(t("btn_renew_vip", lang), callback_data="vip:confirm_screen")],
                         [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
                     ])
 
@@ -132,7 +132,7 @@ class VIPService:
                     exp_fmt = u.vip_expires_at.strftime("%Y-%m-%d %H:%M UTC")
                     text = t("vip_warn_24h_msg", lang, expires_at=exp_fmt)
                     kb = InlineKeyboardMarkup([
-                        [InlineKeyboardButton(t("btn_renew_vip", lang), callback_data="vip:activate")],
+                        [InlineKeyboardButton(t("btn_renew_vip", lang), callback_data="vip:confirm_screen")],
                         [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
                     ])
 

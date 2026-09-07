@@ -1,3 +1,4 @@
+from typing import Set
 from decimal import Decimal
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -14,6 +15,8 @@ from bot.utils.i18n import t
 from bot.utils.translator import translate_text
 from bot.utils.emojis import EMOJI_STAR, EMOJI_PIN
 
+_ACTIVE_CHECKOUT_USERS: Set[int] = set()
+
 def register_checkout_handlers(app: Client):
 
     @app.on_callback_query(filters.regex(r"^checkout:confirm:([a-zA-Z0-9_\-]+):(\d+)(?::([a-z]+))?$"))
@@ -22,6 +25,18 @@ def register_checkout_handlers(app: Client):
         if rate_limiter.is_rate_limited(user_id):
             await callback.answer("⏳ ...", show_alert=False)
             return
+
+        if user_id in _ACTIVE_CHECKOUT_USERS:
+            await callback.answer("⏳ Ya se está procesando una compra en tu cuenta...", show_alert=True)
+            return
+
+        _ACTIVE_CHECKOUT_USERS.add(user_id)
+        try:
+            await _process_checkout(client, callback, user_id)
+        finally:
+            _ACTIVE_CHECKOUT_USERS.discard(user_id)
+
+    async def _process_checkout(client: Client, callback: CallbackQuery, user_id: int):
 
         is_owner = settings.is_owner(user_id)
 

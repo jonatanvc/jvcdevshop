@@ -91,6 +91,8 @@ EMOJI_PHONE = pe("5276220667182736079", "📲")
 # --- ELEMENTOS VISUALES ADICIONALES ---
 # 1- Encabezado principal de la tienda - (5427168083074628963)
 EMOJI_STORE = pe("5427168083074628963", "💎")
+EMOJI_CROWN = pe("5427168083074628963", "👑")
+EMOJI_LIGHTNING = pe("5769248574499983619", "⚡")
 
 # 3- ID de Usuario - (5884366771913233289)
 EMOJI_ID = pe("5884366771913233289", "🆔")
@@ -475,6 +477,19 @@ EMOJI_MAP_CORE = {
     "🛡️": "5469641199348363998",  # Escudo
     "🛡": "5469641199348363998",
     "👛": "6030443364178992166",  # Billetera
+
+    # --- Elementos VIP, Notificaciones y Alertas ---
+    "👑": "5427168083074628963",  # Corona / VIP Premium
+    "⚡": "5769248574499983619",  # Rayo / Prioridad / Rápido
+    "🚨": "5276240711795107620",  # Sirena / Alerta urgente
+    "🚀": "5244837092042750681",  # Cohete / Aceleración
+    "⛔": "5208429100951159058",  # Prohibido / Bloqueo
+    "➡": "5465152894099540081",  # Flecha derecha
+    "➡️": "5465152894099540081",
+    "➔": "5465152894099540081",  # Flecha
+    "🤝": "5289511602393984968",  # Mano / Afiliados / Referidos
+    "🎁": "5276422526350681413",  # Regalo
+    "🔥": "5769248574499983619",  # Fuego / Hot
 }
 
 def _build_final_emoji_map() -> dict[str, str]:

@@ -1,5 +1,6 @@
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
+from typing import Set
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, Message, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
@@ -12,8 +13,12 @@ from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.emojis import parse_emojis, parse_keyboard
+from bot.handlers.admin import is_admin, find_user_by_identifier
 
 VIP_PRICE_USDT = Decimal(str(settings.VIP_MONTHLY_PRICE_USDT))
+
+# Lock en memoria por usuario para prevenir llamadas simultáneas / race conditions de scripts
+_ACTIVE_VIP_TRANSACTIONS: Set[int] = set()
 
 def register_vip_handlers(app: Client):
 
@@ -46,91 +51,155 @@ def register_vip_handlers(app: Client):
                 exp_str = user.vip_expires_at.strftime("%Y-%m-%d %H:%M UTC")
                 text = t("vip_active_title", lang, expires_at=exp_str, days_left=days_left)
                 keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(t("btn_renew_vip", lang), callback_data="vip:activate")],
+                    [InlineKeyboardButton(t("btn_renew_vip", lang), callback_data="vip:confirm_screen")],
                     [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
                     [InlineKeyboardButton(t("btn_back", lang), callback_data="account:view")]
                 ])
             else:
                 text = t("vip_info_title", lang)
                 keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(t("btn_activate_vip", lang), callback_data="vip:activate")],
+                    [InlineKeyboardButton(t("btn_activate_vip", lang), callback_data="vip:confirm_screen")],
                     [InlineKeyboardButton(t("btn_back", lang), callback_data="account:view")]
                 ])
 
             await render_screen(client, callback, text, keyboard)
 
-    @app.on_callback_query(filters.regex(r"^vip:activate$"))
-    async def cb_vip_activate(client: Client, callback: CallbackQuery):
-        """Procesa el cobro de 10 USDT de saldo del bot y activa/renueva la membresía VIP"""
+    @app.on_callback_query(filters.regex(r"^vip:confirm_screen$"))
+    async def cb_vip_confirm_screen(client: Client, callback: CallbackQuery):
+        """Muestra la pantalla previa con TODOS los beneficios del Plan Revendedor VIP antes de procesar el pago"""
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
-            await callback.answer("⏳ ...")
+            await callback.answer()
             return
 
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        try:
+            await callback.answer()
+        except Exception:
+            pass
 
         async with async_session() as session:
-            stmt = select(User).where(User.telegram_id == user_id).with_for_update()
+            stmt = select(User).where(User.telegram_id == user_id)
             res = await session.execute(stmt)
             user = res.scalar_one_or_none()
             if not user:
                 return
 
             lang = getattr(user, "language", "es") or "es"
+            balance_val = float(getattr(user, "balance", 0.0) or 0.0)
+            has_sufficient = (user.balance or Decimal("0")) >= VIP_PRICE_USDT
 
-            # 1. Comprobar si el usuario tiene saldo suficiente (10 USDT)
-            if user.balance < VIP_PRICE_USDT:
-                text = t("vip_insufficient_funds", lang, balance=f"{float(user.balance):.2f}")
+            text = t("vip_confirm_title", lang, balance=f"{balance_val:.2f}")
+
+            if has_sufficient:
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t("btn_confirm_pay_vip", lang), callback_data="vip:activate")],
+                    [InlineKeyboardButton(t("btn_cancel", lang), callback_data="account:vip")]
+                ])
+            else:
+                text += f"\n\n⚠️ <i>{t('vip_insufficient_funds', lang, balance=f'{balance_val:.2f}')}</i>"
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:deposit_menu")],
                     [InlineKeyboardButton(t("btn_back", lang), callback_data="account:vip")]
                 ])
-                await render_screen(client, callback, text, keyboard)
-                return
 
-            # 2. Descontar 10 USDT y calcular nueva fecha de expiración
-            user.balance -= VIP_PRICE_USDT
-            user.total_spent += VIP_PRICE_USDT
+            await render_screen(client, callback, text, keyboard)
 
-            if user.is_vip and user.vip_expires_at and user.vip_expires_at > now:
-                # Si ya estaba activo, se le suman 30 días a su fecha existente
-                new_expiry = user.vip_expires_at + timedelta(days=settings.VIP_DURATION_DAYS)
-            else:
-                new_expiry = now + timedelta(days=settings.VIP_DURATION_DAYS)
+    @app.on_callback_query(filters.regex(r"^vip:activate$"))
+    async def cb_vip_activate(client: Client, callback: CallbackQuery):
+        """
+        Procesa el cobro seguro de 10 USDT de saldo del bot y activa/renueva la membresía VIP.
+        Blindado con lock en memoria y transacción SQL atómica anti-race conditions y anti-doble-gasto.
+        """
+        user_id = callback.from_user.id
+        if rate_limiter.is_rate_limited(user_id):
+            await callback.answer("⏳ ...")
+            return
 
-            user.is_vip = True
-            user.vip_expires_at = new_expiry
-            user.vip_warned_24h = False
-            user.vip_warned_2h = False
+        if user_id in _ACTIVE_VIP_TRANSACTIONS:
+            await callback.answer("⏳ Ya se está procesando tu solicitud...", show_alert=True)
+            return
 
-            await session.commit()
-            rem_bal = float(user.balance)
-
-        # 3. Notificar en el canal de auditoría del Owner
-        await audit_logger.log_system_alert(
-            client=client,
-            title="👑 NUEVA MEMBRESÍA VIP ACTIVADA",
-            details=(
-                f"👤 <b>Usuario:</b> <code>{user_id}</code> (@{callback.from_user.username or 'N/A'})\n"
-                f"💵 <b>Cobro:</b> <code>${VIP_PRICE_USDT} USDT</code>\n"
-                f"💳 <b>Saldo Restante:</b> <code>${rem_bal:.2f} USDT</code>\n"
-                f"📅 <b>Válido Hasta:</b> <code>{new_expiry.strftime('%Y-%m-%d %H:%M UTC')}</code>"
-            )
-        )
-
-        exp_str = new_expiry.strftime("%Y-%m-%d %H:%M UTC")
-        success_text = t("vip_success_activated", lang, expires_at=exp_str)
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
-            [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
-        ])
-
+        _ACTIVE_VIP_TRANSACTIONS.add(user_id)
         try:
-            await callback.answer("⭐ ¡Membresía VIP Activada!", show_alert=True)
-        except Exception:
-            pass
+            now = datetime.now(timezone.utc).replace(tzinfo=None)
 
-        await render_screen(client, callback, success_text, keyboard)
+            async with async_session() as session:
+                # 1. Transacción SQL atómica: solo descuenta si balance >= VIP_PRICE_USDT
+                deduct_stmt = (
+                    update(User)
+                    .where(User.telegram_id == user_id, User.balance >= VIP_PRICE_USDT)
+                    .values(
+                        balance=User.balance - VIP_PRICE_USDT,
+                        total_spent=User.total_spent + VIP_PRICE_USDT
+                    )
+                    .returning(User.balance)
+                )
+                deduct_res = await session.execute(deduct_stmt)
+                remaining_balance = deduct_res.scalar()
+
+                if remaining_balance is None:
+                    # Saldo insuficiente o gastado por una solicitud concurrente
+                    user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+                    cur_user = user_res.scalar_one_or_none()
+                    cur_bal = float(cur_user.balance) if cur_user else 0.0
+                    lang = getattr(cur_user, "language", "es") or "es"
+                    text = t("vip_insufficient_funds", lang, balance=f"{cur_bal:.2f}")
+                    keyboard = InlineKeyboardMarkup([
+                        [InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:deposit_menu")],
+                        [InlineKeyboardButton(t("btn_back", lang), callback_data="account:vip")]
+                    ])
+                    await render_screen(client, callback, text, keyboard)
+                    return
+
+                # 2. Obtener usuario para actualizar su vigencia VIP
+                user_stmt = select(User).where(User.telegram_id == user_id)
+                u_res = await session.execute(user_stmt)
+                user = u_res.scalar_one()
+
+                lang = getattr(user, "language", "es") or "es"
+
+                if user.is_vip and user.vip_expires_at and user.vip_expires_at > now:
+                    # Si ya estaba activo, se le suman 30 días a su fecha existente
+                    new_expiry = user.vip_expires_at + timedelta(days=settings.VIP_DURATION_DAYS)
+                else:
+                    new_expiry = now + timedelta(days=settings.VIP_DURATION_DAYS)
+
+                user.is_vip = True
+                user.vip_expires_at = new_expiry
+                user.vip_warned_24h = False
+                user.vip_warned_2h = False
+
+                await session.commit()
+                rem_bal = float(remaining_balance)
+
+            # 3. Notificar en el canal de auditoría del Owner
+            await audit_logger.log_system_alert(
+                client=client,
+                title="👑 NUEVA MEMBRESÍA VIP ACTIVADA",
+                details=(
+                    f"👤 <b>Usuario:</b> <code>{user_id}</code> (@{callback.from_user.username or 'N/A'})\n"
+                    f"💵 <b>Cobro:</b> <code>${VIP_PRICE_USDT} USDT</code>\n"
+                    f"💳 <b>Saldo Restante:</b> <code>${rem_bal:.2f} USDT</code>\n"
+                    f"📅 <b>Válido Hasta:</b> <code>{new_expiry.strftime('%Y-%m-%d %H:%M UTC')}</code>"
+                )
+            )
+
+            exp_str = new_expiry.strftime("%Y-%m-%d %H:%M UTC")
+            success_text = t("vip_success_activated", lang, expires_at=exp_str)
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
+                [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
+            ])
+
+            try:
+                await callback.answer("⭐ ¡Membresía VIP Activada!", show_alert=True)
+            except Exception:
+                pass
+
+            await render_screen(client, callback, success_text, keyboard)
+
+        finally:
+            _ACTIVE_VIP_TRANSACTIONS.discard(user_id)
 
     @app.on_callback_query(filters.regex(r"^vip:copy_client:(\d+)$"))
     async def cb_vip_copy_client(client: Client, callback: CallbackQuery):
@@ -180,9 +249,10 @@ def register_vip_handlers(app: Client):
         Sintaxis: /vip <@usuario|user_id> <dias>
         Ejemplo: /vip @revendedor 15
         """
-        user_id = message.from_user.id
-        if not settings.is_owner(user_id) and user_id not in settings.admin_ids:
+        if not message.from_user or not is_admin(message.from_user.id):
             return
+
+        user_id = message.from_user.id
 
         try:
             await message.delete()
@@ -192,10 +262,12 @@ def register_vip_handlers(app: Client):
         args = message.command[1:]
         if len(args) < 2:
             await message.reply_text(
-                "❌ <b>Uso incorrecto del comando:</b>\n"
-                "Sintaxis: <code>/vip &lt;@usuario o ID&gt; &lt;dias&gt;</code>\n"
-                "Ejemplo: <code>/vip @revendedor 15</code>\n"
-                "Ejemplo: <code>/vip 123456789 30</code>",
+                parse_emojis(
+                    "❌ <b>Uso incorrecto del comando:</b>\n"
+                    "Sintaxis: <code>/vip &lt;@usuario o ID&gt; &lt;dias&gt;</code>\n"
+                    "Ejemplo: <code>/vip @revendedor 15</code>\n"
+                    "Ejemplo: <code>/vip 123456789 30</code>"
+                ),
                 parse_mode=ParseMode.HTML
             )
             return
@@ -203,26 +275,24 @@ def register_vip_handlers(app: Client):
         target_str = args[0].strip()
         days_str = args[1].strip()
 
-        if not days_str.isdigit() or int(days_str) <= 0:
-            await message.reply_text("❌ Los días deben ser un número entero mayor a 0.", parse_mode=ParseMode.HTML)
+        if not days_str.isdigit() or not (1 <= int(days_str) <= 3650):
+            await message.reply_text(
+                parse_emojis("❌ <b>Los días deben ser un número entero entre 1 y 3650 (máximo 10 años).</b>"),
+                parse_mode=ParseMode.HTML
+            )
             return
 
         grant_days = int(days_str)
         now = datetime.now(timezone.utc).replace(tzinfo=None)
 
         async with async_session() as session:
-            # Buscar usuario por ID o por username
-            if target_str.isdigit():
-                stmt = select(User).where(User.telegram_id == int(target_str))
-            else:
-                uname = target_str.lstrip("@").lower()
-                stmt = select(User).where(User.username.ilike(uname))
-
-            res = await session.execute(stmt)
-            target_user = res.scalar_one_or_none()
+            target_user = await find_user_by_identifier(session, target_str)
 
             if not target_user:
-                await message.reply_text(f"❌ No se encontró ningún usuario con: <code>{target_str}</code>.", parse_mode=ParseMode.HTML)
+                await message.reply_text(
+                    parse_emojis(f"❌ No se encontró ningún usuario con: <code>{target_str}</code>."),
+                    parse_mode=ParseMode.HTML
+                )
                 return
 
             target_user_id = target_user.telegram_id
@@ -244,10 +314,12 @@ def register_vip_handlers(app: Client):
         # Notificar al administrador
         exp_fmt = new_expiry.strftime("%Y-%m-%d %H:%M UTC")
         await message.reply_text(
-            f"✅ <b>¡Membresía VIP Otorgada con Éxito!</b>\n\n"
-            f"👤 <b>Usuario:</b> <code>{target_user_id}</code> (@{target_user.username or 'N/A'})\n"
-            f"⏳ <b>Días Asignados:</b> <code>+{grant_days} días</code>\n"
-            f"📅 <b>Nueva Fecha de Expiración:</b> <code>{exp_fmt}</code>",
+            parse_emojis(
+                f"✅ <b>¡Membresía VIP Otorgada con Éxito!</b>\n\n"
+                f"👤 <b>Usuario:</b> <code>{target_user_id}</code> (@{target_user.username or 'N/A'})\n"
+                f"⏳ <b>Días Asignados:</b> <code>+{grant_days} días</code>\n"
+                f"📅 <b>Nueva Fecha de Expiración:</b> <code>{exp_fmt}</code>"
+            ),
             parse_mode=ParseMode.HTML
         )
 

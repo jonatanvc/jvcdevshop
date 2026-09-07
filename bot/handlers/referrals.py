@@ -1,3 +1,4 @@
+from datetime import datetime, timezone
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy import select, func
@@ -50,9 +51,12 @@ def register_referrals_handlers(app: Client):
                 comm_rate = float(settings.REFERRAL_COMMISSION_PERCENT) / 100.0
                 total_earnings = total_dep_base * comm_rate
 
-        comm_pct = settings.REFERRAL_COMMISSION_PERCENT
+        now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+        is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
+        comm_pct = settings.VIP_REFERRAL_COMMISSION_PERCENT if is_vip else settings.REFERRAL_COMMISSION_PERCENT
 
-        text = t(
+        vip_banner = "👑 <i>(⭐ Beneficio VIP: Comisión de 20% en cada recarga activa)</i>\n\n" if is_vip else ""
+        text = vip_banner + t(
             "referrals_title",
             lang,
             percent=f"{comm_pct:.1f}",
