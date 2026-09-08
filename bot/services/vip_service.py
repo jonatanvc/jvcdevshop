@@ -1,4 +1,3 @@
-import asyncio
 from datetime import datetime, timedelta, timezone
 from pyrogram import Client
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -28,7 +27,7 @@ class VIPService:
                 # -------------------------------------------------------------
                 # 1. EXPIRADOS: is_vip == True y vip_expires_at <= now
                 # -------------------------------------------------------------
-                exp_stmt = select(User).where(User.is_vip == True, User.vip_expires_at <= now)
+                exp_stmt = select(User).where(User.is_vip.is_(True), User.vip_expires_at <= now)
                 exp_res = await session.execute(exp_stmt)
                 expired_users = exp_res.scalars().all()
 
@@ -68,8 +67,8 @@ class VIPService:
                 # -------------------------------------------------------------
                 two_hours_limit = now + timedelta(hours=2)
                 warn_2h_stmt = select(User).where(
-                    User.is_vip == True,
-                    User.vip_warned_2h == False,
+                    User.is_vip.is_(True),
+                    User.vip_warned_2h.is_(False),
                     User.vip_expires_at > now,
                     User.vip_expires_at <= two_hours_limit
                 )
@@ -117,8 +116,8 @@ class VIPService:
                 # -------------------------------------------------------------
                 twenty_four_hours_limit = now + timedelta(hours=24)
                 warn_24h_stmt = select(User).where(
-                    User.is_vip == True,
-                    User.vip_warned_24h == False,
+                    User.is_vip.is_(True),
+                    User.vip_warned_24h.is_(False),
                     User.vip_expires_at > two_hours_limit,
                     User.vip_expires_at <= twenty_four_hours_limit
                 )

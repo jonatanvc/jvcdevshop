@@ -500,7 +500,7 @@ def register_catalog_handlers(app: Client):
             alert_stmt = select(StockAlert).where(
                 StockAlert.user_id == user_id,
                 StockAlert.product_id == product_id,
-                StockAlert.is_active == True
+                StockAlert.is_active.is_(True)
             )
             alert_res = await session.execute(alert_stmt)
             is_alert_active = alert_res.scalar_one_or_none() is not None
@@ -764,7 +764,7 @@ def register_catalog_handlers(app: Client):
             stmt = select(StockAlert).where(
                 StockAlert.user_id == user_id,
                 StockAlert.product_id == product_id,
-                StockAlert.is_active == True
+                StockAlert.is_active.is_(True)
             )
             res = await session.execute(stmt)
             existing = res.scalar_one_or_none()

@@ -260,8 +260,9 @@ def register_vip_handlers(app: Client):
 
         args = message.command[1:]
         if len(args) < 2:
-            await message.reply_text(
-                parse_emojis(
+            await client.send_message(
+                chat_id=user_id,
+                text=parse_emojis(
                     "❌ <b>Uso incorrecto del comando:</b>\n"
                     "Sintaxis: <code>/vip &lt;@usuario o ID&gt; &lt;dias&gt;</code>\n"
                     "Ejemplo: <code>/vip @revendedor 15</code>\n"
@@ -275,8 +276,9 @@ def register_vip_handlers(app: Client):
         days_str = args[1].strip()
 
         if not days_str.isdigit() or not (1 <= int(days_str) <= 3650):
-            await message.reply_text(
-                parse_emojis("❌ <b>Los días deben ser un número entero entre 1 y 3650 (máximo 10 años).</b>"),
+            await client.send_message(
+                chat_id=user_id,
+                text=parse_emojis("❌ <b>Los días deben ser un número entero entre 1 y 3650 (máximo 10 años).</b>"),
                 parse_mode=ParseMode.HTML
             )
             return
@@ -288,8 +290,9 @@ def register_vip_handlers(app: Client):
             target_user = await find_user_by_identifier(session, target_str)
 
             if not target_user:
-                await message.reply_text(
-                    parse_emojis(f"❌ No se encontró ningún usuario con: <code>{target_str}</code>."),
+                await client.send_message(
+                    chat_id=user_id,
+                    text=parse_emojis(f"❌ No se encontró ningún usuario con: <code>{target_str}</code>."),
                     parse_mode=ParseMode.HTML
                 )
                 return
@@ -312,8 +315,9 @@ def register_vip_handlers(app: Client):
 
         # Notificar al administrador
         exp_fmt = new_expiry.strftime("%Y-%m-%d %H:%M UTC")
-        await message.reply_text(
-            parse_emojis(
+        await client.send_message(
+            chat_id=user_id,
+            text=parse_emojis(
                 f"✅ <b>¡Membresía VIP Otorgada con Éxito!</b>\n\n"
                 f"👤 <b>Usuario:</b> <code>{target_user_id}</code> (@{target_user.username or 'N/A'})\n"
                 f"⏳ <b>Días Asignados:</b> <code>+{grant_days} días</code>\n"

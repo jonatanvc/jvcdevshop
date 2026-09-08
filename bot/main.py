@@ -145,9 +145,24 @@ async def main():
     asyncio.create_task(vip_maintenance_monitor(app))
     asyncio.create_task(daily_backup_worker(app))
 
-    # Mantener en ejecución
-    await idle()
-    await app.stop()
+    # Mantener en ejecución con cierre controlado de recursos
+    try:
+        await idle()
+    finally:
+        print("\n🛑 Deteniendo bot y liberando recursos de red y base de datos...")
+        try:
+            await app.stop()
+        except Exception:
+            pass
+        try:
+            await bunai_api.close()
+        except Exception:
+            pass
+        try:
+            from bot.database.session import engine
+            await engine.dispose()
+        except Exception:
+            pass
 
 if __name__ == "__main__":
     try:

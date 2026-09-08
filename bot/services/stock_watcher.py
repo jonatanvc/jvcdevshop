@@ -113,7 +113,7 @@ class StockWatcher:
                         # Notificar a usuarios de Telegram que tenían la alerta activa
                         alert_stmt = select(StockAlert).where(
                             StockAlert.product_id == pid,
-                            StockAlert.is_active == True
+                            StockAlert.is_active.is_(True)
                         )
                         alert_res = await session.execute(alert_stmt)
                         alerts_to_notify = alert_res.scalars().all()

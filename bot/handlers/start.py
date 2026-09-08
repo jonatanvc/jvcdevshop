@@ -254,10 +254,11 @@ def register_start_handlers(app: Client):
                 is_active_vip = bool(user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
 
                 if is_active_vip:
-                    vip_status_text = f"👑 <b>Estado:</b> <code>⭐ Revendedor VIP</code>\n📅 <b>Vence VIP:</b> <code>{user.vip_expires_at.strftime('%Y-%m-%d')}</code>\n"
+                    exp_date_str = user.vip_expires_at.strftime('%Y-%m-%d')
+                    vip_status_text = f"👑 <b>Estado:</b> <code>{t('vip_status_active', lang)}</code>\n📅 <b>Vence VIP:</b> <code>{exp_date_str}</code>\n"
                     vip_btn = InlineKeyboardButton(t("btn_vip_my_plan", lang), callback_data="account:vip")
                 else:
-                    vip_status_text = f"👑 <b>Estado:</b> <code>Regular</code>\n"
+                    vip_status_text = f"👑 <b>Estado:</b> <code>{t('vip_status_regular', lang)}</code>\n"
                     vip_btn = InlineKeyboardButton(t("btn_vip_plan", lang), callback_data="account:vip")
 
                 bunai_owner_line = ""

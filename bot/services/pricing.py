@@ -129,7 +129,7 @@ class PricingService:
                 name = p.get("display_name") or p.get("name") or "Servicio Digital"
                 name_lower = name.strip().lower()
                 # Excluir productos de prueba del proveedor
-                if "test api" in name_lower or "test_api" in name_lower or pid.lower() in ("test", "test_api"):
+                if "test api" in name_lower or "test_api" in name_lower or str(pid).lower() in ("test", "test_api"):
                     continue
 
                 custom = custom_map.get(pid)

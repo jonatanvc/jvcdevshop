@@ -94,7 +94,10 @@ class BunaiAPIClient:
             client = self._get_client()
             res = await client.get(url)
             if res.status_code == 200:
-                data = res.json()
+                try:
+                    data = res.json()
+                except Exception:
+                    data = []
                 self._set_cache(cache_key, data)
                 return data
             return []
@@ -115,7 +118,10 @@ class BunaiAPIClient:
             client = self._get_client()
             res = await client.get(url)
             if res.status_code == 200:
-                data = res.json()
+                try:
+                    data = res.json()
+                except Exception:
+                    data = []
                 self._set_cache(cache_key, data)
                 return data
             return []
@@ -135,8 +141,12 @@ class BunaiAPIClient:
             client = self._get_client()
             res = await client.get(url)
             if res.status_code == 200:
-                data = res.json()
-                self._set_cache(cache_key, data, ttl=20)
+                try:
+                    data = res.json()
+                except Exception:
+                    data = None
+                if data is not None:
+                    self._set_cache(cache_key, data, ttl=20)
                 return data
             return None
         except Exception as e:
@@ -154,7 +164,11 @@ class BunaiAPIClient:
         try:
             client = self._get_client()
             res = await client.post(url, json=payload)
-            data = res.json()
+            try:
+                data = res.json()
+            except Exception:
+                data = {"detail": res.text or "Respuesta no estructurada del servidor"}
+
             if res.status_code in (200, 201):
                 # Invalidar caché de saldo para reflejar el nuevo saldo tras la compra
                 self._cache.pop("bunai_me", None)
@@ -174,5 +188,11 @@ class BunaiAPIClient:
                 "error": f"Error de conexión con el proveedor: {str(e)}",
                 "status_code": 500
             }
+
+    async def close(self):
+        """Cierra el cliente HTTP para liberar sockets y recursos de red"""
+        if self._client is not None and not self._client.is_closed:
+            await self._client.aclose()
+            self._client = None
 
 bunai_api = BunaiAPIClient()

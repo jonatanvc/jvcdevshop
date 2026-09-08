@@ -24,7 +24,10 @@ class BackupService:
                     "first_name": u.first_name,
                     "balance": float(u.balance),
                     "total_spent": float(u.total_spent),
+                    "language": u.language,
                     "referred_by": u.referred_by,
+                    "is_vip": bool(u.is_vip),
+                    "vip_expires_at": u.vip_expires_at.isoformat() if u.vip_expires_at else None,
                     "created_at": u.created_at.isoformat() if u.created_at else None
                 }
                 for u in users_res.scalars().all()
