@@ -137,17 +137,12 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "vip_status_regular": "Regular",
         "vip_status_active": "⭐ Revendedor VIP",
         "vip_confirm_title": (
-            f"👑 <b>CONFIRMACIÓN - PLAN REVENDEDOR VIP</b>\n\n"
-            f"Estás a un paso de activar tu <b>Membresía Revendedor VIP</b> por <b>30 días</b>.\n\n"
-            f"✨ <b>TODOS TUS BENEFICIOS EXCLUSIVOS:</b>\n"
-            f"🏷️ <b>20% de Descuento Inmediato:</b> Precios mayoristas automáticos en todo el catálogo de servicios (cuentas streaming, licencias, IA, VPNs y más).\n"
-            f"📋 <b>Herramienta White-Label:</b> Botón de 1-toque ('Copiar para Cliente') con datos limpios y sin marcas, listos para enviar a tus clientes por WhatsApp/Telegram.\n"
-            f"⚡ <b>Alertas de Stock Prioritarias:</b> Entérate antes que nadie cuando reponemos productos de alta demanda.\n"
-            f"👥 <b>Comisión de Referidos Boost (20%):</b> Gana el 20% en USDT (en lugar del 5% regular) cada vez que tus invitados recarguen saldo.\n"
-            f"🔔 <b>Recordatorios Inteligentes:</b> Alertas automáticas 24h y 2h antes fijadas en tu chat para que nunca te quedes sin stock ni descuentos.\n"
-            f"🛡️ <b>Soporte VIP Preferencial:</b> Canal prioritario y resolución ágil de garantías.\n\n"
-            f"💵 <b>Inversión del Plan:</b> <code>10.00 USDT</code> (Válido por 30 días)\n"
-            f"💳 <b>Tu Saldo Actual:</b> <code>${{balance}} USDT</code>"
+            f"👑 <b>CONFIRMAR COMPRA - PLAN REVENDEDOR VIP</b>\n\n"
+            f"¿Deseas activar tu <b>Membresía Revendedor VIP</b> por <b>30 días</b>?\n\n"
+            f"💵 <b>Costo del Plan:</b> <code>10.00 USDT</code>\n"
+            f"⏳ <b>Duración:</b> <code>30 días</code>\n"
+            f"💳 <b>Tu Saldo Actual:</b> <code>${{balance}} USDT</code>\n\n"
+            f"<i>Al confirmar, se debitarán 10.00 USDT de tu saldo del bot y se activará inmediatamente tu tarifa del 20% OFF.</i>"
         ),
         "vip_info_title": (
             f"👑 <b>PLAN PARA REVENDEDORES VIP</b>\n\n"
@@ -334,17 +329,12 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "vip_status_regular": "Regular",
         "vip_status_active": "⭐ VIP Reseller",
         "vip_confirm_title": (
-            f"👑 <b>CONFIRMATION - VIP RESELLER PLAN</b>\n\n"
-            f"You are one step away from activating your <b>VIP Reseller Membership</b> for <b>30 days</b>.\n\n"
-            f"✨ <b>ALL YOUR EXCLUSIVE BENEFITS:</b>\n"
-            f"🏷️ <b>20% Instant Discount:</b> Automatic wholesale prices applied across the entire catalog (streaming, licenses, AI, VPNs, and more).\n"
-            f"📋 <b>White-Label Tool:</b> 1-click 'Copy for Customer' button to get clean, unbranded credentials ready for your buyers.\n"
-            f"⚡ <b>Early Restock Alerts:</b> Be the first to know when high-demand services are restocked.\n"
-            f"👥 <b>Boosted Referral Commission (20%):</b> Earn 20% commission in USDT (instead of 5%) on all deposits made by your invited users.\n"
-            f"🔔 <b>Smart Expiry Reminders:</b> Automated notices 24h and 2h before expiration pinned to your chat.\n"
-            f"🛡️ <b>Priority VIP Support:</b> Dedicated assistance and expedited warranty resolution.\n\n"
-            f"💵 <b>Plan Cost:</b> <code>10.00 USDT</code> (Valid for 30 days)\n"
-            f"💳 <b>Your Current Balance:</b> <code>${{balance}} USDT</code>"
+            f"👑 <b>CONFIRM PURCHASE - VIP RESELLER PLAN</b>\n\n"
+            f"Do you want to activate your <b>VIP Reseller Membership</b> for <b>30 days</b>?\n\n"
+            f"💵 <b>Plan Cost:</b> <code>10.00 USDT</code>\n"
+            f"⏳ <b>Duration:</b> <code>30 days</code>\n"
+            f"💳 <b>Your Current Balance:</b> <code>${{balance}} USDT</code>\n\n"
+            f"<i>Upon confirmation, 10.00 USDT will be deducted from your bot balance and your 20% OFF rates will be activated immediately.</i>"
         ),
         "vip_info_title": (
             f"👑 <b>VIP RESELLER PLAN</b>\n\n"
@@ -531,17 +521,12 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "vip_status_regular": "Regular",
         "vip_status_active": "⭐ Revendedor VIP",
         "vip_confirm_title": (
-            f"👑 <b>CONFIRMAÇÃO - PLANO REVENDEDOR VIP</b>\n\n"
-            f"Você está a um passo de ativar sua <b>Assinatura Revendedor VIP</b> por <b>30 dias</b>.\n\n"
-            f"✨ <b>TODOS OS SEUS BENEFÍCIOS EXCLUSIVOS:</b>\n"
-            f"🏷️ <b>20% de Desconto Imediato:</b> Preços de atacado automáticos em todo o catálogo (streaming, licenças, IA, VPNs e mais).\n"
-            f"📋 <b>Ferramenta White-Label:</b> Botão de 1 toque ('Copiar para Cliente') com dados limpos e sem marcas, prontos para enviar aos seus clientes.\n"
-            f"⚡ <b>Alertas de Estoque Prioritários:</b> Seja notificado antes de todos quando serviços concorridos forem repostos.\n"
-            f"👥 <b>Comissão de Indicação Boost (20%):</b> Ganhe 20% em USDT (em vez de 5%) em todas as recargas dos seus convidados.\n"
-            f"🔔 <b>Lembretes Inteligentes:</b> Notificações fixadas 24h e 2h antes de expirar.\n"
-            f"🛡️ <b>Suporte VIP Prioritário:</b> Atendimento ágil e preferencial para garantias.\n\n"
-            f"💵 <b>Valor do Plano:</b> <code>10.00 USDT</code> (Válido por 30 dias)\n"
-            f"💳 <b>Seu Saldo Atual:</b> <code>${{balance}} USDT</code>"
+            f"👑 <b>CONFIRMAR COMPRA - PLANO REVENDEDOR VIP</b>\n\n"
+            f"Deseja ativar sua <b>Assinatura Revendedor VIP</b> por <b>30 dias</b>?\n\n"
+            f"💵 <b>Valor do Plano:</b> <code>10.00 USDT</code>\n"
+            f"⏳ <b>Duração:</b> <code>30 dias</code>\n"
+            f"💳 <b>Seu Saldo Atual:</b> <code>${{balance}} USDT</code>\n\n"
+            f"<i>Ao confirmar, 10.00 USDT serão debitados do seu saldo do bot e suas tarifas de 20% OFF serão ativadas imediatamente.</i>"
         ),
         "vip_info_title": (
             f"👑 <b>PLANO PARA REVENDEDORES VIP</b>\n\n"

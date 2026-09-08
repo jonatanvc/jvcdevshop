@@ -88,15 +88,14 @@ def register_vip_handlers(app: Client):
             balance_val = float(getattr(user, "balance", 0.0) or 0.0)
             has_sufficient = (user.balance or Decimal("0")) >= VIP_PRICE_USDT
 
-            text = t("vip_confirm_title", lang, balance=f"{balance_val:.2f}")
-
             if has_sufficient:
+                text = t("vip_confirm_title", lang, balance=f"{balance_val:.2f}")
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton(t("btn_confirm_pay_vip", lang), callback_data="vip:activate")],
                     [InlineKeyboardButton(t("btn_cancel", lang), callback_data="account:vip")]
                 ])
             else:
-                text += f"\n\n⚠️ <i>{t('vip_insufficient_funds', lang, balance=f'{balance_val:.2f}')}</i>"
+                text = t("vip_insufficient_funds", lang, balance=f"{balance_val:.2f}")
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:deposit_menu")],
                     [InlineKeyboardButton(t("btn_back", lang), callback_data="account:vip")]
