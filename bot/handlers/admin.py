@@ -68,6 +68,18 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
 
     balance_alert = f" {EMOJI_WARN} <i>¡Recarga recomendada!</i>" if bunai_balance < 10.0 else f" {EMOJI_CHECK}"
 
+    fivesim_line = ""
+    if fivesim_api.is_configured():
+        try:
+            fivesim_prof = await fivesim_api.get_profile()
+            fivesim_bal = float(fivesim_prof.get("balance", 0.0))
+            fivesim_alert = f" {EMOJI_WARN} <i>¡Recarga recomendada!</i>" if fivesim_bal < 5.0 else f" {EMOJI_CHECK}"
+            fivesim_line = f"📱 <b>Saldo en 5SIM.net:</b> <code>${fivesim_bal:.2f} USD</code>{fivesim_alert}\n"
+        except Exception:
+            fivesim_line = "📱 <b>Saldo en 5SIM.net:</b> <code>Error al consultar</code>\n"
+    else:
+        fivesim_line = "📱 <b>Saldo en 5SIM.net:</b> <code>API Key no configurada</code>\n"
+
     status_tag = f"{EMOJI_RED_DOT} ACTIVADO" if maintenance_active else f"{EMOJI_GREEN_DOT} DESACTIVADO"
 
     text = (
@@ -76,8 +88,9 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
         f"{EMOJI_CARD} <b>Total Depositado (USDT):</b> <code>${total_deposited:.2f}</code>\n"
         f"{EMOJI_SHOPPING} <b>Ventas Realizadas:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n\n"
         f"{EMOJI_PROVIDER} <b>Saldo en BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
+        f"{fivesim_line}"
         f"{EMOJI_CHART_DOWN} <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n\n"
-        f"{EMOJI_CHART_UP} <b>ESTRATEGIA DE PRECIOS ACTIVA:</b>\n"
+        f"{EMOJI_CHART_UP} <b>ESTRATEGIA DE PRECIOS ACTIVA (BUNAI & 5SIM):</b>\n"
         f"• <b>Costo &lt; $0.50:</b> <code>x7.0 (+600%)</code>\n"
         f"• <b>Costo $0.50 - $0.99:</b> <code>x4.0 (+300%)</code>\n"
         f"• <b>Costo $1.00 - $2.99:</b> <code>x2.5 (+150%)</code>\n"

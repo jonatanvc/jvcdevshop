@@ -12,6 +12,8 @@ from bot.services.backup_service import backup_service
 from bot.services.stock_watcher import stock_watcher
 from bot.services.vip_service import vip_service
 from bot.services.deposit_reminder import check_and_send_deposit_reminders
+from bot.services.virtual_numbers import check_and_notify_pending_virtual_orders
+from bot.services.fivesim_client import fivesim_api
 
 async def provider_balance_monitor(app: Client):
     """Monitorea periódicamente el saldo en BunaiStore para alertar al Owner si está bajo"""
@@ -90,6 +92,16 @@ async def deposit_reminder_worker(app: Client):
             print(f"[DepositReminderWorker Error] {e}")
             await asyncio.sleep(60)
 
+async def virtual_numbers_worker(app: Client):
+    """Monitorea órdenes de números virtuales pendientes cada 4 segundos para notificar recepción de SMS o expiración/reembolso"""
+    while True:
+        try:
+            await asyncio.sleep(4)
+            await check_and_notify_pending_virtual_orders(app)
+        except Exception as e:
+            print(f"[VirtualNumbersWorker Error] {e}")
+            await asyncio.sleep(5)
+
 async def main():
     print("==================================================")
     print("🚀 INICIANDO BOT DE REVENTA DE SERVICIOS DIGITALES")
@@ -151,6 +163,7 @@ async def main():
     asyncio.create_task(provider_balance_monitor(app))
     asyncio.create_task(deposit_expiry_worker())
     asyncio.create_task(deposit_reminder_worker(app))
+    asyncio.create_task(virtual_numbers_worker(app))
     asyncio.create_task(stock_restock_monitor(app))
     asyncio.create_task(vip_maintenance_monitor(app))
     asyncio.create_task(daily_backup_worker(app))
@@ -166,6 +179,10 @@ async def main():
             pass
         try:
             await bunai_api.close()
+        except Exception:
+            pass
+        try:
+            await fivesim_api.close()
         except Exception:
             pass
         try:

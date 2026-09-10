@@ -27,6 +27,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "select_option": "Selecciona una opción del menú inferior para comenzar:",
         "maintenance_banner": f"{EMOJI_WARN} <i>El bot está en modo mantenimiento. Las compras están pausadas temporalmente.</i>\n\n",
         "btn_catalog": "🛒 Catálogo de Servicios",
+        "btn_virtual_numbers": "📲 Números Virtuales (SMS)",
         "btn_deposit": "👛 Mi Billetera",
         "btn_my_orders": "💼 Mis Pedidos",
         "btn_referrals": "🔗 Referidos",
@@ -148,6 +149,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
             "👑 <b>PLAN PARA REVENDEDORES VIP</b>\n\n"
             "¿Revendes servicios digitales o quieres maximizar tus ganancias? Conviértete en <b>Socio VIP</b> y accede a los mejores márgenes del mercado:\n\n"
             "💎 <b>20% de Descuento Automático:</b> Precios mayoristas aplicados directamente en todo nuestro catálogo.\n"
+            "📲 <b>20% OFF en Números Virtuales (SMS):</b> Descuento exclusivo en activaciones de WhatsApp, Telegram, Apple y más.\n"
             "⚡ <b>Alertas de Stock Prioritarias:</b> Entérate antes que nadie cuando reponemos servicios de alta demanda.\n"
             "📋 <b>Entrega Marca Blanca:</b> Botón exclusivo para copiar los accesos limpios y formateados, listos para enviar a tus clientes por WhatsApp sin marcas ni logos.\n"
             "👥 <b>Doble Comisión en Referidos:</b> Gana el <b>20% de comisión</b> sobre cada recarga de tus invitados (vs 5% regular).\n"
@@ -167,6 +169,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
             "Tu membresía ha sido activada con éxito por <b>30 días</b>.\n\n"
             "🌟 <b>Beneficios activos:</b>\n"
             "• 20% de descuento automático en todo el catálogo.\n"
+            "• 20% de descuento en Números Virtuales (SMS OTP).\n"
             "• Alertas tempranas de stock.\n"
             "• Formato de entrega limpia para clientes.\n"
             "• 20% de comisiones por referidos.\n\n"
@@ -219,6 +222,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "select_option": "Select an option from the menu below to get started:",
         "maintenance_banner": f"{EMOJI_WARN} <i>The bot is currently in maintenance mode. Purchases are temporarily paused.</i>\n\n",
         "btn_catalog": "🛒 Service Catalog",
+        "btn_virtual_numbers": "📲 Virtual Numbers (SMS)",
         "btn_deposit": "👛 My Wallet",
         "btn_my_orders": "💼 My Orders",
         "btn_referrals": "🔗 Referrals",
@@ -340,6 +344,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
             "👑 <b>VIP RESELLER PLAN</b>\n\n"
             "Do you resell digital services or want to maximize profits? Become a <b>VIP Partner</b> and get the highest margins:\n\n"
             "💎 <b>20% Automatic Discount:</b> Wholesale prices across our entire catalog.\n"
+            "📲 <b>20% OFF Virtual Numbers (SMS):</b> Exclusive discount on WhatsApp, Telegram, Apple OTP verifications.\n"
             "⚡ <b>Priority Restock Alerts:</b> Get notified before anyone else when popular services restock.\n"
             "📋 <b>White-Label Delivery:</b> Clean, formatted credentials ready to forward to your WhatsApp clients with zero store branding.\n"
             "👥 <b>Double Referral Commission:</b> Earn <b>20% commission</b> on your referrals' deposits (vs 5% regular).\n"
@@ -359,6 +364,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
             "Your membership is now active for <b>30 days</b>.\n\n"
             "🌟 <b>Active Perks:</b>\n"
             "• 20% automatic discount on all services.\n"
+            "• 20% discount on Virtual Numbers (SMS OTP).\n"
             "• Early restock alerts.\n"
             "• White-label delivery format.\n"
             "• 20% referral commissions.\n\n"
@@ -411,6 +417,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "select_option": "Selecione uma opção no menu abaixo para começar:",
         "maintenance_banner": f"{EMOJI_WARN} <i>O bot está em modo de manutenção. As compras estão pausadas temporariamente.</i>\n\n",
         "btn_catalog": "🛒 Catálogo de Serviços",
+        "btn_virtual_numbers": "📲 Números Virtuais (SMS)",
         "btn_deposit": "👛 Minha Carteira",
         "btn_my_orders": "💼 Meus Pedidos",
         "btn_referrals": "🔗 Referidos",
@@ -532,6 +539,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
             "👑 <b>PLANO PARA REVENDEDORES VIP</b>\n\n"
             "Revende serviços digitais ou quer maximizar seus lucros? Torne-se um <b>Parceiro VIP</b> e tenha as melhores margens do mercado:\n\n"
             "💎 <b>20% de Desconto Automático:</b> Preços no atacado aplicados diretamente em todo o catálogo.\n"
+            "📲 <b>20% OFF em Números Virtuais (SMS):</b> Desconto exclusivo em ativações de WhatsApp, Telegram, Apple e mais.\n"
             "⚡ <b>Alertas de Estoque Prioritários:</b> Seja notificado antes de todo mundo quando serviços populares voltarem ao estoque.\n"
             "📋 <b>Entrega Marca Branca:</b> Botão exclusivo para copiar as credenciais limpas e formatadas, prontas para enviar aos seus clientes no WhatsApp sem links nem marcas.\n"
             "👥 <b>Comissão Dupla em Indicações:</b> Ganhe <b>20% de comissão</b> sobre cada recarga de saldo dos seus indicados (vs 5% regular).\n"
@@ -551,6 +559,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
             "Sua assinatura foi ativada com sucesso por <b>30 dias</b>.\n\n"
             "🌟 <b>Beneficios ativos:</b>\n"
             "• 20% de desconto automático no catálogo.\n"
+            "• 20% de desconto em Números Virtuais (SMS OTP).\n"
             "• Alertas de estoque antecipados.\n"
             "• Formato de entrega limpo para clientes.\n"
             "• 20% de comissão de indicações.\n\n"

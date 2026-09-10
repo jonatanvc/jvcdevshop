@@ -15,6 +15,10 @@ class Settings(BaseSettings):
     BUNAI_API_KEY: str = "Shop::_3a2klpvDK9_SH2FY46suaM5pb8"
     BUNAI_BASE_URL: str = "https://api.bunaistore.shop/v1"
     
+    # 5SIM.net API (Números Virtuales SMS)
+    FIVESIM_API_KEY: str = ""
+    FIVESIM_BASE_URL: str = "https://5sim.net/v1"
+    
     # Blockchain BSC / USDT BEP-20
     ADMIN_WALLET_BSC: str = "0x540532E72e08fdaAB525f5D692ea97C40CCE5d24"
     BSC_RPC_URL: str = "https://bsc-dataseed.binance.org/"

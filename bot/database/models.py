@@ -161,3 +161,25 @@ class GiftCard(Base):
     expires_at = Column(DateTime, nullable=True)
 
     user = relationship("User", foreign_keys=[redeemed_by])
+
+class VirtualNumberOrder(Base):
+    __tablename__ = "virtual_number_orders"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True)
+    fivesim_order_id = Column(BigInteger, unique=True, nullable=False, index=True)
+    phone = Column(String(32), nullable=False)
+    service_name = Column(String(64), nullable=False, index=True)
+    country = Column(String(64), nullable=False)
+    operator = Column(String(64), nullable=False, default="any")
+    cost_usd = Column(Numeric(10, 4), nullable=False)
+    price_usdt = Column(Numeric(10, 4), nullable=False)
+    sms_code = Column(String(32), nullable=True)
+    sms_full_text = Column(Text, nullable=True)
+    status = Column(String(20), default="PENDING", nullable=False, index=True)  # PENDING, RECEIVED, FINISHED, CANCELLED, TIMEOUT
+    is_refunded = Column(Boolean, default=False, nullable=False)
+    expires_at = Column(DateTime, nullable=False)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+    user = relationship("User")
+

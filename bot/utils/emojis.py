@@ -502,6 +502,71 @@ EMOJI_MAP_CORE = {
     "👀": "5276395476646653290",  # Ojos / Ver / Filtrar
     "♾️": "5427168083074628963",  # Infinito / Permanente
     "♾": "5427168083074628963",
+
+    # --- Números Virtuales y Teléfonos ---
+    "📱": "5407025283456835913",
+    "📞": "5407025283456835913",
+
+    # --- Banderas de Países Premium (5SIM) ---
+    "🇦🇫": "5323300080046847499",
+    "🇦🇱": "5474150171979822886",
+    "🇩🇿": "5269237836338444690",
+    "🇦🇩": "5474202042299856056",
+    "🇦🇴": "5222327945833490823",
+    "🇦🇷": "5242367945409044100",
+    "🇦🇲": "5411397985365927767",
+    "🇦🇺": "5348289501150064920",
+    "🇦🇹": "5411354653440877283",
+    "🇦🇿": "5224542095963859210",
+    "🇧🇩": "5222066820411829362",
+    "🇧🇾": "5370547112599629768",
+    "🇧🇪": "5411322170603220759",
+    "🇧🇴": "5361795124596586531",
+    "🇧🇦": "5402403409020071544",
+    "🇧🇷": "5474188762260971755",
+    "🇧🇬": "5409301577469012036",
+    "🇰🇭": "5361821882242843520",
+    "🇨🇲": "5474215287978994431",
+    "🇨🇦": "5348476800378874158",
+    "🇨🇱": "5222267026017365103",
+    "🇨🇳": "5447548939844725331",
+    "🇨🇴": "5323705520664625325",
+    "🇨🇷": "5269317821514399900",
+    "🇭🇷": "5244534472942036867",
+    "🇨🇺": "5361655525274567119",
+    "🇨🇾": "5228993593342967183",
+    "🇨🇿": "5449806048237988326",
+    "🇩🇰": "5402338567898804415",
+    "🇩🇴": "5361899926093577217",
+    "🇪🇨": "5361898697732930827",
+    "🇪🇬": "5226715650063351089",
+    "🇸🇻": "5361657818787102540",
+    "🇪🇪": "5409310974857455487",
+    "🇪🇺": "5229068501867574283",
+    "🇫🇮": "5404854954877794218",
+    "🇫🇷": "5467600364033286654",
+    "🇬🇪": "5474255312779227745",
+    "🇩🇪": "5409324508299405361",
+    "🇬🇷": "5368324428369245416",
+    "🇷🇴": "5409188632714028866",
+    "🇬🇧": "5467600364033286654",
+}
+
+# --- Logos Oficiales de Plataformas SMS OTP (Telegram Premium Animated) ---
+PLATFORM_EMOJIS: dict[str, str] = {
+    "whatsapp": "5334998226636390258",
+    "telegram": "5330237710655306682",
+    "apple": "5334955749409834455",
+    "openai": "5359726582447487916",
+    "google": "5359758030198031389",
+    "microsoft": "5370857634440170316",
+    "tiktok": "5327982530702359565",
+    "instagram": "5319160079465857105",
+    "discord": "5325612636467903082",
+    "netflix": "5318911503938634641",
+    "steam": "5373144051690258848",
+    "twitter": "5330337435500951363",
+    "facebook": "5323261730283863478",
 }
 
 def _build_final_emoji_map() -> dict[str, str]:
@@ -722,18 +787,20 @@ def parse_keyboard(reply_markup: Any) -> Any:
 def InlineKeyboardButton(text: str, *args: Any, **kwargs: Any) -> _PyrogramInlineKeyboardButton:
     """
     Construye InlineKeyboardButton inyectando icon_custom_emoji_id cuando coincide
-    con el catálogo de Emojis Animados Premium de Telegram.
+    con el catálogo de Emojis Animados Premium de Telegram o cuando se provee explícitamente.
     Para botones con URL, mantiene el texto completo directamente (Telegram MTProto no admite estilos en URL buttons).
     """
+    explicit_icon_id = kwargs.pop("icon_custom_emoji_id", None)
     if kwargs.get("url") is not None:
         btn = _PyrogramInlineKeyboardButton(text=text, *args, **kwargs)
         btn._fallback_text = text
         return btn
 
     final_text, icon_id, full_text = format_button_info(text)
-    if icon_id:
-        btn = _PyrogramInlineKeyboardButton(text=final_text, *args, **kwargs)
-        btn.icon_custom_emoji_id = str(icon_id)
+    chosen_icon = explicit_icon_id or icon_id
+    if chosen_icon:
+        btn = _PyrogramInlineKeyboardButton(text=final_text if icon_id else text, *args, **kwargs)
+        btn.icon_custom_emoji_id = str(chosen_icon)
         btn._fallback_text = full_text
         return btn
     else:
