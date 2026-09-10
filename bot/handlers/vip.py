@@ -13,6 +13,7 @@ from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.emojis import parse_emojis, parse_keyboard
+from bot.utils.formatters import adjust_warranty_in_name, format_delivered_credentials
 from bot.handlers.admin import is_admin, find_user_by_identifier
 
 VIP_PRICE_USDT = Decimal(str(settings.VIP_MONTHLY_PRICE_USDT))
@@ -219,13 +220,18 @@ def register_vip_handlers(app: Client):
             await callback.answer("❌ Pedido no encontrado.", show_alert=True)
             return
 
-        warranty_line = f"\n🛡️ <b>Garantía:</b> <code>{order.warranty_hours} horas</code>" if order.warranty_hours > 0 else ""
+        if order.warranty_hours <= 0:
+            warranty_line = ""
+        elif order.warranty_hours >= 24 and order.warranty_hours % 24 == 0:
+            warranty_line = f"\n🛡️ <b>Garantía:</b> <code>{order.warranty_hours // 24} días</code>"
+        else:
+            warranty_line = f"\n🛡️ <b>Garantía:</b> <code>{order.warranty_hours} horas</code>"
 
         template_text = t(
             "vip_client_template",
             lang,
-            product=order.product_name,
-            items=order.delivered_items,
+            product=adjust_warranty_in_name(order.product_name),
+            items=format_delivered_credentials(order.delivered_items),
             warranty_text=warranty_line,
             after_note=""
         )

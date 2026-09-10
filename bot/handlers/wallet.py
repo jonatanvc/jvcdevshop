@@ -1,7 +1,7 @@
 import random
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
-from typing import Dict, Any, Set
+from typing import Dict, Any, Set, Optional
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
@@ -12,6 +12,7 @@ from bot.database.models import User, Deposit, DepositStatus
 from bot.services.blockchain import bsc_validator
 from bot.services.audit_logger import audit_logger
 from bot.services.qr_generator import get_wallet_qr_media
+from bot.services.promos import promo_service
 from bot.utils.navigation import render_screen, USER_LAST_MESSAGES, USER_LAST_MESSAGES_IS_MEDIA
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
@@ -20,8 +21,13 @@ from bot.utils.emojis import parse_emojis, parse_keyboard
 USER_STATES: Dict[int, Dict[str, Any]] = {}
 _ACTIVE_HASH_VERIFICATIONS: Set[str] = set()
 
-def get_deposit_menu_keyboard(lang: str = "es") -> InlineKeyboardMarkup:
-    """Botonera con montos rápidos de recarga traducida"""
+def get_deposit_menu_keyboard(lang: str = "es", active_coupon: Optional[str] = None) -> InlineKeyboardMarkup:
+    """Botonera con montos rápidos de recarga y opciones de tarjetas de regalo y cupones"""
+    coupon_btn = (
+        InlineKeyboardButton(f"🎟️ Quitar Cupón ({active_coupon})", callback_data="wallet:remove_coupon")
+        if active_coupon
+        else InlineKeyboardButton("🎟️ Reclamar Cupón de Descuento", callback_data="wallet:redeem_coupon")
+    )
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton("💵 2 USDT", callback_data="deposit:amount:2"),
@@ -30,10 +36,14 @@ def get_deposit_menu_keyboard(lang: str = "es") -> InlineKeyboardMarkup:
         ],
         [
             InlineKeyboardButton("💵 20 USDT", callback_data="deposit:amount:20"),
-            InlineKeyboardButton("💵 50 USDT", callback_data="deposit:amount:50")
+            InlineKeyboardButton("💵 50 USDT", callback_data="deposit:amount:50"),
+            InlineKeyboardButton(t("btn_custom_amount", lang), callback_data="deposit:custom")
         ],
         [
-            InlineKeyboardButton(t("btn_custom_amount", lang), callback_data="deposit:custom")
+            InlineKeyboardButton("🎁 Canjear Tarjeta de Regalo", callback_data="wallet:redeem_gift")
+        ],
+        [
+            coupon_btn
         ],
         [
             InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")
@@ -120,7 +130,7 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
 
 def register_wallet_handlers(app: Client):
 
-    @app.on_callback_query(filters.regex(r"^wallet:(deposit_menu|topup)$"))
+    @app.on_callback_query(filters.regex(r"^(wallet:(deposit_menu|topup)|wallet_main|account:wallet)$"))
     async def cb_deposit_menu(client: Client, callback: CallbackQuery):
         try:
             await callback.answer()
@@ -136,6 +146,7 @@ def register_wallet_handlers(app: Client):
             res = await session.execute(stmt)
             user = res.scalar_one_or_none()
             balance = float(user.balance) if user else 0.0
+            active_coupon = getattr(user, "active_coupon_code", None) if user else None
             lang = getattr(user, "language", "es") or "es"
 
             # Comprobar si el usuario tiene una solicitud de depósito activa pendiente
@@ -160,8 +171,15 @@ def register_wallet_handlers(app: Client):
                 await render_screen(client, callback, invoice_text, get_invoice_keyboard(active_dep.id, lang))
                 return
 
-        text = t("wallet_title", lang, balance=f"{balance:.4f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}")
-        await render_screen(client, callback, text, get_deposit_menu_keyboard(lang))
+        coupon_info = ""
+        if active_coupon:
+            coupon_info = (
+                f"\n\n🎟️ <b>Cupón Activo:</b> <code>{active_coupon}</code>\n"
+                f"<i>(Se aplicará automáticamente un descuento en tu próxima compra del catálogo)</i>"
+            )
+
+        text = t("wallet_title", lang, balance=f"{balance:.4f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}") + coupon_info
+        await render_screen(client, callback, text, get_deposit_menu_keyboard(lang, active_coupon))
 
     @app.on_callback_query(filters.regex(r"^deposit:amount:(\d+)$"))
     async def cb_deposit_fixed(client: Client, callback: CallbackQuery):
@@ -360,6 +378,76 @@ def register_wallet_handlers(app: Client):
         await callback.answer("Solicitud cancelada.")
         await render_screen(client, callback, cancel_text, keyboard)
 
+    @app.on_callback_query(filters.regex(r"^wallet:redeem_gift$"))
+    async def cb_wallet_redeem_gift(client: Client, callback: CallbackQuery):
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+        user_id = callback.from_user.id
+        USER_STATES[user_id] = {"action": "waiting_gift_code"}
+
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = getattr(user, "language", "es") or "es"
+
+        text = (
+            "🎁 <b>CANJEAR TARJETA DE REGALO</b>\n\n"
+            "Ingresa el código de tu tarjeta de regalo para acreditar saldo USDT de inmediato en tu billetera.\n\n"
+            "<i>Ejemplo: Envía un mensaje con <code>GIFT-ABCD-1234</code></i>\n\n"
+            "• El saldo acreditado nunca expira.\n"
+            "• Puedes usarlo para comprar cualquier servicio digital del catálogo."
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]
+        ])
+        await render_screen(client, callback, text, keyboard)
+
+    @app.on_callback_query(filters.regex(r"^wallet:redeem_coupon$"))
+    async def cb_wallet_redeem_coupon(client: Client, callback: CallbackQuery):
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+        user_id = callback.from_user.id
+        USER_STATES[user_id] = {"action": "waiting_coupon_code"}
+
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = getattr(user, "language", "es") or "es"
+
+        text = (
+            "🎟️ <b>RECLAMAR CUPÓN DE DESCUENTO</b>\n\n"
+            "Ingresa el código promocional para activarlo en tu cuenta.\n\n"
+            "<i>Ejemplo: Envía un mensaje con <code>PROMO10</code> o <code>BIENVENIDA</code></i>\n\n"
+            "• El descuento se calculará y aplicará automáticamente en tu próxima compra.\n"
+            "• Puedes cambiar o quitar tu cupón activo en cualquier momento desde tu billetera."
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]
+        ])
+        await render_screen(client, callback, text, keyboard)
+
+    @app.on_callback_query(filters.regex(r"^wallet:remove_coupon$"))
+    async def cb_wallet_remove_coupon(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        USER_STATES.pop(user_id, None)
+
+        async with async_session() as session:
+            await session.execute(
+                update(User).where(User.telegram_id == user_id).values(active_coupon_code=None)
+            )
+            await session.commit()
+
+        try:
+            await callback.answer("🎟️ Cupón retirado con éxito.", show_alert=False)
+        except Exception:
+            pass
+
+        await cb_deposit_menu(client, callback)
+
     @app.on_message(filters.command(["depositar", "deposit", "saldo", "wallet"]) & filters.private)
     async def cmd_deposit(client: Client, message: Message):
         user_id = message.from_user.id
@@ -373,6 +461,7 @@ def register_wallet_handlers(app: Client):
             res = await session.execute(stmt)
             user = res.scalar_one_or_none()
             balance = float(user.balance) if user else 0.0
+            active_coupon = getattr(user, "active_coupon_code", None) if user else None
             lang = getattr(user, "language", "es") or "es"
 
             now = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -395,8 +484,15 @@ def register_wallet_handlers(app: Client):
                 await render_screen(client, user_id, invoice_text, get_invoice_keyboard(active_dep.id, lang))
                 return
 
-        text = t("wallet_title", lang, balance=f"{balance:.4f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}")
-        await render_screen(client, user_id, text, get_deposit_menu_keyboard(lang))
+        coupon_info = ""
+        if active_coupon:
+            coupon_info = (
+                f"\n\n🎟️ <b>Cupón Activo:</b> <code>{active_coupon}</code>\n"
+                f"<i>(Se aplicará automáticamente un descuento en tu próxima compra del catálogo)</i>"
+            )
+
+        text = t("wallet_title", lang, balance=f"{balance:.4f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}") + coupon_info
+        await render_screen(client, user_id, text, get_deposit_menu_keyboard(lang, active_coupon))
 
     @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=2)
     async def handle_text_inputs(client: Client, message: Message):
@@ -542,3 +638,98 @@ def register_wallet_handlers(app: Client):
                 [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
             ])
             await render_screen(client, user_id, success_text, keyboard)
+            return
+
+        # 3. Esperando Código de Tarjeta de Regalo
+        elif action == "waiting_gift_code":
+            code = message.text.strip().upper()
+            USER_STATES.pop(user_id, None)
+
+            async with async_session() as session:
+                ok, msg, amount = await promo_service.redeem_gift_card(session, code, user_id)
+                user_stmt = select(User).where(User.telegram_id == user_id)
+                u_res = await session.execute(user_stmt)
+                user = u_res.scalar_one_or_none()
+                new_balance = float(user.balance) if user else 0.0
+
+            if not ok:
+                err_text = f"{msg}\n\n<i>Verifica que hayas escrito el código correctamente.</i>"
+                retry_kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("🔄 Intentar de Nuevo", callback_data="wallet:redeem_gift")],
+                    [InlineKeyboardButton("🔙 Volver a Billetera", callback_data="wallet:deposit_menu")]
+                ])
+                await render_screen(client, user_id, err_text, retry_kb)
+                return
+
+            # Log a canal de auditoría
+            username = message.from_user.username
+            first_name = message.from_user.first_name or "Usuario"
+            user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
+            audit_text = (
+                f"🎁 <b>TARJETA DE REGALO CANJEADA</b>\n\n"
+                f"👤 <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
+                f"💵 <b>Monto Acreditado:</b> <code>+${amount:.2f} USDT</code>\n"
+                f"💳 <b>Nuevo Saldo Total:</b> <code>${new_balance:.2f} USDT</code>\n"
+                f"🏷️ <b>Código:</b> <code>{code}</code>"
+            )
+            try:
+                await audit_logger._send_log(client, audit_text)
+            except Exception:
+                pass
+
+            succ_text = (
+                f"🎉 <b>¡TARJETA DE REGALO CANJEADA CON ÉXITO!</b>\n\n"
+                f"💵 <b>Saldo Acreditado:</b> <code>+${amount:.2f} USDT</code>\n"
+                f"💳 <b>Tu Nuevo Saldo:</b> <code>${new_balance:.2f} USDT</code>\n\n"
+                f"<i>¡Ya puedes usar tu saldo para comprar cualquier servicio digital en el catálogo!</i>"
+            )
+            succ_kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🛍️ Ir al Catálogo", callback_data="catalog:disponibles:1")],
+                [InlineKeyboardButton("💳 Ver Mi Billetera", callback_data="wallet:deposit_menu")]
+            ])
+            await render_screen(client, user_id, succ_text, succ_kb)
+            return
+
+        # 4. Esperando Código de Cupón de Descuento
+        elif action == "waiting_coupon_code":
+            code = message.text.strip().upper()
+            USER_STATES.pop(user_id, None)
+
+            async with async_session() as session:
+                ok, msg, c_obj, disc = await promo_service.validate_coupon(
+                    session=session,
+                    code=code,
+                    user_id=user_id,
+                    cart_amount=999.0
+                )
+                if not ok or not c_obj:
+                    err_text = f"{msg}\n\n<i>Verifica que hayas escrito el código correctamente.</i>"
+                    retry_kb = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🔄 Intentar de Nuevo", callback_data="wallet:redeem_coupon")],
+                        [InlineKeyboardButton("🔙 Volver a Billetera", callback_data="wallet:deposit_menu")]
+                    ])
+                    await render_screen(client, user_id, err_text, retry_kb)
+                    return
+
+                await session.execute(
+                    update(User).where(User.telegram_id == user_id).values(active_coupon_code=c_obj.code)
+                )
+                await session.commit()
+
+            if c_obj.discount_type == "percent":
+                benefit_str = f"{float(c_obj.discount_value):.0f}% de descuento"
+            else:
+                benefit_str = f"${float(c_obj.discount_value):.2f} USDT de descuento"
+
+            succ_text = (
+                f"🎉 <b>¡CUPÓN ACTIVADO CON ÉXITO!</b>\n\n"
+                f"🎟️ <b>Cupón:</b> <code>{c_obj.code}</code>\n"
+                f"🏷️ <b>Beneficio:</b> <code>{benefit_str}</code>\n\n"
+                f"<i>¡Se aplicará automáticamente un descuento en tu próxima compra del catálogo!</i>"
+            )
+            succ_kb = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🛍️ Ir al Catálogo", callback_data="catalog:disponibles:1")],
+                [InlineKeyboardButton("💳 Ver Mi Billetera", callback_data="wallet:deposit_menu")]
+            ])
+            await render_screen(client, user_id, succ_text, succ_kb)
+            return

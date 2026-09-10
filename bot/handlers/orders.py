@@ -7,6 +7,7 @@ from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.time_utils import format_dt
+from bot.utils.formatters import adjust_warranty_in_name, format_delivered_credentials
 
 ORDERS_PER_PAGE = 6
 
@@ -115,7 +116,8 @@ def register_orders_handlers(app: Client):
             buttons = []
             for ord in orders_page:
                 date_str = format_dt(ord.created_at, "%d/%m/%Y")
-                btn_text = f"🛍️ #{ord.id} - {ord.product_name[:24]} (${float(ord.total_price):.2f}) [{date_str}]"
+                ord_pname = adjust_warranty_in_name(ord.product_name)
+                btn_text = f"🛍️ #{ord.id} - {ord_pname[:24]} (${float(ord.total_price):.2f}) [{date_str}]"
                 buttons.append([
                     InlineKeyboardButton(btn_text, callback_data=f"order:view:{ord.id}:{page}:{src}")
                 ])
@@ -181,13 +183,13 @@ def register_orders_handlers(app: Client):
                 "order_detail_title",
                 lang,
                 order_id=order.id,
-                product=order.product_name,
+                product=adjust_warranty_in_name(order.product_name),
                 qty=order.quantity,
                 total=f"{float(order.total_price):.2f}",
                 warranty=warranty_str,
                 date=date_str,
                 prov_id=order.provider_order_id or "N/A",
-                items=order.delivered_items
+                items=format_delivered_credentials(order.delivered_items)
             )
 
             keyboard = InlineKeyboardMarkup([

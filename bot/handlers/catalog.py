@@ -1,18 +1,20 @@
 import asyncio
 from datetime import datetime, timezone
-from typing import Union
+from typing import Union, Optional
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from sqlalchemy import select
+from sqlalchemy import select, update
 from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, StockAlert
 from bot.services.pricing import pricing_service, PAGE_SIZE
 from bot.services.bunai_client import bunai_api
+from bot.services.promos import promo_service
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.translator import translate_text
+from bot.utils.formatters import adjust_warranty_in_name
 from bot.utils.emojis import (
     get_service_icon, get_service_custom_emoji_id, EMOJI_TAG, EMOJI_DICE, EMOJI_MONEY,
     EMOJI_WALLET, EMOJI_CALC, EMOJI_STAR, EMOJI_PROVIDER, EMOJI_WARN, EMOJI_BELL
@@ -31,13 +33,14 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
 
     # 1. Botones de cada producto
     for p in items:
+        p_name = adjust_warranty_in_name(p["name"])
         if is_vip:
             vip_price = p.get("vip_price") or round(p["user_price"] * 0.80, 2)
-            btn_title = f"{p['name']} (${vip_price:.2f} ⭐)"
+            btn_title = f"{p_name} (${vip_price:.2f} ⭐)"
         else:
-            btn_title = p["name"]
+            btn_title = p_name
         btn = InlineKeyboardButton(btn_title, callback_data=f"product:view:{p['product_id']}:{filter_mode}:{page}:1")
-        btn.icon_custom_emoji_id = get_service_custom_emoji_id(p["name"])
+        btn.icon_custom_emoji_id = get_service_custom_emoji_id(p_name)
         buttons.append([btn])
 
     # 2. Fila de paginación (si hay más de 1 página)
@@ -87,7 +90,8 @@ def build_product_calculator_keyboard(
     api_balance: float = 0.0,
     user_balance: float = 0.0,
     stock_count: int = 0,
-    infinite_stock: bool = False
+    infinite_stock: bool = False,
+    active_coupon_code: Optional[str] = None
 ) -> InlineKeyboardMarkup:
     """Construye la botonera interactiva y limpia para seleccionar cantidad y comprar"""
     buttons = []
@@ -365,7 +369,7 @@ def register_catalog_handlers(app: Client):
     async def handle_catalog_text_inputs(client: Client, message: Message):
         user_id = message.from_user.id
 
-        # 1. Cantidad personalizada ingresada por el usuario
+        # 1. Cantidad personalizada o Cupón ingresado por el usuario
         if user_id in CUSTOM_QTY_STATES:
             state = CUSTOM_QTY_STATES.pop(user_id)
             try:
@@ -374,6 +378,7 @@ def register_catalog_handlers(app: Client):
                 pass
 
             raw_txt = message.text.strip()
+
             if not raw_txt.isdigit() or int(raw_txt) <= 0:
                 CUSTOM_QTY_STATES[user_id] = state
                 err_msg = await client.send_message(
@@ -478,14 +483,25 @@ def register_catalog_handlers(app: Client):
         async with async_session() as session:
             p_data = await bunai_api.get_product(product_id)
             if not p_data:
-                # Buscar en el catálogo en caché local como respaldo
+                # 1. Buscar en el catálogo en caché local como respaldo
                 cached_items = pricing_service._cached_catalog or []
-                p_data = next((item for item in cached_items if item.get("product_id") == product_id), None)
+                p_data = next((
+                    item for item in cached_items
+                    if str(item.get("product_id") or item.get("id")) == str(product_id)
+                ), None)
+
+            if not p_data:
+                # 2. Si no estaba en memoria (ej: reinicio), cargar catálogo completo
+                cached_items = await pricing_service.get_processed_catalog(session, filter_mode="todos", force_refresh=True)
+                p_data = next((
+                    item for item in cached_items
+                    if str(item.get("product_id") or item.get("id")) == str(product_id)
+                ), None)
 
             if not p_data:
                 if isinstance(target, CallbackQuery):
                     try:
-                        await target.answer("❌ No disponible / Not available", show_alert=True)
+                        await target.answer("❌ Este servicio no se encuentra disponible actualmente.", show_alert=True)
                     except Exception:
                         pass
                 return
@@ -505,11 +521,11 @@ def register_catalog_handlers(app: Client):
             alert_res = await session.execute(alert_stmt)
             is_alert_active = alert_res.scalar_one_or_none() is not None
 
-            name = p_data.get("display_name") or p_data.get("name") or "Servicio Digital"
+            name = adjust_warranty_in_name(p_data.get("display_name") or p_data.get("name") or "Servicio Digital")
             icon = get_product_icon(name, for_html=True)
             stock_count = int(p_data.get("stock_count", 0))
             infinite_stock = bool(p_data.get("infinite_stock", False))
-            bunai_warranty = int(p_data.get("warranty_hours", 0))
+            bunai_warranty = int(p_data.get("bunai_warranty_hours") if p_data.get("bunai_warranty_hours") is not None else p_data.get("warranty_hours", 0))
             adjusted_warranty = pricing_service.calculate_adjusted_warranty(bunai_warranty)
             has_promo = bool(p_data.get("has_promo", False))
             has_stock = infinite_stock or stock_count > 0
@@ -533,7 +549,7 @@ def register_catalog_handlers(app: Client):
                 warranty_display = t("warranty_hours", lang, hours=adjusted_warranty)
 
             is_owner = settings.is_owner(user_id)
-            base_price = float(p_data.get("price", 0.0))
+            base_price = float(p_data.get("price") if p_data.get("price") is not None else p_data.get("base_price", 0.0))
             api_balance = 0.0
 
             now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -593,11 +609,28 @@ def register_catalog_handlers(app: Client):
                 subtotal = calc_qty * unit_price
                 if discount_pct > 0:
                     subtotal = subtotal * (1.0 - (discount_pct / 100.0))
+
+                coupon_line = ""
+                active_coupon = None
+                if user and user.active_coupon_code:
+                    ok, msg, c_obj, c_disc = await promo_service.validate_coupon(
+                        session=session,
+                        code=user.active_coupon_code,
+                        user_id=user_id,
+                        cart_amount=subtotal
+                    )
+                    if ok and c_obj:
+                        subtotal = max(0.0, subtotal - c_disc)
+                        active_coupon = c_obj.code
+                        coupon_line = f"\n🎟️ <b>Cupón Aplicado ({c_obj.code}):</b> <code>-${c_disc:.2f} USDT</code>"
+                    else:
+                        user.active_coupon_code = None
+
                 total_price = round(subtotal, 2)
                 can_buy = (effective_balance >= total_price) and (infinite_stock or stock_count >= qty)
 
                 vip_tag = " <i>(⭐ Tarifa VIP 20% OFF)</i>" if is_active_vip else ""
-                total_line = f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT{vip_tag}"
+                total_line = f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT{vip_tag}{coupon_line}"
                 balance_line = f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {effective_balance:.2f} USDT"
 
             if not has_stock:
@@ -643,21 +676,18 @@ def register_catalog_handlers(app: Client):
                 api_balance=api_balance,
                 user_balance=user_balance,
                 stock_count=stock_count,
-                infinite_stock=infinite_stock
+                infinite_stock=infinite_stock,
+                active_coupon_code=active_coupon if not is_owner else None
             )
 
             await render_screen(client, target, text, keyboard)
 
-    @app.on_callback_query(filters.regex(r"^product:view:([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))
+    @app.on_callback_query(filters.regex(r"^product:view:([^:]+):([a-z_]+):(\d+):(\d+)$"))
     async def cb_product_view(client: Client, callback: CallbackQuery):
         """Muestra la vista del producto con calculadora interactiva"""
-        try:
-            await callback.answer()
-        except Exception:
-            pass
-
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
+            await callback.answer("⏳ ...", show_alert=False)
             return
 
         CUSTOM_QTY_STATES.pop(user_id, None)
@@ -669,7 +699,7 @@ def register_catalog_handlers(app: Client):
 
         await render_product_screen(client, callback, product_id, filter_mode, page, qty)
 
-    @app.on_callback_query(filters.regex(r"^pqty:([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))
+    @app.on_callback_query(filters.regex(r"^pqty:([^:]+):([a-z_]+):(\d+):(\d+)$"))
     async def cb_pqty(client: Client, callback: CallbackQuery):
         """Maneja el ajuste interactivo de cantidad (+1, -1, o presets)"""
         try:
@@ -690,7 +720,7 @@ def register_catalog_handlers(app: Client):
 
         await render_product_screen(client, callback, product_id, filter_mode, page, qty)
 
-    @app.on_callback_query(filters.regex(r"^pqty_custom:([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))
+    @app.on_callback_query(filters.regex(r"^pqty_custom:([^:]+):([a-z_]+):(\d+):(\d+)$"))
     async def cb_custom_qty_prompt(client: Client, callback: CallbackQuery):
         """Pide al usuario ingresar una cantidad personalizada por texto"""
         try:
@@ -710,7 +740,7 @@ def register_catalog_handlers(app: Client):
         p_data = await bunai_api.get_product(product_id)
         if not p_data:
             cached_items = pricing_service._cached_catalog or []
-            p_data = next((item for item in cached_items if item.get("product_id") == product_id), None)
+            p_data = next((item for item in cached_items if str(item.get("product_id") or item.get("id")) == str(product_id)), None)
 
         stock_count = int(p_data.get("stock_count", 0)) if p_data else 0
         infinite_stock = bool(p_data.get("infinite_stock", False)) if p_data else False
@@ -743,7 +773,7 @@ def register_catalog_handlers(app: Client):
         ])
         await render_screen(client, callback, text, keyboard)
 
-    @app.on_callback_query(filters.regex(r"^stock_alert:(sub|unsub):([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))
+    @app.on_callback_query(filters.regex(r"^stock_alert:(sub|unsub):([^:]+):([a-z_]+):(\d+):(\d+)$"))
     async def cb_stock_alert_toggle(client: Client, callback: CallbackQuery):
         """Maneja la suscripción / cancelación de alertas de stock para un producto"""
         action = callback.matches[0].group(1)
@@ -788,7 +818,7 @@ def register_catalog_handlers(app: Client):
 
         await render_product_screen(client, callback, product_id, filter_mode, page, qty)
 
-    @app.on_callback_query(filters.regex(r"^pnote:([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))
+    @app.on_callback_query(filters.regex(r"^pnote:([^:]+):([a-z_]+):(\d+):(\d+)$"))
     async def cb_product_note(client: Client, callback: CallbackQuery):
         """Muestra la Nota del Admin traducida"""
         product_id = callback.matches[0].group(1)

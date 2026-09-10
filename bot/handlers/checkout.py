@@ -15,12 +15,14 @@ from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.translator import translate_text
 from bot.utils.emojis import EMOJI_STAR, EMOJI_PIN
+from bot.utils.formatters import adjust_warranty_in_name, format_delivered_credentials
+from bot.services.promos import promo_service
 
 _ACTIVE_CHECKOUT_USERS: Set[int] = set()
 
 def register_checkout_handlers(app: Client):
 
-    @app.on_callback_query(filters.regex(r"^checkout:confirm:([a-zA-Z0-9_\-]+):(\d+)(?::([a-z]+))?$"))
+    @app.on_callback_query(filters.regex(r"^checkout:confirm:([^:]+):(\d+)(?::([a-z]+))?$"))
     async def cb_checkout_confirm(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
@@ -63,13 +65,21 @@ def register_checkout_handlers(app: Client):
                 await callback.answer("⚠️ Maintenance Mode Active / Modo Mantenimiento", show_alert=True)
                 return
 
-            # 2. Obtener producto y calcular precio total
+            # 2. Obtener producto y calcular precio total con soporte multivariante y caché
             p_data = await bunai_api.get_product(product_id)
+            if not p_data:
+                cached_items = pricing_service._cached_catalog or []
+                p_data = next((item for item in cached_items if str(item.get("product_id") or item.get("id")) == str(product_id)), None)
+
+            if not p_data:
+                cached_items = await pricing_service.get_processed_catalog(session, filter_mode="todos", force_refresh=True)
+                p_data = next((item for item in cached_items if str(item.get("product_id") or item.get("id")) == str(product_id)), None)
+
             if not p_data:
                 await callback.answer("❌ Error / Not available", show_alert=True)
                 return
 
-            base_price = float(p_data.get("price", 0.0))
+            base_price = float(p_data.get("price") if p_data.get("price") is not None else p_data.get("base_price", 0.0))
 
             now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
             is_active_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
@@ -98,10 +108,24 @@ def register_checkout_handlers(app: Client):
             subtotal = qty * unit_price
             if discount_pct > 0:
                 subtotal = subtotal * (1.0 - (discount_pct / 100.0))
+
+            coupon_discount = 0.0
+            used_coupon_id = None
+            if user and user.active_coupon_code and not is_owner:
+                ok, msg, coupon_obj, coupon_discount = await promo_service.validate_coupon(
+                    session=session,
+                    code=user.active_coupon_code,
+                    user_id=user_id,
+                    cart_amount=subtotal
+                )
+                if ok and coupon_obj:
+                    subtotal = max(0.0, subtotal - coupon_discount)
+                    used_coupon_id = coupon_obj.id
+
             total_price = round(subtotal, 2)
             total_price_dec = Decimal(str(total_price))
 
-            product_name = p_data.get("display_name") or p_data.get("name") or "Servicio Digital"
+            product_name = adjust_warranty_in_name(p_data.get("display_name") or p_data.get("name") or "Servicio Digital")
             stock_count = int(p_data.get("stock_count", 0))
             infinite_stock = bool(p_data.get("infinite_stock", False))
             if not infinite_stock and stock_count < qty:
@@ -212,9 +236,9 @@ def register_checkout_handlers(app: Client):
 
         delivered_text = ""
         if raw_items:
-            delivered_text = "\n\n".join(raw_items)
+            delivered_text = format_delivered_credentials(raw_items)
         elif raw_after_note:
-            delivered_text = raw_after_note
+            delivered_text = format_delivered_credentials(raw_after_note)
         else:
             delivered_text = "OK"
 
@@ -233,8 +257,17 @@ def register_checkout_handlers(app: Client):
             )
             session.add(new_order)
             await session.commit()
-            await session.refresh(new_order)
             internal_order_id = new_order.id
+
+            if used_coupon_id:
+                await promo_service.consume_coupon(
+                    session=session,
+                    coupon_id=used_coupon_id,
+                    user_id=user_id,
+                    order_id=internal_order_id,
+                    discount_amount=coupon_discount
+                )
+                await session.commit()
 
         # Notificar en el canal de auditoría del Owner
         if pay_with_api:
@@ -260,7 +293,14 @@ def register_checkout_handlers(app: Client):
         )
 
         # Pantalla de entrega traducida
-        warranty_text = f"\n{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> <code>{warranty_hours}h</code>" if warranty_hours > 0 else ""
+        if warranty_hours <= 0:
+            warranty_text = ""
+        elif warranty_hours >= 24 and warranty_hours % 24 == 0:
+            w_str = t("warranty_days", lang, days=warranty_hours // 24)
+            warranty_text = f"\n{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> <code>{w_str}</code>"
+        else:
+            w_str = t("warranty_hours", lang, hours=warranty_hours)
+            warranty_text = f"\n{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> <code>{w_str}</code>"
         after_note_block = f"\n\n{EMOJI_PIN} <b>Info:</b>\n<i>{after_note}</i>" if after_note else ""
 
         if is_owner:

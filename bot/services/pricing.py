@@ -4,6 +4,7 @@ from sqlalchemy import select
 from bot.config import settings
 from bot.database.models import Setting, CustomPricing
 from bot.services.bunai_client import bunai_api
+from bot.utils.formatters import adjust_warranty_in_name
 
 PAGE_SIZE = 8
 
@@ -122,11 +123,11 @@ class PricingService:
 
             processed = []
             for p in raw_products:
-                pid = p.get("id") or p.get("product_id")
+                pid = str(p.get("product_id") or p.get("variant_id") or p.get("id") or "").strip()
                 if not pid:
                     continue
 
-                name = p.get("display_name") or p.get("name") or "Servicio Digital"
+                name = adjust_warranty_in_name(p.get("display_name") or p.get("name") or "Servicio Digital")
                 name_lower = name.strip().lower()
                 # Excluir productos de prueba del proveedor
                 if "test api" in name_lower or "test_api" in name_lower or str(pid).lower() in ("test", "test_api"):
@@ -154,7 +155,8 @@ class PricingService:
 
                 processed.append({
                     "product_id": pid,
-                    "name": p.get("display_name") or p.get("name") or "Servicio Digital",
+                    "name": name,
+                    "price": base_price,
                     "base_price": base_price,
                     "user_price": user_price,
                     "vip_price": self.calculate_vip_price(user_price),

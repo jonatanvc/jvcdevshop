@@ -11,6 +11,7 @@ from bot.services.audit_logger import audit_logger
 from bot.services.backup_service import backup_service
 from bot.services.stock_watcher import stock_watcher
 from bot.services.vip_service import vip_service
+from bot.services.deposit_reminder import check_and_send_deposit_reminders
 
 async def provider_balance_monitor(app: Client):
     """Monitorea periódicamente el saldo en BunaiStore para alertar al Owner si está bajo"""
@@ -79,7 +80,15 @@ async def daily_backup_worker(app: Client):
             await backup_service.send_automated_backup(app)
         except Exception as e:
             print(f"[DailyBackupWorker Error] {e}")
-            await asyncio.sleep(3600)
+async def deposit_reminder_worker(app: Client):
+    """Monitorea periódicamente depósitos pendientes para enviar recordatorio amistoso a los 15-45 minutos (anti-abandono)"""
+    while True:
+        try:
+            await asyncio.sleep(60)  # Cada 60 segundos
+            await check_and_send_deposit_reminders(app)
+        except Exception as e:
+            print(f"[DepositReminderWorker Error] {e}")
+            await asyncio.sleep(60)
 
 async def main():
     print("==================================================")
@@ -141,6 +150,7 @@ async def main():
     # 6. Lanzar monitores y workers en segundo plano
     asyncio.create_task(provider_balance_monitor(app))
     asyncio.create_task(deposit_expiry_worker())
+    asyncio.create_task(deposit_reminder_worker(app))
     asyncio.create_task(stock_restock_monitor(app))
     asyncio.create_task(vip_maintenance_monitor(app))
     asyncio.create_task(daily_backup_worker(app))

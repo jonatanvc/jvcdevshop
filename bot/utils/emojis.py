@@ -7,8 +7,8 @@ from pyrogram.raw.all import objects
 from pyrogram.types import InlineKeyboardButton as _PyrogramInlineKeyboardButton
 
 def pe(emoji_id: str, fallback: str) -> str:
-    """Retorna la etiqueta HTML de Telegram Custom Emoji compatible con Pyrogram"""
-    return f'<emoji id={emoji_id}>{fallback}</emoji>'
+    """Retorna el emoji unicode nativo para mensajes de texto 100% compatibles sin errores MTProto"""
+    return fallback
 
 # --- BOTONES Y MENÚS PRINCIPALES ---
 # --- BOTONES Y MENÚS PRINCIPALES ---
@@ -218,6 +218,9 @@ EMOJI_CLOCK = pe("5276412364458059956", "⏰")
 
 # Papelera
 EMOJI_TRASH = "🗑️"
+
+# Cupón de Descuento / Ticket Promocional - (5890883384057533697)
+EMOJI_TICKET = pe("5890883384057533697", "🎟️")
 
 # --- SERVICIOS DIGITALES DEL CATÁLOGO (39 MARCAS) ---
 SERVICE_EMOJIS = [
@@ -488,8 +491,17 @@ EMOJI_MAP_CORE = {
     "➡️": "5465152894099540081",
     "➔": "5465152894099540081",  # Flecha
     "🤝": "5289511602393984968",  # Mano / Afiliados / Referidos
-    "🎁": "5276422526350681413",  # Regalo
+    "🎁": "5276422526350681413",  # Regalo / Gift Card
     "🔥": "5769248574499983619",  # Fuego / Hot
+    "🎟️": "5890883384057533697",  # Cupón / Ticket Promocional
+    "🎟": "5890883384057533697",
+    "📄": "5334544901428229844",  # Factura / Documento
+    "🧾": "5334544901428229844",  # Recibo
+    "✏️": "5334882760735598374",  # Lápiz / Personalizado
+    "✏": "5334882760735598374",
+    "👀": "5276395476646653290",  # Ojos / Ver / Filtrar
+    "♾️": "5427168083074628963",  # Infinito / Permanente
+    "♾": "5427168083074628963",
 }
 
 def _build_final_emoji_map() -> dict[str, str]:
@@ -508,34 +520,28 @@ _EMOJI_REGEX_PATTERN = re.compile("|".join(_ESCAPED_KEYS)) if _ESCAPED_KEYS else
 _PROTECTED_TAGS_REGEX = re.compile(r'<emoji[^>]*>.*?</emoji>|<tg-emoji[^>]*>.*?</tg-emoji>|<[^>]+>', re.DOTALL)
 _TG_EMOJI_CONVERTER = re.compile(r'<tg-emoji emoji-id="(\d+)">([^<]+)</tg-emoji>')
 
-def parse_emojis(text: str) -> str:
+def strip_custom_emojis(text: str) -> str:
     """
-    Convierte dinámicamente emojis unicode a etiquetas <emoji id=...> compatibles
-    nativamente con el parser HTML de Pyrogram (MessageEntityCustomEmoji).
+    Remueve etiquetas de custom emoji (<emoji id=...> y <tg-emoji ...>)
+    dejando intacto el emoji unicode visible en su interior.
+    Garantiza compatibilidad total y evita que Telegram rechace el mensaje
+    con [400 ENTITY_TEXT_INVALID].
     """
     if not text:
-        return text
+        return ""
+    text = re.sub(r'<emoji[^>]*>(.*?)</emoji>', r'\1', str(text), flags=re.DOTALL)
+    text = re.sub(r'<tg-emoji[^>]*>(.*?)</tg-emoji>', r'\1', text, flags=re.DOTALL)
+    return text
 
-    # Compatibilidad retroactiva: convertir cualquier <tg-emoji> a <emoji>
-    text = _TG_EMOJI_CONVERTER.sub(r'<emoji id=\1>\2</emoji>', text)
-
-    if not _EMOJI_REGEX_PATTERN:
-        return text
-
-    segments = []
-    last_idx = 0
-    for match in _PROTECTED_TAGS_REGEX.finditer(text):
-        start, end = match.span()
-        if start > last_idx:
-            plain_part = text[last_idx:start]
-            segments.append(_EMOJI_REGEX_PATTERN.sub(lambda m: f'<emoji id={EMOJI_MAP[m.group(0)]}>{m.group(0)}</emoji>', plain_part))
-        segments.append(match.group(0))
-        last_idx = end
-
-    if last_idx < len(text):
-        segments.append(_EMOJI_REGEX_PATTERN.sub(lambda m: f'<emoji id={EMOJI_MAP[m.group(0)]}>{m.group(0)}</emoji>', text[last_idx:]))
-
-    return "".join(segments)
+def parse_emojis(text: str) -> str:
+    """
+    Normaliza y limpia etiquetas de emojis en el texto para máxima compatibilidad con Telegram.
+    Los emojis en el cuerpo de los mensajes se envían como caracteres unicode nativos,
+    mientras que los botones inline mantienen sus iconos animados mediante MTProto RawKeyboardButtonStyle.
+    """
+    if not text:
+        return ""
+    return strip_custom_emojis(text)
 
 p = parse_emojis
 

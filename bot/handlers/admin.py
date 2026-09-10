@@ -2,7 +2,8 @@ import asyncio
 from decimal import Decimal
 from typing import Dict, Any, Optional
 from pyrogram import Client, filters
-from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
+from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup
+from bot.utils.emojis import InlineKeyboardButton
 from sqlalchemy import select, func
 from bot.config import settings
 from bot.database.session import async_session
@@ -92,11 +93,15 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
             InlineKeyboardButton("🌀 Sincronizar Catálogo", callback_data="admin:clear_cache")
         ],
         [
+            InlineKeyboardButton("🎟️ Gestión de Cupones", callback_data="admin:coupons:page:1"),
+            InlineKeyboardButton("🎁 Tarjetas de Regalo", callback_data="admin:gifts:page:1")
+        ],
+        [
             InlineKeyboardButton("📣 Enviar Difusión (Broadcast)", callback_data="admin:broadcast"),
             InlineKeyboardButton("💾 Backup BD", callback_data="admin:download_backup")
         ],
         [
-            InlineKeyboardButton("😀 Volver", callback_data="menu_main")
+            InlineKeyboardButton("🔙 Volver", callback_data="menu_main")
         ]
     ])
 
@@ -302,7 +307,7 @@ def register_admin_handlers(app: Client):
             return
         await show_admin_panel(client, user_id, user_id)
 
-    @app.on_callback_query(filters.regex("^admin:menu$"))
+    @app.on_callback_query(filters.regex(r"^(admin:menu|menu_admin)$"))
     async def cb_admin_menu(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
         if not is_admin(user_id):

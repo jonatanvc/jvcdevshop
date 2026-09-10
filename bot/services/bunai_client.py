@@ -2,6 +2,7 @@ import time
 import httpx
 from typing import Dict, Any, List, Optional
 from bot.config import settings
+from bot.utils.formatters import adjust_warranty_in_name
 
 class BunaiAPIClient:
     def __init__(self):
@@ -98,6 +99,13 @@ class BunaiAPIClient:
                     data = res.json()
                 except Exception:
                     data = []
+                if isinstance(data, list):
+                    for item in data:
+                        if isinstance(item, dict):
+                            if "name" in item and item["name"]:
+                                item["name"] = adjust_warranty_in_name(item["name"])
+                            if "display_name" in item and item["display_name"]:
+                                item["display_name"] = adjust_warranty_in_name(item["display_name"])
                 self._set_cache(cache_key, data)
                 return data
             return []
@@ -122,6 +130,17 @@ class BunaiAPIClient:
                     data = res.json()
                 except Exception:
                     data = []
+                if isinstance(data, list):
+                    for group in data:
+                        if isinstance(group, dict):
+                            if "name" in group and group["name"]:
+                                group["name"] = adjust_warranty_in_name(group["name"])
+                            for v in group.get("variants") or []:
+                                if isinstance(v, dict):
+                                    if "name" in v and v["name"]:
+                                        v["name"] = adjust_warranty_in_name(v["name"])
+                                    if "display_name" in v and v["display_name"]:
+                                        v["display_name"] = adjust_warranty_in_name(v["display_name"])
                 self._set_cache(cache_key, data)
                 return data
             return []
@@ -130,27 +149,54 @@ class BunaiAPIClient:
             return []
 
     async def get_product(self, product_id: str) -> Optional[Dict[str, Any]]:
-        """Obtiene el detalle completo de un producto específico"""
+        """Obtiene el detalle completo de un producto específico con resolución inmediata por caché"""
         cache_key = f"product_detail_{product_id}"
         cached = self._get_from_cache(cache_key)
         if cached is not None:
             return cached
 
+        # 1. Buscar en la lista de productos ya en memoria (del catálogo sincronizado)
+        all_products = self._get_from_cache("products_variants_100")
+        if all_products and isinstance(all_products, list):
+            match = next((
+                p for p in all_products
+                if str(p.get("id") or p.get("product_id") or p.get("variant_id")) == str(product_id)
+            ), None)
+            if match:
+                self._set_cache(cache_key, match, ttl=60)
+                return match
+
+        # 2. Si no está en caché en memoria, obtener productos para refrescar el catálogo
+        all_products = await self.get_products()
+        if all_products and isinstance(all_products, list):
+            match = next((
+                p for p in all_products
+                if str(p.get("id") or p.get("product_id") or p.get("variant_id")) == str(product_id)
+            ), None)
+            if match:
+                self._set_cache(cache_key, match, ttl=60)
+                return match
+
+        # 3. Fallback directo al endpoint /products/{product_id} (con timeout corto para no congelar la UI)
         url = f"{self.base_url}/products/{product_id}"
         try:
             client = self._get_client()
-            res = await client.get(url)
+            res = await client.get(url, timeout=5.0)
             if res.status_code == 200:
                 try:
                     data = res.json()
                 except Exception:
                     data = None
-                if data is not None:
-                    self._set_cache(cache_key, data, ttl=20)
-                return data
+                if data is not None and isinstance(data, dict):
+                    if "name" in data and data["name"]:
+                        data["name"] = adjust_warranty_in_name(data["name"])
+                    if "display_name" in data and data["display_name"]:
+                        data["display_name"] = adjust_warranty_in_name(data["display_name"])
+                    self._set_cache(cache_key, data, ttl=60)
+                    return data
             return None
         except Exception as e:
-            print(f"[BunaiAPIClient Error] get_product: {e}")
+            print(f"[BunaiAPIClient Error] get_product fallback: {e}")
             return None
 
     async def create_order(self, product_id: str, qty: int = 1) -> Dict[str, Any]:

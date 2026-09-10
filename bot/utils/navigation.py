@@ -3,7 +3,8 @@ from pyrogram import Client
 from pyrogram.types import InlineKeyboardMarkup, Message, CallbackQuery
 from pyrogram.enums import ParseMode
 from pyrogram.errors import MessageNotModified, BadRequest, MessageIdInvalid
-from bot.utils.emojis import parse_emojis, parse_keyboard, strip_keyboard_icons
+import re
+from bot.utils.emojis import parse_emojis, parse_keyboard, strip_keyboard_icons, strip_custom_emojis
 
 # Diccionario en memoria para rastrear el ID del único mensaje activo por usuario
 USER_LAST_MESSAGES: Dict[int, int] = {}
@@ -45,7 +46,7 @@ async def render_screen(
         return None
 
     if text:
-        text = parse_emojis(text)
+        text = strip_custom_emojis(text)
 
     if reply_markup:
         reply_markup = parse_keyboard(reply_markup)
@@ -97,33 +98,30 @@ async def render_screen(
             return None
         except (BadRequest, MessageIdInvalid) as e:
             USER_LAST_MESSAGES.pop(user_id, None)
-            if reply_markup and ("BUTTON" in str(e).upper() or "CONSTRUCTOR" in str(e).upper()):
-                try:
-                    clean_kb = strip_keyboard_icons(reply_markup)
-                    edited_msg = await client.edit_message_text(
-                        chat_id=user_id,
-                        message_id=msg_to_edit_id,
-                        text=text,
-                        reply_markup=clean_kb,
-                        parse_mode=parse_mode,
-                        disable_web_page_preview=disable_web_page_preview
-                    )
-                    USER_LAST_MESSAGES[user_id] = msg_to_edit_id
-                    if isinstance(target, CallbackQuery):
-                        try:
-                            await target.answer()
-                        except Exception:
-                            pass
-                    return edited_msg
-                except Exception:
-                    pass
+            clean_kb = strip_keyboard_icons(reply_markup) if reply_markup else None
+            clean_text = strip_custom_emojis(text)
+            try:
+                edited_msg = await client.edit_message_text(
+                    chat_id=user_id,
+                    message_id=msg_to_edit_id,
+                    text=clean_text,
+                    reply_markup=clean_kb,
+                    parse_mode=parse_mode,
+                    disable_web_page_preview=disable_web_page_preview
+                )
+                USER_LAST_MESSAGES[user_id] = msg_to_edit_id
+                if isinstance(target, CallbackQuery):
+                    try:
+                        await target.answer()
+                    except Exception:
+                        pass
+                return edited_msg
+            except Exception:
+                pass
         except Exception as e:
-            if isinstance(target, CallbackQuery):
-                print(f"[render_screen edit error on callback]: {e}")
-                return None
             USER_LAST_MESSAGES.pop(user_id, None)
 
-    # 2. Si no se pudo editar o era una foto previa, enviamos el mensaje y guardamos su ID
+    # 2. Si no se pudo editar o era una foto previa, enviamos el mensaje nuevo
     try:
         new_msg = await client.send_message(
             chat_id=user_id,
@@ -145,14 +143,33 @@ async def render_screen(
                 pass
         return new_msg
     except Exception as e:
-        if reply_markup:
+        # Fallback 1: limpiar iconos de botones y sanitizar texto
+        clean_kb = strip_keyboard_icons(reply_markup) if reply_markup else None
+        clean_text = strip_custom_emojis(text)
+        try:
+            new_msg = await client.send_message(
+                chat_id=user_id,
+                text=clean_text,
+                reply_markup=clean_kb,
+                parse_mode=parse_mode,
+                disable_web_page_preview=disable_web_page_preview
+            )
+            USER_LAST_MESSAGES[user_id] = new_msg.id
+            if isinstance(target, CallbackQuery):
+                try:
+                    await target.answer()
+                except Exception:
+                    pass
+            return new_msg
+        except Exception as e2:
+            # Fallback 2: remover absolutamente cualquier etiqueta HTML para entrega garantizada
             try:
-                clean_kb = strip_keyboard_icons(reply_markup)
+                plain_text = re.sub(r'<[^>]+>', '', clean_text)
                 new_msg = await client.send_message(
                     chat_id=user_id,
-                    text=text,
+                    text=plain_text,
                     reply_markup=clean_kb,
-                    parse_mode=parse_mode,
+                    parse_mode=None,
                     disable_web_page_preview=disable_web_page_preview
                 )
                 USER_LAST_MESSAGES[user_id] = new_msg.id
@@ -162,7 +179,7 @@ async def render_screen(
                     except Exception:
                         pass
                 return new_msg
-            except Exception as e2:
-                print(f"[render_screen fallback Error]: {e2}")
+            except Exception as e3:
+                print(f"[render_screen emergency error]: {e3}")
         print(f"[render_screen send Error]: {e}")
         return None

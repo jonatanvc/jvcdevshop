@@ -282,6 +282,7 @@ def register_start_handlers(app: Client):
 
                 keyboard = InlineKeyboardMarkup([
                     [
+                        InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:deposit_menu"),
                         vip_btn
                     ],
                     [

@@ -3,6 +3,7 @@ from pyrogram import Client
 from pyrogram.enums import ParseMode
 from bot.config import settings
 from bot.utils.time_utils import get_now_str
+from bot.utils.formatters import adjust_warranty_in_name, format_delivered_credentials
 from bot.utils.emojis import (
     EMOJI_SHOPPING, EMOJI_USER, EMOJI_BOX, EMOJI_MONEY, EMOJI_CARD,
     EMOJI_KEY, EMOJI_TARGET, EMOJI_HOURGLASS, EMOJI_CLOCK, EMOJI_CROSS,
@@ -54,17 +55,20 @@ class AuditLogger:
         paid_label = f"{EMOJI_MONEY} <b>Costo Pagado:</b> <code>${paid_price:.2f} USD (API BunaiStore)</code>" if is_owner else f"{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${paid_price:.2f} USDT</code>"
         bal_label = f"{EMOJI_BAR_CHART} <b>Saldo Restante API:</b> <code>${remaining_balance:.2f} USD</code>" if is_owner else f"{EMOJI_BAR_CHART} <b>Saldo Restante Usuario:</b> <code>${remaining_balance:.2f} USDT</code>"
 
+        clean_product_name = adjust_warranty_in_name(product_name)
+        clean_delivered_items = format_delivered_credentials(delivered_items)
+
         msg = (
             f"{title}\n\n"
             f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>){' 👑 (Owner)' if is_owner else ''}\n"
             f"{EMOJI_NAME_TAG} <b>Nombre:</b> {first_name}\n"
-            f"{EMOJI_BOX} <b>Producto:</b> <code>{product_name}</code>\n"
+            f"{EMOJI_BOX} <b>Producto:</b> <code>{clean_product_name}</code>\n"
             f"{paid_label}\n"
             f"{bal_label}\n"
             f"🆔 <b>ID Orden Proveedor:</b> <code>{provider_order_id or 'N/A'}</code>\n"
             f"{EMOJI_CLOCK} <b>Fecha:</b> <code>{now}</code>\n\n"
             f"{EMOJI_KEY} <b>DATOS / CUENTAS ENTREGADAS:</b>\n"
-            f"<pre>{delivered_items}</pre>"
+            f"<pre>{clean_delivered_items}</pre>"
         )
         await self._send_log(client, msg)
 
