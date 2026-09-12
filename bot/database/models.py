@@ -81,6 +81,8 @@ class Order(Base):
     provider_order_id = Column(String(128), nullable=True)
     delivered_items = Column(Text, nullable=False)
     warranty_hours = Column(Integer, default=0, nullable=False)
+    rating = Column(Integer, nullable=True)
+    voucher_message_id = Column(BigInteger, nullable=True)
     created_at = Column(DateTime, default=utc_now, nullable=False)
 
     user = relationship("User", back_populates="orders")
@@ -178,6 +180,7 @@ class VirtualNumberOrder(Base):
     sms_full_text = Column(Text, nullable=True)
     status = Column(String(20), default="PENDING", nullable=False, index=True)  # PENDING, RECEIVED, FINISHED, CANCELLED, TIMEOUT
     is_refunded = Column(Boolean, default=False, nullable=False)
+    voucher_message_id = Column(BigInteger, nullable=True)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=utc_now, nullable=False)
 

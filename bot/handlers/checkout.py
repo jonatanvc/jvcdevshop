@@ -17,6 +17,7 @@ from bot.utils.translator import translate_text
 from bot.utils.emojis import EMOJI_STAR, EMOJI_PIN
 from bot.utils.formatters import adjust_warranty_in_name, format_delivered_credentials
 from bot.services.promos import promo_service
+from bot.services.vouchers import voucher_service
 
 _ACTIVE_CHECKOUT_USERS: Set[int] = set()
 
@@ -292,6 +293,27 @@ def register_checkout_handlers(app: Client):
             is_owner=is_owner
         )
 
+        # Publicar comprobante en el canal público de vouchers (si está configurado)
+        voucher_msg_id = await voucher_service.publish_product_voucher(
+            client=client,
+            order_id=internal_order_id,
+            product_name=product_name,
+            qty=qty,
+            total_price=total_price,
+            user_id=user_id,
+            username=callback.from_user.username,
+            first_name=callback.from_user.first_name or "Usuario",
+            stars=5
+        )
+        if voucher_msg_id:
+            async with async_session() as session:
+                await session.execute(
+                    update(Order)
+                    .where(Order.id == internal_order_id)
+                    .values(voucher_message_id=voucher_msg_id, rating=5)
+                )
+                await session.commit()
+
         # Pantalla de entrega traducida
         if warranty_hours <= 0:
             warranty_text = ""
@@ -334,6 +356,15 @@ def register_checkout_handlers(app: Client):
         if is_active_vip or is_owner:
             buttons_success.append([InlineKeyboardButton(t("btn_copy_client", lang), callback_data=f"vip:copy_client:{internal_order_id}")])
 
+        # Fila de calificación por estrellas (1 a 5)
+        buttons_success.append([
+            InlineKeyboardButton("⭐ 1", callback_data=f"rate:order:{internal_order_id}:1"),
+            InlineKeyboardButton("⭐ 2", callback_data=f"rate:order:{internal_order_id}:2"),
+            InlineKeyboardButton("⭐ 3", callback_data=f"rate:order:{internal_order_id}:3"),
+            InlineKeyboardButton("⭐ 4", callback_data=f"rate:order:{internal_order_id}:4"),
+            InlineKeyboardButton("⭐ 5", callback_data=f"rate:order:{internal_order_id}:5"),
+        ])
+
         buttons_success.extend([
             [InlineKeyboardButton(t("btn_view_in_orders", lang), callback_data="orders:page:1:main")],
             [InlineKeyboardButton(t("btn_continue_shopping", lang), callback_data="catalog:disponibles:1")],
@@ -342,6 +373,57 @@ def register_checkout_handlers(app: Client):
 
         success_keyboard = InlineKeyboardMarkup(buttons_success)
         await render_screen(client, callback, success_text, success_keyboard)
+
+    @app.on_callback_query(filters.regex(r"^rate:order:(\d+):([1-5])$"))
+    async def cb_rate_order(client: Client, callback: CallbackQuery):
+        order_id = int(callback.matches[0].group(1))
+        stars = int(callback.matches[0].group(2))
+        user_id = callback.from_user.id
+
+        async with async_session() as session:
+            res = await session.execute(select(Order).where(Order.id == order_id))
+            order = res.scalar_one_or_none()
+            if not order or order.user_id != user_id:
+                await callback.answer("❌ Pedido no encontrado.", show_alert=True)
+                return
+
+            order.rating = stars
+            voucher_msg_id = order.voucher_message_id
+            product_name = order.product_name
+            qty = order.quantity
+            total_price = float(order.total_price)
+            await session.commit()
+
+        if voucher_msg_id:
+            await voucher_service.update_product_voucher_rating(
+                client=client,
+                voucher_msg_id=voucher_msg_id,
+                order_id=order_id,
+                product_name=product_name,
+                qty=qty,
+                total_price=total_price,
+                user_id=user_id,
+                username=callback.from_user.username,
+                first_name=callback.from_user.first_name,
+                stars=stars
+            )
+
+        await callback.answer(f"¡Muchas gracias! Calificación de {stars} ⭐ registrada.", show_alert=False)
+
+        # Actualizar fila de estrellas en el mensaje para feedback visual permanente
+        if callback.message and callback.message.reply_markup:
+            new_kb = []
+            for row in callback.message.reply_markup.inline_keyboard:
+                if any(btn.callback_data and btn.callback_data.startswith("rate:order:") for btn in row):
+                    new_kb.append([
+                        InlineKeyboardButton(f"✅ Calificaste con {'⭐' * stars} ({stars}/5)", callback_data="noop")
+                    ])
+                else:
+                    new_kb.append(row)
+            try:
+                await callback.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(new_kb))
+            except Exception:
+                pass
 
     @app.on_callback_query(filters.regex(r"^pbuy_(?:owner_api|flow):([a-zA-Z0-9_\-]+):([a-z_]+):(\d+):(\d+)$"))
     async def cb_pbuy_alias(client: Client, callback: CallbackQuery):

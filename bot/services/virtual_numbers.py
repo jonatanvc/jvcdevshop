@@ -12,6 +12,7 @@ from bot.database.models import User, VirtualNumberOrder
 from bot.services.fivesim_client import fivesim_api
 from bot.services.pricing import pricing_service
 from bot.services.audit_logger import audit_logger
+from bot.services.vouchers import voucher_service
 from bot.utils.emojis import PLATFORM_EMOJIS, parse_emojis, parse_keyboard, InlineKeyboardButton
 
 # Catálogo oficial de las 13 plataformas más usadas del mundo con nombres formateados
@@ -423,7 +424,12 @@ class VirtualNumbersService:
             except Exception:
                 pass
 
-        return {"success": True, "refunded_amount": float(refund_amt)}
+        return {
+            "success": True,
+            "refunded_amount": float(refund_amt),
+            "service_name": order.service_name,
+            "country": order.country
+        }
 
     async def check_single_order(self, order_id: int) -> Dict[str, Any]:
         """
@@ -443,7 +449,10 @@ class VirtualNumbersService:
                     "status": "RECEIVED",
                     "code": order.sms_code,
                     "text": order.sms_full_text,
-                    "phone": order.phone
+                    "phone": order.phone,
+                    "service_name": order.service_name,
+                    "country": order.country,
+                    "price_usdt": float(order.price_usdt)
                 }
 
             if order.status in ["CANCELLED", "TIMEOUT"]:
@@ -472,7 +481,10 @@ class VirtualNumbersService:
                     "status": "RECEIVED",
                     "code": sms_code,
                     "text": sms_text,
-                    "phone": order.phone
+                    "phone": order.phone,
+                    "service_name": order.service_name,
+                    "country": order.country,
+                    "price_usdt": float(order.price_usdt)
                 }
 
             if status_5sim in ["CANCELED", "TIMEOUT", "BANNED"]:
@@ -524,6 +536,7 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                         f"<i>Tus fondos han sido devueltos automáticamente a tu billetera.</i>"
                     )
                     kb = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⚡ Probar Otro Número (Mismo País)", callback_data=f"vnum:reorder:{order.service_name}:{order.country}")],
                         [InlineKeyboardButton("📱 Probar con Otro País", callback_data=f"vnum:select_service:{order.service_name}:1")],
                         [InlineKeyboardButton("👛 Ver Billetera", callback_data="wallet:deposit_menu")]
                     ])
@@ -537,6 +550,27 @@ async def check_and_notify_pending_virtual_orders(app: Client):
             if check_res.get("status") == "RECEIVED":
                 code = check_res.get("code", "")
                 text_msg = check_res.get("text", "")
+
+                # Publicar comprobante automático en el canal público (sin spam al usuario)
+                if not order.voucher_message_id:
+                    v_msg_id = await voucher_service.publish_virtual_number_voucher(
+                        client=app,
+                        order_id=order.id,
+                        service_name=order.service_name,
+                        country_code=order.country,
+                        phone=order.phone,
+                        price_usdt=float(order.price_usdt),
+                        user_id=order.user_id
+                    )
+                    if v_msg_id:
+                        async with async_session() as s2:
+                            await s2.execute(
+                                update(VirtualNumberOrder)
+                                .where(VirtualNumberOrder.id == order.id)
+                                .values(voucher_message_id=v_msg_id)
+                            )
+                            await s2.commit()
+
                 try:
                     success_text = (
                         f"🎉 <b>¡CÓDIGO DE VERIFICACIÓN RECIBIDO!</b>\n\n"
@@ -549,6 +583,7 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                         f"✅ <i>¡Activación completada con éxito!</i>"
                     )
                     kb = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⚡ Pedir Otro Número (Mismo País)", callback_data=f"vnum:reorder:{order.service_name}:{order.country}")],
                         [InlineKeyboardButton("📱 Comprar Otro Número", callback_data="vnum:catalog")],
                         [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]
                     ])

@@ -1,4 +1,5 @@
 import asyncio
+from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Dict, Any, Optional
 from pyrogram import Client, filters
@@ -7,7 +8,7 @@ from bot.utils.emojis import InlineKeyboardButton
 from sqlalchemy import select, func
 from bot.config import settings
 from bot.database.session import async_session
-from bot.database.models import User, Order, Deposit, DepositStatus, Setting
+from bot.database.models import User, Order, VirtualNumberOrder, Deposit, DepositStatus, Setting
 from bot.services.bunai_client import bunai_api
 from bot.services.pricing import pricing_service
 from bot.services.backup_service import backup_service
@@ -119,6 +120,41 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
     ])
 
     await render_screen(client, target, text, keyboard)
+
+BROADCAST_SEGMENTS = {
+    "all": {
+        "title": "📢 Todos los Usuarios",
+        "desc": "Transmisión masiva a todos los usuarios registrados en el bot."
+    },
+    "balance": {
+        "title": "💰 Con Saldo (> 0 USDT)",
+        "desc": "Usuarios con saldo disponible para compras inmediatas."
+    },
+    "inactive": {
+        "title": "💤 Inactivos (+7 días sin compras)",
+        "desc": "Usuarios sin compras en la última semana para reenganche u ofertas."
+    },
+    "vip": {
+        "title": "👑 Socios VIP Activos",
+        "desc": "Usuarios con membresía VIP activa."
+    }
+}
+
+def get_segment_query(seg_key: str):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    if seg_key == "balance":
+        return select(User.telegram_id).where(User.balance > 0)
+    elif seg_key == "vip":
+        return select(User.telegram_id).where(User.is_vip == True, User.vip_expires_at > now)
+    elif seg_key == "inactive":
+        cutoff = now - timedelta(days=7)
+        recent_orders = select(Order.user_id).where(Order.created_at >= cutoff)
+        recent_vnums = select(VirtualNumberOrder.user_id).where(VirtualNumberOrder.created_at >= cutoff)
+        return select(User.telegram_id).where(
+            ~User.telegram_id.in_(recent_orders),
+            ~User.telegram_id.in_(recent_vnums)
+        )
+    return select(User.telegram_id)
 
 def register_admin_handlers(app: Client):
 
@@ -379,14 +415,56 @@ def register_admin_handlers(app: Client):
         if not is_admin(user_id):
             return
 
-        ADMIN_STATES[user_id] = {"action": "waiting_broadcast"}
         text = (
-            f"{EMOJI_BROADCAST} <b>DIFUSIÓN MASIVA (BROADCAST)</b>\n\n"
-            "Envía a continuación el mensaje que deseas transmitir a <b>todos los usuarios registrados</b> en el bot.\n\n"
-            "<i>Soporta todos los formatos de Telegram (negritas, cursivas, spoilers, citas, enlaces), emojis premium y multimedia (fotos, videos, documentos) con subtítulos.</i>"
+            f"{EMOJI_BROADCAST} <b>DIFUSIÓN INTELIGENTE (BROADCAST)</b>\n\n"
+            "Selecciona el segmento de audiencia al que deseas transmitir:\n\n"
+            "• <b>Todos los Usuarios:</b> Toda la base de datos de usuarios.\n"
+            "• <b>Con Saldo (> 0 USDT):</b> Usuarios con fondos listos para comprar.\n"
+            "• <b>Inactivos (+7 días):</b> Usuarios sin pedidos recientes para reenganche.\n"
+            "• <b>Socios VIP Activos:</b> Miembros con suscripción VIP vigente."
         )
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("😀 Volver", callback_data="admin:menu")]
+            [InlineKeyboardButton("📢 Todos los Usuarios", callback_data="admin:broadcast:seg:all")],
+            [InlineKeyboardButton("💰 Con Saldo (> 0 USDT)", callback_data="admin:broadcast:seg:balance")],
+            [InlineKeyboardButton("💤 Inactivos (+7 días)", callback_data="admin:broadcast:seg:inactive")],
+            [InlineKeyboardButton("👑 Socios VIP Activos", callback_data="admin:broadcast:seg:vip")],
+            [InlineKeyboardButton("😀 Volver al Panel", callback_data="admin:menu")]
+        ])
+        await render_screen(client, callback, text, keyboard)
+
+    @app.on_callback_query(filters.regex(r"^admin:broadcast:seg:([a-z_]+)$"))
+    async def cb_broadcast_segment_selected(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            return
+
+        seg_key = callback.matches[0].group(1)
+        seg_info = BROADCAST_SEGMENTS.get(seg_key, BROADCAST_SEGMENTS["all"])
+
+        await callback.answer("⏳ Calculando audiencia...")
+
+        async with async_session() as session:
+            stmt = get_segment_query(seg_key)
+            res = await session.execute(stmt)
+            target_ids = res.scalars().all()
+            target_count = len(target_ids)
+
+        ADMIN_STATES[user_id] = {
+            "action": "waiting_broadcast",
+            "segment": seg_key,
+            "target_count": target_count
+        }
+
+        text = (
+            f"{EMOJI_BROADCAST} <b>DIFUSIÓN: {seg_info['title']}</b>\n\n"
+            f"🎯 <b>Audiencia objetivo:</b> <code>{target_count} usuarios</code>\n\n"
+            f"<i>{seg_info['desc']}</i>\n\n"
+            "Envía a continuación el mensaje que deseas transmitir a este segmento.\n\n"
+            "<i>Soporta textos formateados (negritas, cursivas, spoilers, enlaces), emojis premium y multimedia (fotos, videos, documentos) con subtítulos.</i>"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 Cambiar Audiencia", callback_data="admin:broadcast")],
+            [InlineKeyboardButton("😀 Cancelar y Volver", callback_data="admin:menu")]
         ])
         await render_screen(client, callback, text, keyboard)
 
@@ -405,6 +483,8 @@ def register_admin_handlers(app: Client):
         action = state.get("action")
 
         if action == "waiting_broadcast":
+            seg_key = state.get("segment", "all")
+            seg_info = BROADCAST_SEGMENTS.get(seg_key, BROADCAST_SEGMENTS["all"])
             ADMIN_STATES.pop(user_id, None)
 
             is_media = bool(message.media)
@@ -416,10 +496,11 @@ def register_admin_handlers(app: Client):
             elif is_media and message.caption:
                 formatted_caption = parse_emojis(message.caption.html)
 
-            await render_screen(client, user_id, f"{EMOJI_HOURGLASS} <b>Iniciando difusión masiva...</b>", None)
+            await render_screen(client, user_id, f"{EMOJI_HOURGLASS} <b>Iniciando difusión a {seg_info['title']}...</b>", None)
 
             async with async_session() as session:
-                users_res = await session.execute(select(User.telegram_id))
+                stmt = get_segment_query(seg_key)
+                users_res = await session.execute(stmt)
                 user_ids = users_res.scalars().all()
 
             sent_count = 0
@@ -453,6 +534,8 @@ def register_admin_handlers(app: Client):
 
             result_text = (
                 f"{EMOJI_CHECK} <b>DIFUSIÓN COMPLETADA</b>\n\n"
+                f"• <b>Audiencia:</b> {seg_info['title']}\n"
+                f"• <b>Total Objetivo:</b> {len(user_ids)}\n"
                 f"• <b>Entregados:</b> {sent_count}\n"
                 f"• <b>Fallidos/Bloqueados:</b> {fail_count}"
             )

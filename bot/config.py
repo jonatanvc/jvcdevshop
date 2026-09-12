@@ -7,9 +7,10 @@ class Settings(BaseSettings):
     API_HASH: str = "your_api_hash"
     BOT_TOKEN: str = "your_bot_token"
     
-    # Administradores y Grupo de Auditoría
+    # Administradores y Grupo de Auditoría / Canal de Vouchers
     ADMIN_IDS_RAW: str = "8670239783"
     LOG_GROUP_ID: int = 0
+    VOUCHERS_CHANNEL_ID: int = 0
     
     # BunaiStore API
     BUNAI_API_KEY: str = "Shop::_3a2klpvDK9_SH2FY46suaM5pb8"

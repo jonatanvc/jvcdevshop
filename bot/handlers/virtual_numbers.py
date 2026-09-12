@@ -13,6 +13,7 @@ from bot.services.pricing import pricing_service
 from bot.services.virtual_numbers import (
     virtual_numbers_service, CURATED_SERVICES, get_country_display
 )
+from bot.services.vouchers import voucher_service
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
@@ -511,7 +512,26 @@ def register_virtual_numbers_handlers(app: Client):
         check_res = await virtual_numbers_service.check_single_order(order_id)
 
         if check_res.get("status") == "RECEIVED":
-            # Código recibido con éxito
+            # Código recibido con éxito - Publicar comprobante en canal público si no se ha publicado
+            async with async_session() as session:
+                res_o = await session.execute(select(VirtualNumberOrder).where(VirtualNumberOrder.id == order_id))
+                v_ord = res_o.scalar_one_or_none()
+                if v_ord and not v_ord.voucher_message_id:
+                    v_id = await voucher_service.publish_virtual_number_voucher(
+                        client=client,
+                        order_id=v_ord.id,
+                        service_name=v_ord.service_name,
+                        country_code=v_ord.country,
+                        phone=v_ord.phone,
+                        price_usdt=float(v_ord.price_usdt),
+                        user_id=v_ord.user_id,
+                        username=callback.from_user.username,
+                        first_name=callback.from_user.first_name
+                    )
+                    if v_id:
+                        v_ord.voucher_message_id = v_id
+                        await session.commit()
+
             await show_success_screen(client, callback, check_res, order_id)
             return
 
@@ -549,6 +569,8 @@ def register_virtual_numbers_handlers(app: Client):
             return
 
         refunded = res.get("refunded_amount", 0.0)
+        c_service = res.get("service_name", "")
+        c_country = res.get("country", "")
 
         text = (
             f"✅ <b>NÚMERO CANCELADO EXITOSAMENTE</b>\n\n"
@@ -556,13 +578,102 @@ def register_virtual_numbers_handlers(app: Client):
             f"💰 <b>Saldo Reembolsado:</b> <code>+${refunded:.2f} USDT</code>\n"
             f"<i>Los fondos ya se encuentran disponibles en tu billetera.</i>"
         )
-        keyboard = InlineKeyboardMarkup([
+        buttons_cancel = []
+        if c_service and c_country:
+            buttons_cancel.append([InlineKeyboardButton("⚡ Probar Otro Número (Mismo País)", callback_data=f"vnum:reorder:{c_service}:{c_country}")])
+        buttons_cancel.extend([
             [InlineKeyboardButton("📱 Probar con Otro Número", callback_data="vnum:catalog")],
             [InlineKeyboardButton("👛 Ver Mi Billetera", callback_data="wallet:deposit_menu")],
             [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]
         ])
+        keyboard = InlineKeyboardMarkup(buttons_cancel)
 
         await render_screen(client, callback, text, keyboard)
+
+    # ==========================================
+    # ⚡ 8. REORDENAR INMEDIATO (1 SOLO CLIC)
+    # ==========================================
+
+    @app.on_callback_query(filters.regex(r"^vnum:reorder:([a-z0-9_]+):([a-z0-9_]+)$"))
+    async def cb_vnum_reorder(client: Client, callback: CallbackQuery):
+        service_name = callback.matches[0].group(1)
+        country = callback.matches[0].group(2)
+        user_id = callback.from_user.id
+
+        if rate_limiter.is_rate_limited(user_id):
+            await callback.answer("⏳ Por favor espera un momento...", show_alert=False)
+            return
+
+        is_owner = settings.is_owner(user_id)
+        await callback.answer("⚡ Solicitando nuevo número...", show_alert=False)
+
+        # 1. Comprobar disponibilidad y precio actual
+        price_info = await pricing_service.get_virtual_number_pricing(country, service_name)
+        if not price_info:
+            await callback.answer("❌ El servicio no está disponible actualmente para este país.", show_alert=True)
+            return
+
+        req_price = price_info.get("fivesim_cost_usd", 0.0) if is_owner else price_info.get("retail_price_usdt", 0.0)
+
+        # 2. Comprobar saldo de billetera
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            current_bal = float(user.balance) if user else 0.0
+
+        if current_bal < req_price:
+            diff = req_price - current_bal
+            await callback.answer(f"❌ Saldo insuficiente (${current_bal:.2f} < ${req_price:.2f} USDT)", show_alert=True)
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("💳 Recargar Saldo", callback_data="wallet:deposit_menu")],
+                [InlineKeyboardButton("📱 Volver al Catálogo", callback_data="vnum:catalog")]
+            ])
+            await render_screen(
+                client,
+                callback,
+                f"❌ <b>SALDO INSUFICIENTE</b>\n\n"
+                f"• <b>Saldo actual:</b> <code>${current_bal:.2f} USDT</code>\n"
+                f"• <b>Precio del número:</b> <code>${req_price:.2f} USDT</code>\n"
+                f"• <b>Faltante:</b> <code>${diff:.2f} USDT</code>\n\n"
+                f"<i>Recarga tu billetera para adquirir este número al instante.</i>",
+                keyboard
+            )
+            return
+
+        # 3. Pantalla de carga inmediata
+        await render_screen(
+            client,
+            callback,
+            "⚡ <b>Asignando nuevo número virtual en 5SIM...</b>\n<i>Por favor espera unos segundos.</i>",
+            None
+        )
+
+        # 4. Ejecutar compra directa en 5SIM
+        purchase_res = await virtual_numbers_service.purchase_number(
+            user_id=user_id,
+            service_name=service_name,
+            country=country,
+            operator="any",
+            is_owner=is_owner
+        )
+
+        if "error" in purchase_res:
+            err = purchase_res["error"]
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Reintentar", callback_data=f"vnum:reorder:{service_name}:{country}")],
+                [InlineKeyboardButton("📱 Ver Otros Países", callback_data=f"vnum:select_service:{service_name}:1")],
+                [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]
+            ])
+            await render_screen(
+                client,
+                callback,
+                f"❌ <b>NO SE PUDO ASIGNAR EL NÚMERO</b>\n\n<code>{err}</code>\n\n<i>No se ha descontado saldo de tu billetera.</i>",
+                keyboard
+            )
+            return
+
+        new_order_id = purchase_res["order_id"]
+        await show_live_order_screen(client, callback, new_order_id, user_id)
 
 async def show_live_order_screen(client: Client, target: Any, order_id: int, user_id: int):
     """Renderiza la pantalla de espera en vivo con temporizador y número copiable"""
@@ -630,6 +741,16 @@ async def show_success_screen(client: Client, target: Any, check_res: Dict[str, 
     code = check_res.get("code", "")
     full_text = check_res.get("text", "")
     phone = check_res.get("phone", "")
+    service = check_res.get("service_name", "")
+    country = check_res.get("country", "")
+
+    if not service or not country:
+        async with async_session() as session:
+            r = await session.execute(select(VirtualNumberOrder).where(VirtualNumberOrder.id == order_id))
+            o = r.scalar_one_or_none()
+            if o:
+                service = o.service_name
+                country = o.country
 
     text = (
         f"🎉 <b>¡CÓDIGO DE VERIFICACIÓN RECIBIDO!</b>\n\n"
@@ -641,9 +762,14 @@ async def show_success_screen(client: Client, target: Any, check_res: Dict[str, 
         f"✅ <i>¡Activación completada con éxito!</i>"
     )
 
-    keyboard = InlineKeyboardMarkup([
+    buttons = []
+    if service and country:
+        buttons.append([InlineKeyboardButton("⚡ Pedir Otro Número (Mismo País)", callback_data=f"vnum:reorder:{service}:{country}")])
+
+    buttons.extend([
         [InlineKeyboardButton("📱 Comprar Otro Número", callback_data="vnum:catalog")],
         [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]
     ])
 
+    keyboard = InlineKeyboardMarkup(buttons)
     await render_screen(client, target, text, keyboard)
