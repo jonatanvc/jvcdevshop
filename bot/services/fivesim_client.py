@@ -1,6 +1,6 @@
 import time
 import asyncio
-from typing import Dict, Any, Optional, List
+from typing import Dict, Any, Optional, List, Tuple
 import httpx
 from bot.config import settings
 
