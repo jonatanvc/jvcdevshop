@@ -125,7 +125,7 @@ class AuditLogger:
                 await client.edit_message_text(
                     chat_id=self.log_group_id,
                     message_id=log_message_id,
-                    text=msg,
+                    text=parse_emojis(msg),
                     parse_mode=ParseMode.HTML,
                     disable_web_page_preview=True
                 )
@@ -171,7 +171,7 @@ class AuditLogger:
                 await client.edit_message_text(
                     chat_id=self.log_group_id,
                     message_id=log_message_id,
-                    text=msg,
+                    text=parse_emojis(msg),
                     parse_mode=ParseMode.HTML,
                     disable_web_page_preview=True
                 )
@@ -225,6 +225,51 @@ class AuditLogger:
         msg = (
             f"{EMOJI_WARN} <b>ALERTA DEL SISTEMA: {title}</b>\n\n"
             f"{details}\n\n"
+            f"{EMOJI_CLOCK} <b>Fecha:</b> <code>{now}</code>"
+        )
+        await self._send_log(client, msg)
+
+    async def log_virtual_number_activation(
+        self,
+        client: Client,
+        user_id: int,
+        username: Optional[str],
+        first_name: str,
+        order_id: int,
+        service_name: str,
+        country_code: str,
+        phone: str,
+        code: str,
+        price_usdt: float,
+        fivesim_order_id: Optional[int] = None,
+        is_owner: bool = False
+    ):
+        """Registra la activación exitosa de un número virtual (SMS OTP) en el canal de auditoría con hora local exacta y emojis premium"""
+        from bot.services.virtual_numbers import CURATED_SERVICES, get_country_display
+        from bot.utils.emojis import PLATFORM_EMOJIS
+
+        user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
+        now = get_now_str("%Y-%m-%d %H:%M:%S")
+        flag, country_name = get_country_display(country_code)
+        service_info = CURATED_SERVICES.get(service_name.lower(), {})
+        service_display = service_info.get("name", service_name.upper())
+        icon_id = PLATFORM_EMOJIS.get(service_name.lower())
+        plat_prefix = f"<emoji id={icon_id}>📲</emoji> " if icon_id else "🌐 "
+
+        title = f"👑 <b>ACTIVACIÓN NÚMERO VIRTUAL OWNER #VNUM_{order_id}</b>" if is_owner else f"📲 <b>NUEVA ACTIVACIÓN NÚMERO VIRTUAL #VNUM_{order_id}</b>"
+        paid_label = f"{EMOJI_MONEY} <b>Costo Pagado:</b> <code>${price_usdt:.2f} USD (API 5SIM)</code>" if is_owner else f"{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${price_usdt:.2f} USDT</code>"
+
+        msg = (
+            f"{title}\n\n"
+            f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>){' 👑 (Owner)' if is_owner else ''}\n"
+            f"{EMOJI_NAME_TAG} <b>Nombre:</b> {first_name}\n"
+            f"{plat_prefix}<b>Plataforma:</b> <b>{service_display}</b>\n"
+            f"📍 <b>País:</b> {flag} {country_name}\n"
+            f"📞 <b>Número:</b> <code>{phone}</code>\n"
+            f"🔑 <b>Código OTP Recibido:</b> <code>{code}</code>\n"
+            f"{paid_label}\n"
+            f"🆔 <b>ID Orden 5SIM:</b> <code>{fivesim_order_id or 'N/A'}</code>\n"
+            f"{EMOJI_CHECK} <b>Estado:</b> <code>Activación Completada Exitosamente</code>\n"
             f"{EMOJI_CLOCK} <b>Fecha:</b> <code>{now}</code>"
         )
         await self._send_log(client, msg)

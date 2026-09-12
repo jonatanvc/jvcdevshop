@@ -90,18 +90,59 @@ class FiveSimClient:
     async def get_service_offers(self, product: str) -> List[Dict[str, Any]]:
         """
         Obtiene las mejores ofertas disponibles por país para un servicio específico (ej: whatsapp).
-        Calcula el costo más bajo y el stock disponible para cada país.
-        Retorna lista ordenada por disponibilidad y precio.
+        Selecciona el operador con mejor tasa de recepción (calidad) y calcula el stock total.
+        Retorna la lista estrictamente ordenada por Popularidad, Calidad de entrega y Disponibilidad.
         """
+        # Prioridad de Popularidad (Nivel 1: Top demandados, Nivel 2: Regiones clave, Nivel 3: Resto)
+        popular_ranking: Dict[str, int] = {
+            # Tier 1: Máxima popularidad y demanda masiva
+            "colombia": 1,
+            "usa": 2,
+            "mexico": 3,
+            "argentina": 4,
+            "spain": 5,
+            "brazil": 6,
+            "peru": 7,
+            "england": 8,
+            "ecuador": 9,
+            "dominicana": 10,
+            "canada": 11,
+            "france": 12,
+            "germany": 13,
+            "italy": 14,
+            "chile": 15,
+            "venezuela": 16,
+
+            # Tier 2: Alta demanda regional e internacional
+            "costarica": 20,
+            "panama": 21,
+            "uruguay": 22,
+            "paraguay": 23,
+            "bolivia": 24,
+            "guatemala": 25,
+            "salvador": 26,
+            "honduras": 27,
+            "nicaragua": 28,
+            "portugal": 29,
+            "netherlands": 30,
+            "poland": 31,
+            "switzerland": 32,
+            "sweden": 33,
+            "australia": 34,
+            "turkey": 35,
+            "india": 36,
+            "indonesia": 37,
+            "philippines": 38,
+            "japan": 39,
+            "southkorea": 40,
+        }
+
         prices_data = await self.get_raw_prices(product=product)
         offers = []
 
         if not isinstance(prices_data, dict):
             return offers
 
-        # 5SIM puede devolver {"whatsapp": {"country": {"operator": {...}}}}
-        # o {"country": {"whatsapp": {"operator": {...}}}}
-        # o {"country": {"operator": {...}}}
         countries_dict = prices_data.get(product, prices_data)
         if not isinstance(countries_dict, dict):
             countries_dict = prices_data
@@ -117,7 +158,8 @@ class FiveSimClient:
                 ops_dict = country_data
 
             best_operator = "any"
-            min_cost = float("inf")
+            best_cost = float("inf")
+            best_rate = -1.0
             total_stock = 0
 
             for op_name, op_info in ops_dict.items():
@@ -125,23 +167,49 @@ class FiveSimClient:
                     continue
                 count = int(op_info.get("count", 0))
                 cost = float(op_info.get("cost", 0.0))
+                rate = float(op_info.get("rate") or op_info.get("rate24") or 0.0)
                 total_stock += count
 
-                if count > 0 and cost < min_cost:
-                    min_cost = cost
-                    best_operator = op_name
+                if count > 0:
+                    # Seleccionar el operador con mejor tasa de éxito (calidad).
+                    # Si no hay datos de tasa, priorizar menor costo.
+                    if best_operator == "any":
+                        best_operator = op_name
+                        best_cost = cost
+                        best_rate = rate
+                    elif rate > 0 and rate > best_rate:
+                        best_operator = op_name
+                        best_cost = cost
+                        best_rate = rate
+                    elif (rate == best_rate or (rate <= 0 and best_rate <= 0)) and cost < best_cost:
+                        best_operator = op_name
+                        best_cost = cost
+                        best_rate = rate
 
-            if total_stock > 0 and min_cost < float("inf"):
+            if total_stock > 0 and best_cost < float("inf"):
                 offers.append({
                     "country": country_key,
                     "operator": best_operator,
                     "product": product,
-                    "cost_usd": min_cost,
-                    "stock": total_stock
+                    "cost_usd": best_cost,
+                    "stock": total_stock,
+                    "rate": max(0.0, best_rate)
                 })
 
-        # Ordenar: primero países con menor precio y más stock
-        offers.sort(key=lambda x: (x["cost_usd"], -x["stock"]))
+        # Ordenar por:
+        # 1. Popularidad del país (Tier 1 -> Tier 2 -> Resto del mundo)
+        # 2. Calidad de recepción del SMS (mayor tasa de éxito primero: -rate)
+        # 3. Stock disponible (mayor disponibilidad primero: -stock)
+        # 4. Precio de costo (menor costo primero)
+        def _sort_offers(offer: Dict[str, Any]) -> Tuple[int, float, int, float]:
+            c_code = offer["country"].lower().strip()
+            rank = popular_ranking.get(c_code, 100)
+            rate = float(offer.get("rate", 0.0))
+            stock = int(offer.get("stock", 0))
+            cost = float(offer.get("cost_usd", 999.0))
+            return (rank, -rate, -stock, cost)
+
+        offers.sort(key=_sort_offers)
         return offers
 
     async def buy_activation(self, country: str, operator: str, product: str) -> Dict[str, Any]:

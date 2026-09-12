@@ -14,6 +14,7 @@ from bot.services.virtual_numbers import (
     virtual_numbers_service, CURATED_SERVICES, get_country_display
 )
 from bot.services.vouchers import voucher_service
+from bot.services.audit_logger import audit_logger
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
@@ -579,6 +580,24 @@ def register_virtual_numbers_handlers(app: Client):
                         v_ord.voucher_message_id = v_id
                         v_ord.rating = 5
                         await session.commit()
+
+                    try:
+                        await audit_logger.log_virtual_number_activation(
+                            client=client,
+                            user_id=v_ord.user_id,
+                            username=callback.from_user.username,
+                            first_name=callback.from_user.first_name or "Usuario",
+                            order_id=v_ord.id,
+                            service_name=v_ord.service_name,
+                            country_code=v_ord.country,
+                            phone=v_ord.phone,
+                            code=check_res.get("code", ""),
+                            price_usdt=float(v_ord.price_usdt),
+                            fivesim_order_id=v_ord.fivesim_order_id,
+                            is_owner=settings.is_owner(v_ord.user_id)
+                        )
+                    except Exception:
+                        pass
 
             await show_success_screen(client, callback, check_res, order_id)
             return

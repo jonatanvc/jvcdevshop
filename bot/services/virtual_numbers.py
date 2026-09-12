@@ -619,7 +619,7 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                 code = check_res.get("code", "")
                 text_msg = check_res.get("text", "")
 
-                # Publicar comprobante automático en el canal público
+                # Publicar comprobante automático en el canal público y en auditoría
                 if not order.voucher_message_id:
                     v_msg_id = await voucher_service.publish_virtual_number_voucher(
                         client=app,
@@ -639,6 +639,34 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                                 .values(voucher_message_id=v_msg_id, rating=5)
                             )
                             await s2.commit()
+
+                    # Registrar activación en el canal de auditoría del Owner
+                    try:
+                        ord_username = None
+                        ord_first_name = "Usuario"
+                        async with async_session() as s_u:
+                            res_u = await s_u.execute(select(User).where(User.telegram_id == order.user_id))
+                            u_obj = res_u.scalar_one_or_none()
+                            if u_obj:
+                                ord_username = u_obj.username
+                                ord_first_name = u_obj.first_name or "Usuario"
+
+                        await audit_logger.log_virtual_number_activation(
+                            client=app,
+                            user_id=order.user_id,
+                            username=ord_username,
+                            first_name=ord_first_name,
+                            order_id=order.id,
+                            service_name=order.service_name,
+                            country_code=order.country,
+                            phone=order.phone,
+                            code=code,
+                            price_usdt=float(order.price_usdt),
+                            fivesim_order_id=order.fivesim_order_id,
+                            is_owner=settings.is_owner(order.user_id)
+                        )
+                    except Exception as e_audit:
+                        logger.warning(f"[VirtualNumberOrder Polling] Error enviando auditoría: {e_audit}")
 
                 try:
                     success_text = (

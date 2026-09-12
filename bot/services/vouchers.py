@@ -184,11 +184,15 @@ class VoucherService:
         now_str: Optional[str] = None
     ) -> str:
         from bot.services.virtual_numbers import CURATED_SERVICES, get_country_display
+        from bot.utils.emojis import PLATFORM_EMOJIS
 
         masked_user = self._mask_user(user_id, username, first_name)
         masked_phone = self._mask_phone(phone)
         flag, country_name = get_country_display(country_code)
-        service_display = CURATED_SERVICES.get(service_name.lower(), {}).get("name", service_name.upper())
+        service_info = CURATED_SERVICES.get(service_name.lower(), {})
+        service_display = service_info.get("name", service_name.upper())
+        icon_id = PLATFORM_EMOJIS.get(service_name.lower())
+        plat_prefix = f"<emoji id={icon_id}>📲</emoji> " if icon_id else "🌐 "
         now = now_str or get_now_str("%Y-%m-%d %H:%M:%S")
         stars_clamped = max(1, min(5, stars))
         stars_bar = "⭐" * stars_clamped
@@ -196,7 +200,7 @@ class VoucherService:
         return (
             f"📲 <b>ACTIVACIÓN DE NÚMERO VIRTUAL</b>\n\n"
             f"👤 <b>Cliente:</b> {masked_user}\n"
-            f"🌐 <b>Plataforma:</b> <b>{service_display}</b>\n"
+            f"{plat_prefix}<b>Plataforma:</b> <b>{service_display}</b>\n"
             f"📍 <b>País:</b> {flag} {country_name}\n"
             f"📞 <b>Número:</b> <code>{masked_phone}</code>\n"
             f"💵 <b>Precio:</b> <code>${price_usdt:.2f} USDT</code>\n"
