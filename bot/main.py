@@ -17,7 +17,7 @@ from bot.services.fivesim_client import fivesim_api
 from bot.utils.emojis import parse_emojis
 
 async def provider_balance_monitor(app: Client):
-    """Monitorea periódicamente el saldo en BunaiStore para alertar al Owner si está bajo"""
+    """Monitorea periódicamente el saldo en BunaiStore para alertar al canal de auditoría si está bajo"""
     while True:
         try:
             await asyncio.sleep(3600)  # Cada 1 hora
@@ -33,21 +33,12 @@ async def provider_balance_monitor(app: Client):
                     title="SALDO BAJO EN BUNAISTORE",
                     details=alert_text
                 )
-                if settings.OWNER_ID:
-                    try:
-                        owner_msg = (
-                            f"⚠️ <b>ALERTA OWNER: SALDO BAJO EN BUNAISTORE</b>\n\n"
-                            f"{alert_text}"
-                        )
-                        await app.send_message(settings.OWNER_ID, parse_emojis(owner_msg))
-                    except Exception:
-                        pass
         except Exception as e:
             print(f"[Monitor Error] {e}")
             await asyncio.sleep(600)
 
 async def fivesim_balance_monitor(app: Client):
-    """Monitorea periódicamente el saldo en 5SIM.net para alertar al Owner si está bajo"""
+    """Monitorea periódicamente el saldo en 5SIM.net para alertar al canal de auditoría si está bajo"""
     while True:
         try:
             await asyncio.sleep(1800)  # Cada 30 minutos
@@ -72,16 +63,6 @@ async def fivesim_balance_monitor(app: Client):
                     title="SALDO BAJO EN 5SIM",
                     details=alert_text
                 )
-                if settings.OWNER_ID:
-                    try:
-                        owner_msg = (
-                            f"⚠️ <b>ALERTA OWNER: SALDO BAJO EN 5SIM.NET</b>\n\n"
-                            f"Tu saldo actual en la API de 5SIM es de <b>${balance:.2f} USD</b>.\n"
-                            f"<i>Te recomendamos recargar para que las compras de números virtuales sigan operando con normalidad.</i>"
-                        )
-                        await app.send_message(settings.OWNER_ID, parse_emojis(owner_msg))
-                    except Exception:
-                        pass
         except Exception as e:
             print(f"[FiveSimBalanceMonitor Error] {e}")
             await asyncio.sleep(600)
