@@ -19,13 +19,15 @@ class FiveSimClient:
 
     def _get_client(self) -> httpx.AsyncClient:
         if self._client is None or self._client.is_closed:
+            headers = {"Accept": "application/json"}
+            if settings.FIVESIM_API_KEY and settings.FIVESIM_API_KEY.strip():
+                headers["Authorization"] = f"Bearer {settings.FIVESIM_API_KEY.strip()}"
+
+            base_url = settings.FIVESIM_BASE_URL.replace("/v1", "").rstrip("/") or "https://5sim.net"
             self._client = httpx.AsyncClient(
-                base_url=settings.FIVESIM_BASE_URL.rstrip("/"),
+                base_url=base_url,
                 timeout=httpx.Timeout(15.0, connect=8.0),
-                headers={
-                    "Authorization": f"Bearer {settings.FIVESIM_API_KEY}",
-                    "Accept": "application/json"
-                }
+                headers=headers
             )
         return self._client
 
@@ -97,19 +99,28 @@ class FiveSimClient:
         if not isinstance(prices_data, dict):
             return offers
 
-        for country_key, country_data in prices_data.items():
+        # 5SIM puede devolver {"whatsapp": {"country": {"operator": {...}}}}
+        # o {"country": {"whatsapp": {"operator": {...}}}}
+        # o {"country": {"operator": {...}}}
+        countries_dict = prices_data.get(product, prices_data)
+        if not isinstance(countries_dict, dict):
+            countries_dict = prices_data
+
+        for country_key, country_data in countries_dict.items():
             if not isinstance(country_data, dict):
                 continue
-            service_data = country_data.get(product)
-            if not isinstance(service_data, dict):
-                continue
 
-            # Buscar el operador con stock disponible y menor costo
+            # Si country_data contiene el producto como subclave
+            if product in country_data and isinstance(country_data[product], dict):
+                ops_dict = country_data[product]
+            else:
+                ops_dict = country_data
+
             best_operator = "any"
             min_cost = float("inf")
             total_stock = 0
 
-            for op_name, op_info in service_data.items():
+            for op_name, op_info in ops_dict.items():
                 if not isinstance(op_info, dict):
                     continue
                 count = int(op_info.get("count", 0))
@@ -129,7 +140,7 @@ class FiveSimClient:
                     "stock": total_stock
                 })
 
-        # Ordenar: primero países con más stock y menor precio
+        # Ordenar: primero países con menor precio y más stock
         offers.sort(key=lambda x: (x["cost_usd"], -x["stock"]))
         return offers
 

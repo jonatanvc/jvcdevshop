@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     
     # 5SIM.net API (Números Virtuales SMS)
     FIVESIM_API_KEY: str = ""
-    FIVESIM_BASE_URL: str = "https://5sim.net/v1"
+    FIVESIM_BASE_URL: str = "https://5sim.net"
     
     # Blockchain BSC / USDT BEP-20
     ADMIN_WALLET_BSC: str = "0x540532E72e08fdaAB525f5D692ea97C40CCE5d24"

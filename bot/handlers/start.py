@@ -36,21 +36,23 @@ async def get_cached_bunai_balance() -> float:
         return _BUNAI_BALANCE_CACHE["balance"]
 
 def get_main_menu_keyboard(user_id: int, lang: str = "es") -> InlineKeyboardMarkup:
-    """Genera la botonera inline del menú principal limpia con acceso a Números Virtuales y Billetera"""
+    """Genera la botonera inline del menú principal exactamente según la distribución solicitada"""
     buttons = [
         [
             InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")
         ],
         [
-            InlineKeyboardButton(t("btn_virtual_numbers", lang), callback_data="vnum:catalog"),
-            InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:deposit_menu")
+            InlineKeyboardButton(t("btn_virtual_numbers", lang), callback_data="vnum:catalog")
         ],
         [
-            InlineKeyboardButton(t("btn_my_orders", lang), callback_data="orders:page:1:main"),
-            InlineKeyboardButton(t("btn_referrals", lang), callback_data="referrals:view")
+            InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:deposit_menu"),
+            InlineKeyboardButton(t("btn_my_orders", lang), callback_data="orders:page:1:main")
         ],
         [
-            InlineKeyboardButton(t("btn_profile", lang), callback_data="account:view"),
+            InlineKeyboardButton(t("btn_referrals", lang), callback_data="referrals:view"),
+            InlineKeyboardButton(t("btn_profile", lang), callback_data="account:view")
+        ],
+        [
             InlineKeyboardButton(t("btn_support", lang), callback_data="support:view")
         ]
     ]
@@ -283,7 +285,6 @@ def register_start_handlers(app: Client):
 
                 keyboard = InlineKeyboardMarkup([
                     [
-                        InlineKeyboardButton(t("btn_deposit", lang), callback_data="wallet:deposit_menu"),
                         vip_btn
                     ],
                     [

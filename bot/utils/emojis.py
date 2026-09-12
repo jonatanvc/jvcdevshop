@@ -582,15 +582,17 @@ EMOJI_MAP = _build_final_emoji_map()
 
 _ESCAPED_KEYS = [re.escape(k) for k in sorted(EMOJI_MAP.keys(), key=lambda x: len(x), reverse=True) if k]
 _EMOJI_REGEX_PATTERN = re.compile("|".join(_ESCAPED_KEYS)) if _ESCAPED_KEYS else None
-_PROTECTED_TAGS_REGEX = re.compile(r'<emoji[^>]*>.*?</emoji>|<tg-emoji[^>]*>.*?</tg-emoji>|<[^>]+>', re.DOTALL)
+_PROTECTED_TAGS_REGEX = re.compile(
+    r'<emoji[^>]*>.*?</emoji>|<tg-emoji[^>]*>.*?</tg-emoji>|<code[^>]*>.*?</code>|<pre[^>]*>.*?</pre>|<a[^>]*>.*?</a>|<[^>]+>',
+    re.DOTALL
+)
 _TG_EMOJI_CONVERTER = re.compile(r'<tg-emoji emoji-id="(\d+)">([^<]+)</tg-emoji>')
 
 def strip_custom_emojis(text: str) -> str:
     """
     Remueve etiquetas de custom emoji (<emoji id=...> y <tg-emoji ...>)
     dejando intacto el emoji unicode visible en su interior.
-    Garantiza compatibilidad total y evita que Telegram rechace el mensaje
-    con [400 ENTITY_TEXT_INVALID].
+    Garantiza compatibilidad total en caso de fallback.
     """
     if not text:
         return ""
@@ -600,13 +602,35 @@ def strip_custom_emojis(text: str) -> str:
 
 def parse_emojis(text: str) -> str:
     """
-    Normaliza y limpia etiquetas de emojis en el texto para máxima compatibilidad con Telegram.
-    Los emojis en el cuerpo de los mensajes se envían como caracteres unicode nativos,
-    mientras que los botones inline mantienen sus iconos animados mediante MTProto RawKeyboardButtonStyle.
+    Convierte dinámicamente emojis unicode a etiquetas <emoji id=...> compatibles
+    nativamente con el parser HTML de Pyrogram (MessageEntityCustomEmoji).
+    Protege bloques <code>, <pre>, enlaces y tags existentes.
     """
     if not text:
         return ""
-    return strip_custom_emojis(text)
+
+    text = str(text)
+
+    # Compatibilidad retroactiva: convertir cualquier <tg-emoji emoji-id="..."> a <emoji id="...">
+    text = _TG_EMOJI_CONVERTER.sub(r'<emoji id=\1>\2</emoji>', text)
+
+    if not _EMOJI_REGEX_PATTERN:
+        return text
+
+    segments = []
+    last_idx = 0
+    for match in _PROTECTED_TAGS_REGEX.finditer(text):
+        start, end = match.span()
+        if start > last_idx:
+            plain_part = text[last_idx:start]
+            segments.append(_EMOJI_REGEX_PATTERN.sub(lambda m: f'<emoji id={EMOJI_MAP[m.group(0)]}>{m.group(0)}</emoji>', plain_part))
+        segments.append(match.group(0))
+        last_idx = end
+
+    if last_idx < len(text):
+        segments.append(_EMOJI_REGEX_PATTERN.sub(lambda m: f'<emoji id={EMOJI_MAP[m.group(0)]}>{m.group(0)}</emoji>', text[last_idx:]))
+
+    return "".join(segments)
 
 p = parse_emojis
 

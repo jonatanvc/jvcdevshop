@@ -46,7 +46,7 @@ async def render_screen(
         return None
 
     if text:
-        text = strip_custom_emojis(text)
+        text = parse_emojis(text)
 
     if reply_markup:
         reply_markup = parse_keyboard(reply_markup)
@@ -98,14 +98,14 @@ async def render_screen(
             return None
         except (BadRequest, MessageIdInvalid) as e:
             USER_LAST_MESSAGES.pop(user_id, None)
-            clean_kb = strip_keyboard_icons(reply_markup) if reply_markup else None
             clean_text = strip_custom_emojis(text)
+            # Primero intentar conservar los iconos animados del teclado
             try:
                 edited_msg = await client.edit_message_text(
                     chat_id=user_id,
                     message_id=msg_to_edit_id,
                     text=clean_text,
-                    reply_markup=clean_kb,
+                    reply_markup=reply_markup,
                     parse_mode=parse_mode,
                     disable_web_page_preview=disable_web_page_preview
                 )
@@ -117,7 +117,25 @@ async def render_screen(
                         pass
                 return edited_msg
             except Exception:
-                pass
+                clean_kb = strip_keyboard_icons(reply_markup) if reply_markup else None
+                try:
+                    edited_msg = await client.edit_message_text(
+                        chat_id=user_id,
+                        message_id=msg_to_edit_id,
+                        text=clean_text,
+                        reply_markup=clean_kb,
+                        parse_mode=parse_mode,
+                        disable_web_page_preview=disable_web_page_preview
+                    )
+                    USER_LAST_MESSAGES[user_id] = msg_to_edit_id
+                    if isinstance(target, CallbackQuery):
+                        try:
+                            await target.answer()
+                        except Exception:
+                            pass
+                    return edited_msg
+                except Exception:
+                    pass
         except Exception as e:
             USER_LAST_MESSAGES.pop(user_id, None)
 
@@ -143,14 +161,13 @@ async def render_screen(
                 pass
         return new_msg
     except Exception as e:
-        # Fallback 1: limpiar iconos de botones y sanitizar texto
-        clean_kb = strip_keyboard_icons(reply_markup) if reply_markup else None
+        # Fallback 1: limpiar custom emojis del texto manteniendo iconos en botones
         clean_text = strip_custom_emojis(text)
         try:
             new_msg = await client.send_message(
                 chat_id=user_id,
                 text=clean_text,
-                reply_markup=clean_kb,
+                reply_markup=reply_markup,
                 parse_mode=parse_mode,
                 disable_web_page_preview=disable_web_page_preview
             )
@@ -162,14 +179,14 @@ async def render_screen(
                     pass
             return new_msg
         except Exception as e2:
-            # Fallback 2: remover absolutamente cualquier etiqueta HTML para entrega garantizada
+            # Fallback 2: limpiar también iconos de botones si fuera el teclado
+            clean_kb = strip_keyboard_icons(reply_markup) if reply_markup else None
             try:
-                plain_text = re.sub(r'<[^>]+>', '', clean_text)
                 new_msg = await client.send_message(
                     chat_id=user_id,
-                    text=plain_text,
+                    text=clean_text,
                     reply_markup=clean_kb,
-                    parse_mode=None,
+                    parse_mode=parse_mode,
                     disable_web_page_preview=disable_web_page_preview
                 )
                 USER_LAST_MESSAGES[user_id] = new_msg.id
@@ -180,6 +197,24 @@ async def render_screen(
                         pass
                 return new_msg
             except Exception as e3:
-                print(f"[render_screen emergency error]: {e3}")
+                # Fallback 3: remover absolutamente cualquier etiqueta HTML para entrega garantizada
+                try:
+                    plain_text = re.sub(r'<[^>]+>', '', clean_text)
+                    new_msg = await client.send_message(
+                        chat_id=user_id,
+                        text=plain_text,
+                        reply_markup=clean_kb,
+                        parse_mode=None,
+                        disable_web_page_preview=disable_web_page_preview
+                    )
+                    USER_LAST_MESSAGES[user_id] = new_msg.id
+                    if isinstance(target, CallbackQuery):
+                        try:
+                            await target.answer()
+                        except Exception:
+                            pass
+                    return new_msg
+                except Exception as e4:
+                    print(f"[render_screen emergency error]: {e4}")
         print(f"[render_screen send Error]: {e}")
         return None
