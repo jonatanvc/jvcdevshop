@@ -420,14 +420,27 @@ def register_virtual_numbers_handlers(app: Client):
         regular_price = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=False)
         final_price = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
 
+        fivesim_bal = 0.0
+        if is_owner:
+            try:
+                prof = await fivesim_api.get_profile()
+                fivesim_bal = float(prof.get("balance", 0.0))
+            except Exception:
+                fivesim_bal = 0.0
+
         if is_owner:
             price_text = f"👑 <b>Tarifa Owner (Precio Costo API):</b> <code>${final_price:.2f} USD</code>\n"
+            balance_section = (
+                f"💳 <b>Tus Saldos Disponibles:</b>\n"
+                f"• 📱 <b>Saldo API 5SIM.net:</b> <code>${fivesim_bal:.2f} USD</code> 👑\n"
+                f"• 👛 <b>Saldo Billetera Bot:</b> <code>${balance_val:.2f} USDT</code>\n\n"
+            )
         elif is_vip:
             price_text = f"👑 <b>Tarifa Revendedor VIP:</b> <s>${regular_price:.2f}</s> <b>${final_price:.2f} USDT</b> (20% OFF)\n"
+            balance_section = f"💳 <b>Tu Saldo Actual:</b> <code>${balance_val:.2f} USDT</code>\n\n"
         else:
             price_text = f"💵 <b>Precio Total:</b> <code>${final_price:.2f} USDT</code>\n"
-
-        has_sufficient = balance_val >= final_price
+            balance_section = f"💳 <b>Tu Saldo Actual:</b> <code>${balance_val:.2f} USDT</code>\n\n"
 
         text = (
             f"📲 <b>CONFIRMAR NÚMERO VIRTUAL</b>\n\n"
@@ -435,24 +448,48 @@ def register_virtual_numbers_handlers(app: Client):
             f"• <b>País:</b> {flag} {country_name}\n"
             f"• <b>Stock Disponible:</b> <code>{stock_available} números</code>\n"
             f"{price_text}"
-            f"💳 <b>Tu Saldo Actual:</b> <code>${balance_val:.2f} USDT</code>\n\n"
+            f"{balance_section}"
             f"🛡️ <b>Garantía Cero Riesgo:</b>\n"
             f"<i>El saldo solo se cobra si el SMS llega con éxito. Si el código no entra o cancelas la solicitud en los próximos 15 minutos, se te reembolsa el 100% automáticamente.</i>"
         )
 
-        currency_btn = "USD" if is_owner else "USDT"
-        if has_sufficient:
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"✅ Confirmar Compra (${final_price:.2f} {currency_btn})", callback_data=f"vnum:execute:{service_code}:{country_code}")],
-                [InlineKeyboardButton("❌ Cancelar", callback_data=f"vnum:select_service:{service_code}:1")]
-            ])
+        if is_owner:
+            buttons = []
+            if fivesim_bal >= final_price:
+                buttons.append([InlineKeyboardButton(
+                    f"👑 Comprar con Saldo API 5SIM (${final_price:.2f} USD)",
+                    callback_data=f"vnum:execute:{service_code}:{country_code}:api"
+                )])
+            if balance_val >= final_price:
+                buttons.append([InlineKeyboardButton(
+                    f"🛍️ Comprar con Saldo Bot (${final_price:.2f} USDT)",
+                    callback_data=f"vnum:execute:{service_code}:{country_code}:bot"
+                )])
+
+            if not buttons:
+                diff_api = final_price - fivesim_bal
+                text += f"\n\n⚠️ <i>Saldo insuficiente en 5SIM (faltan ${diff_api:.2f} USD) y en el bot (faltan ${final_price - balance_val:.2f} USDT).</i>"
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("👛 Recargar Mi Billetera", callback_data="wallet:deposit_menu")],
+                    [InlineKeyboardButton("🔙 Elegir Otro País", callback_data=f"vnum:select_service:{service_code}:1")]
+                ])
+            else:
+                buttons.append([InlineKeyboardButton("❌ Cancelar", callback_data=f"vnum:select_service:{service_code}:1")])
+                keyboard = InlineKeyboardMarkup(buttons)
         else:
-            diff = final_price - balance_val
-            text += f"\n\n⚠️ <i>Te faltan <b>${diff:.2f} {currency_btn}</b> para completar esta compra.</i>"
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("👛 Recargar Mi Billetera", callback_data="wallet:deposit_menu")],
-                [InlineKeyboardButton("🔙 Elegir Otro País", callback_data=f"vnum:select_service:{service_code}:1")]
-            ])
+            has_sufficient = balance_val >= final_price
+            if has_sufficient:
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(f"✅ Confirmar Compra (${final_price:.2f} USDT)", callback_data=f"vnum:execute:{service_code}:{country_code}:bot")],
+                    [InlineKeyboardButton("❌ Cancelar", callback_data=f"vnum:select_service:{service_code}:1")]
+                ])
+            else:
+                diff = final_price - balance_val
+                text += f"\n\n⚠️ <i>Te faltan <b>${diff:.2f} USDT</b> para completar esta compra.</i>"
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("👛 Recargar Mi Billetera", callback_data="wallet:deposit_menu")],
+                    [InlineKeyboardButton("🔙 Elegir Otro País", callback_data=f"vnum:select_service:{service_code}:1")]
+                ])
 
         await render_screen(client, callback, text, keyboard)
 
@@ -460,7 +497,7 @@ def register_virtual_numbers_handlers(app: Client):
     # 🚀 4. EJECUCIÓN DE COMPRA Y ASIGNACIÓN
     # ==========================================
 
-    @app.on_callback_query(filters.regex(r"^vnum:execute:([a-z0-9_]+):([a-z0-9_]+)$"))
+    @app.on_callback_query(filters.regex(r"^vnum:execute:([a-z0-9_]+):([a-z0-9_]+)(?::([a-z]+))?$"))
     async def cb_vnum_execute(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
@@ -468,11 +505,20 @@ def register_virtual_numbers_handlers(app: Client):
 
         service_code = callback.matches[0].group(1)
         country_code = callback.matches[0].group(2)
+        raw_method = callback.matches[0].group(3)
 
         await callback.answer("⏳ Solicitando número en 5SIM...")
 
         is_owner = settings.is_owner(user_id)
-        result = await virtual_numbers_service.purchase_number(user_id, service_code, country_code, is_owner=is_owner)
+        pay_with_api = bool(is_owner and (raw_method == "api" or raw_method is None))
+
+        result = await virtual_numbers_service.purchase_number(
+            user_id=user_id,
+            service_code=service_code,
+            country=country_code,
+            is_owner=is_owner,
+            pay_with_api=pay_with_api
+        )
 
         if "error" in result:
             err_text = result["error"]
@@ -483,8 +529,8 @@ def register_virtual_numbers_handlers(app: Client):
             await render_screen(client, callback, f"❌ <b>No se pudo asignar el número:</b>\n\n{err_text}", keyboard)
             return
 
-        order = result["order"]
-        order_id = order["id"]
+        order = result.get("order") or {}
+        order_id = order.get("id") or result.get("order_id")
 
         # Mostrar pantalla activa de espera
         await show_live_order_screen(client, callback, order_id, user_id)
@@ -573,12 +619,23 @@ def register_virtual_numbers_handlers(app: Client):
         refunded = res.get("refunded_amount", 0.0)
         c_service = res.get("service_name", "")
         c_country = res.get("country", "")
+        is_api_pay = (res.get("payment_method") == "api")
+
+        if is_api_pay:
+            refund_info = (
+                f"💰 <b>Saldo Reembolsado:</b> <code>+${refunded:.2f} USD</code>\n"
+                f"<i>Los fondos fueron devueltos directamente a tu cuenta de 5SIM.net.</i>"
+            )
+        else:
+            refund_info = (
+                f"💰 <b>Saldo Reembolsado:</b> <code>+${refunded:.2f} USDT</code>\n"
+                f"<i>Los fondos ya se encuentran disponibles en tu billetera del bot.</i>"
+            )
 
         text = (
             f"✅ <b>NÚMERO CANCELADO EXITOSAMENTE</b>\n\n"
             f"La orden fue liberada en 5SIM y no se generó ningún cargo.\n\n"
-            f"💰 <b>Saldo Reembolsado:</b> <code>+${refunded:.2f} USDT</code>\n"
-            f"<i>Los fondos ya se encuentran disponibles en tu billetera.</i>"
+            f"{refund_info}"
         )
         buttons_cancel = []
         if c_service and c_country:
@@ -617,30 +674,50 @@ def register_virtual_numbers_handlers(app: Client):
 
         req_price = price_info.get("fivesim_cost_usd", 0.0) if is_owner else price_info.get("retail_price_usdt", 0.0)
 
-        # 2. Comprobar saldo de billetera
-        async with async_session() as session:
-            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
-            user = user_res.scalar_one_or_none()
-            current_bal = float(user.balance) if user else 0.0
+        # 2. Comprobar saldo disponible
+        pay_with_api = False
+        if is_owner:
+            try:
+                prof = await fivesim_api.get_profile()
+                fivesim_bal = float(prof.get("balance", 0.0))
+            except Exception:
+                fivesim_bal = 0.0
 
-        if current_bal < req_price:
-            diff = req_price - current_bal
-            await callback.answer(f"❌ Saldo insuficiente (${current_bal:.2f} < ${req_price:.2f} USDT)", show_alert=True)
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("💳 Recargar Saldo", callback_data="wallet:deposit_menu")],
-                [InlineKeyboardButton("📱 Volver al Catálogo", callback_data="vnum:catalog")]
-            ])
-            await render_screen(
-                client,
-                callback,
-                f"❌ <b>SALDO INSUFICIENTE</b>\n\n"
-                f"• <b>Saldo actual:</b> <code>${current_bal:.2f} USDT</code>\n"
-                f"• <b>Precio del número:</b> <code>${req_price:.2f} USDT</code>\n"
-                f"• <b>Faltante:</b> <code>${diff:.2f} USDT</code>\n\n"
-                f"<i>Recarga tu billetera para adquirir este número al instante.</i>",
-                keyboard
-            )
-            return
+            if fivesim_bal >= req_price:
+                pay_with_api = True
+            else:
+                async with async_session() as session:
+                    user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+                    user = user_res.scalar_one_or_none()
+                    current_bal = float(user.balance) if user else 0.0
+
+                if current_bal < req_price:
+                    await callback.answer(f"❌ Saldo insuficiente en 5SIM (${fivesim_bal:.2f}) y en el bot (${current_bal:.2f})", show_alert=True)
+                    return
+        else:
+            async with async_session() as session:
+                user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+                user = user_res.scalar_one_or_none()
+                current_bal = float(user.balance) if user else 0.0
+
+            if current_bal < req_price:
+                diff = req_price - current_bal
+                await callback.answer(f"❌ Saldo insuficiente (${current_bal:.2f} < ${req_price:.2f} USDT)", show_alert=True)
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton("💳 Recargar Saldo", callback_data="wallet:deposit_menu")],
+                    [InlineKeyboardButton("📱 Volver al Catálogo", callback_data="vnum:catalog")]
+                ])
+                await render_screen(
+                    client,
+                    callback,
+                    f"❌ <b>SALDO INSUFICIENTE</b>\n\n"
+                    f"• <b>Saldo actual:</b> <code>${current_bal:.2f} USDT</code>\n"
+                    f"• <b>Precio del número:</b> <code>${req_price:.2f} USDT</code>\n"
+                    f"• <b>Faltante:</b> <code>${diff:.2f} USDT</code>\n\n"
+                    f"<i>Recarga tu billetera para adquirir este número al instante.</i>",
+                    keyboard
+                )
+                return
 
         # 3. Pantalla de carga inmediata
         await render_screen(
@@ -653,10 +730,11 @@ def register_virtual_numbers_handlers(app: Client):
         # 4. Ejecutar compra directa en 5SIM
         purchase_res = await virtual_numbers_service.purchase_number(
             user_id=user_id,
-            service_name=service_name,
+            service_code=service_name,
             country=country,
             operator="any",
-            is_owner=is_owner
+            is_owner=is_owner,
+            pay_with_api=pay_with_api
         )
 
         if "error" in purchase_res:
@@ -674,7 +752,7 @@ def register_virtual_numbers_handlers(app: Client):
             )
             return
 
-        new_order_id = purchase_res["order_id"]
+        new_order_id = purchase_res.get("order_id") or purchase_res.get("order", {}).get("id")
         await show_live_order_screen(client, callback, new_order_id, user_id)
 
     # ==========================================
@@ -717,20 +795,21 @@ def register_virtual_numbers_handlers(app: Client):
                 stars=stars
             )
 
-        # Respuesta toast instantánea sin enviar nuevos mensajes al chat
         await callback.answer(f"¡Muchas gracias! Calificación de {stars} ⭐ registrada.", show_alert=False)
 
-        # Actualizar fila de estrellas en el MISMO mensaje en vivo sin repetir ni enviar nuevos mensajes
-        if callback.message and callback.message.reply_markup:
-            new_kb = []
-            for row in callback.message.reply_markup.inline_keyboard:
-                if any(btn.callback_data and btn.callback_data.startswith("rate:vnum:") for btn in row):
-                    new_kb.append([
-                        InlineKeyboardButton(f"✅ Calificaste con {'⭐' * stars} ({stars}/5)", callback_data="noop")
-                    ])
-                else:
-                    new_kb.append(row)
+        # Refrescar mensaje eliminando los botones de estrellas y dejando un badge limpio
+        if callback.message:
             try:
+                old_kb = callback.message.reply_markup.inline_keyboard if callback.message.reply_markup else []
+                new_kb = []
+                for row in old_kb:
+                    # Si es la fila con estrellas
+                    if any("rate:vnum:" in (btn.callback_data or "") for btn in row):
+                        new_kb.append([
+                            InlineKeyboardButton(f"✅ Calificaste con {'⭐' * stars} ({stars}/5)", callback_data="noop")
+                        ])
+                    else:
+                        new_kb.append(row)
                 await callback.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(new_kb))
             except Exception:
                 pass
@@ -758,10 +837,14 @@ async def show_live_order_screen(client: Client, target: Any, order_id: int, use
             [InlineKeyboardButton("📱 Nuevo Número", callback_data="vnum:catalog")],
             [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]
         ])
+        if getattr(order, "payment_method", "bot") == "api":
+            exp_text = "⏰ <b>Tiempo agotado sin recibir el código SMS.</b>\n\n<i>La orden fue cancelada y tu saldo fue reintegrado a tu cuenta de la API 5SIM.</i>"
+        else:
+            exp_text = "⏰ <b>Tiempo agotado sin recibir el código SMS.</b>\n\n<i>La orden fue cancelada y tu saldo fue reembolsado al 100% en tu billetera.</i>"
         await render_screen(
             client,
             target,
-            "⏰ <b>Tiempo agotado sin recibir el código SMS.</b>\n\n<i>La orden fue cancelada y tu saldo fue reembolsado al 100% en tu billetera.</i>",
+            exp_text,
             keyboard
         )
         return
@@ -781,13 +864,14 @@ async def show_live_order_screen(client: Client, target: Any, order_id: int, use
         f"⏳ <b>Tiempo Restante:</b> <code>{minutes:02d}:{seconds:02d} min</code>\n"
         f"📡 <b>Estado:</b> <i>Esperando código SMS...</i>\n\n"
         f"<i>Ingresa el número en {service_info['name']} para solicitar el código. En cuanto llegue, la pantalla se actualizará automáticamente o puedes pulsar 'Comprobar SMS'.</i>\n\n"
-        f"🛡️ <i>Si el código no llega o quieres otro número, pulsa 'Cancelar y Reembolsar' para recuperar tus fondos al instante.</i>"
+        f"🛡️ <i>Si el código no llega o quieres otro número, pulsa 'Cancelar' para recuperar tus fondos al instante.</i>"
     )
 
+    cancel_btn_text = "❌ Cancelar Orden" if getattr(order, "payment_method", "bot") == "api" else "❌ Cancelar y Reembolsar"
     keyboard = InlineKeyboardMarkup([
         [
             InlineKeyboardButton("🔄 Comprobar SMS", callback_data=f"vnum:check_sms:{order_id}"),
-            InlineKeyboardButton("❌ Cancelar y Reembolsar", callback_data=f"vnum:cancel:{order_id}")
+            InlineKeyboardButton(cancel_btn_text, callback_data=f"vnum:cancel:{order_id}")
         ],
         [
             InlineKeyboardButton("🏠 Volver al Menú", callback_data="menu_main")

@@ -17,7 +17,7 @@ class Settings(BaseSettings):
     BUNAI_BASE_URL: str = "https://api.bunaistore.shop/v1"
     
     # 5SIM.net API (Números Virtuales SMS)
-    FIVESIM_API_KEY: str = ""
+    FIVESIM_API_KEY: str = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MTY4NDk3NjEsImlhdCI6MTc4NTMxMzc2MSwicmF5IjoiNjllMGI2ZjQ2OGJmMjdhYzIyYTQzYzI4ZmRlYTVjMzgiLCJzdWIiOjM4ODg1Mjl9.gu54FGHVRKWfCXkQc8UWy8raq6w4rR4tsHLnrzOe4kyb4pOX2dxNc5EuCQDy0Xe1Luixgnh_Wl8Fadu-fshwT-GuHxSGqEJWZkbmgJLKPiscrtXW3lbpMUlWjgbomkQVArP2PqP-pXGJ-jvAeeeqKP2r-C6qK8NxrdhGuKo90oDt-1KVXlecabFKXlYT9RwxZCAPyTD63QCO3oVZ_Ae4GKpbxxWxUmwl-WTtf1h23fdQpzIkAgIgMJXd9o0Zf_Nr7Uo3Kk78U-bNXZLqsmY8lxDwRmCG98khxJFkyFUNZrj3mK90nL7WE1MhdIlHx9JarIPQ77olY6yGgS1_I6WIaA"
     FIVESIM_BASE_URL: str = "https://5sim.net"
     
     # Blockchain BSC / USDT BEP-20

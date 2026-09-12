@@ -182,6 +182,7 @@ class VirtualNumberOrder(Base):
     is_refunded = Column(Boolean, default=False, nullable=False)
     voucher_message_id = Column(BigInteger, nullable=True)
     rating = Column(Integer, nullable=True)
+    payment_method = Column(String(16), default="bot", nullable=True)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=utc_now, nullable=False)
 

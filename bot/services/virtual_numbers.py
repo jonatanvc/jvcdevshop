@@ -274,35 +274,65 @@ class VirtualNumbersService:
     async def purchase_number(
         self,
         user_id: int,
-        service_code: str,
-        country: str,
+        service_code: Optional[str] = None,
+        country: Optional[str] = None,
         operator: str = "any",
-        is_owner: bool = False
+        is_owner: bool = False,
+        pay_with_api: bool = False,
+        service_name: Optional[str] = None
     ) -> Dict[str, Any]:
         """
         Adquiere un número temporal en 5SIM, debita el saldo atómicamente en PostgreSQL
         con el margen de Bunai (+20% OFF si VIP, o costo neto 0% si Owner) y crea el registro de orden.
-        Si 5SIM falla, revierte sin cobrar al usuario.
+        Si pay_with_api=True (Owner), no debita el saldo de la billetera del bot y usa directamente
+        el saldo de la API de 5SIM.
         """
         if not fivesim_api.is_configured():
             return {"error": "La API de 5SIM no está configurada por el administrador."}
 
-        # 1. Verificar usuario y saldo en base de datos
+        # Resolver alias de parámetros
+        code = service_code or service_name
+        if not code or not country:
+            return {"error": "Faltan datos de la plataforma o el país seleccionado."}
+
+        # 1. Si es pago directo con la API, verificar que sea owner y consultar saldo 5SIM
+        if pay_with_api:
+            if not is_owner:
+                return {"error": "Solo el administrador/owner puede pagar con saldo directo de la API."}
+            try:
+                prof_5sim = await fivesim_api.get_profile()
+                fivesim_bal = float(prof_5sim.get("balance", 0.0))
+                if fivesim_bal < 0.05:
+                    return {"error": f"Saldo insuficiente en tu cuenta de 5SIM (${fivesim_bal:.2f} USD)."}
+            except Exception as ex:
+                return {"error": f"No se pudo consultar el saldo de la API de 5SIM: {ex}"}
+
+        # 2. Verificar usuario en base de datos (auto-crearlo si no existe para evitar error de clave foránea)
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        is_vip = False
         async with async_session() as session:
             stmt = select(User).where(User.telegram_id == user_id)
             res = await session.execute(stmt)
             user = res.scalar_one_or_none()
 
             if not user:
-                return {"error": "Usuario no registrado en el bot."}
+                user = User(
+                    telegram_id=user_id,
+                    username="",
+                    first_name="Owner" if is_owner else "Usuario",
+                    balance=Decimal("0.0000"),
+                    total_spent=Decimal("0.0000"),
+                    language="es"
+                )
+                session.add(user)
+                await session.commit()
+            else:
+                is_vip = bool(user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
+                if not pay_with_api and float(user.balance) <= 0.0 and not is_owner:
+                    return {"error": "No tienes saldo suficiente en tu cuenta para comprar números virtuales."}
 
-            now = datetime.now(timezone.utc).replace(tzinfo=None)
-            is_vip = bool(user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
-            if float(user.balance) <= 0.0 and not is_owner:
-                return {"error": "No tienes saldo suficiente en tu cuenta para comprar números virtuales."}
-
-        # 2. Llamar a 5SIM para adquirir el número
-        res_5sim = await fivesim_api.buy_activation(country, operator, service_code)
+        # 3. Llamar a 5SIM para adquirir el número
+        res_5sim = await fivesim_api.buy_activation(country, operator, code)
         if "error" in res_5sim or not res_5sim.get("phone"):
             err_msg = res_5sim.get("error", "Error desconocido al comprar número en 5SIM.")
             return {"error": err_msg}
@@ -312,24 +342,42 @@ class VirtualNumbersService:
         cost_usd = float(res_5sim.get("price", 0.0))
         op_used = res_5sim.get("operator", operator)
 
-        # 3. Calcular precio de venta al usuario con margen Bunai y VIP (o precio costo si Owner)
-        price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
+        # 4. Calcular precio de venta al usuario con margen Bunai y VIP (o precio costo si Owner o pago API)
+        if pay_with_api:
+            price_usdt = cost_usd
+        else:
+            price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
 
-        # 4. Transacción atómica: debitar saldo y crear orden en base de datos
+        # 5. Transacción atómica: debitar saldo (si no fue por API) y registrar orden en base de datos
         async with async_session() as session:
             stmt = select(User).where(User.telegram_id == user_id).with_for_update()
             res = await session.execute(stmt)
-            user = res.scalar_one()
+            user = res.scalar_one_or_none()
+            if not user:
+                user = User(
+                    telegram_id=user_id,
+                    username="",
+                    first_name="Owner" if is_owner else "Usuario",
+                    balance=Decimal("0.0000"),
+                    total_spent=Decimal("0.0000"),
+                    language="es"
+                )
+                session.add(user)
+                await session.commit()
+                res = await session.execute(stmt)
+                user = res.scalar_one()
 
-            if float(user.balance) < price_usdt:
-                # Si no tiene saldo suficiente, cancelar de inmediato en 5SIM para no perder dinero
-                asyncio.create_task(fivesim_api.cancel_order(fivesim_id))
-                return {
-                    "error": f"Saldo insuficiente. Este número cuesta <b>${price_usdt:.2f} USDT</b> y tienes <b>${float(user.balance):.2f} USDT</b>."
-                }
+            if not pay_with_api:
+                if float(user.balance) < price_usdt:
+                    # Si no tiene saldo suficiente en el bot, cancelar de inmediato en 5SIM para no perder dinero
+                    asyncio.create_task(fivesim_api.cancel_order(fivesim_id))
+                    return {
+                        "error": f"Saldo insuficiente. Este número cuesta <b>${price_usdt:.2f} USDT</b> y tienes <b>${float(user.balance):.2f} USDT</b>."
+                    }
 
-            # Debitar saldo
-            user.balance -= Decimal(str(price_usdt))
+                # Debitar saldo en bot
+                user.balance -= Decimal(str(price_usdt))
+                user.total_spent += Decimal(str(price_usdt))
 
             # Tiempo de expiración (generalmente 15 minutos en 5sim)
             expires_at = now + timedelta(minutes=15)
@@ -344,11 +392,12 @@ class VirtualNumbersService:
                 user_id=user_id,
                 fivesim_order_id=fivesim_id,
                 phone=phone,
-                service_name=service_code,
+                service_name=code,
                 country=country,
                 operator=op_used,
                 cost_usd=Decimal(str(cost_usd)),
                 price_usdt=Decimal(str(price_usdt)),
+                payment_method="api" if pay_with_api else "bot",
                 status="PENDING",
                 is_refunded=False,
                 expires_at=expires_at,
@@ -362,18 +411,21 @@ class VirtualNumbersService:
                 "id": new_order.id,
                 "fivesim_id": fivesim_id,
                 "phone": phone,
-                "service": service_code,
+                "service": code,
                 "country": country,
                 "price_usdt": price_usdt,
+                "payment_method": "api" if pay_with_api else "bot",
                 "expires_at": expires_at,
                 "status": "PENDING"
             }
 
-        return {"order": order_data}
+        return {"order": order_data, "order_id": new_order.id}
 
     async def cancel_and_refund_order(self, order_id: int, user_id: int, client: Optional[Client] = None) -> Dict[str, Any]:
         """
-        Cancela una orden activa en 5SIM y reembolsa el 100% de los USDT al balance del usuario.
+        Cancela una orden activa en 5SIM y gestiona el reembolso:
+        - Si pagó con bot: reembolsa el 100% de los USDT al balance del usuario en el bot.
+        - Si pagó con API 5SIM: 5SIM devuelve el saldo a la cuenta 5SIM, no toca el balance del bot.
         Garantía Cero Riesgo: Seguro, atómico y libre de pérdidas.
         """
         async with async_session() as session:
@@ -396,13 +448,17 @@ class VirtualNumbersService:
             # 1. Cancelar en la API de 5SIM
             await fivesim_api.cancel_order(order.fivesim_order_id)
 
-            # 2. Reembolsar en el bot
-            u_stmt = select(User).where(User.telegram_id == user_id).with_for_update()
-            u_res = await session.execute(u_stmt)
-            user = u_res.scalar_one()
-
+            # 2. Reembolsar en el bot solo si pagó con saldo del bot
+            is_api_pay = (getattr(order, "payment_method", "bot") == "api")
             refund_amt = order.price_usdt
-            user.balance += refund_amt
+
+            if not is_api_pay:
+                u_stmt = select(User).where(User.telegram_id == user_id).with_for_update()
+                u_res = await session.execute(u_stmt)
+                user = u_res.scalar_one_or_none()
+                if user:
+                    user.balance += refund_amt
+
             order.status = "CANCELLED"
             order.is_refunded = True
 
@@ -411,6 +467,7 @@ class VirtualNumbersService:
         # Log en canal de auditoría si client está disponible
         if client:
             try:
+                pay_desc = f"API 5SIM (${float(order.cost_usd):.2f} USD devueltos a la cuenta)" if is_api_pay else f"+${float(refund_amt):.2f} USDT a Billetera Bot"
                 await audit_logger.log_system_alert(
                     client=client,
                     title="NÚMERO VIRTUAL CANCELADO Y REEMBOLSADO",
@@ -418,7 +475,7 @@ class VirtualNumbersService:
                         f"👤 <b>Usuario:</b> <code>{user_id}</code>\n"
                         f"📱 <b>Teléfono:</b> <code>{order.phone}</code>\n"
                         f"📲 <b>Servicio:</b> {order.service_name.upper()} ({order.country.upper()})\n"
-                        f"💵 <b>Monto Reembolsado:</b> <code>+${float(refund_amt):.2f} USDT</code>\n"
+                        f"💵 <b>Reembolso:</b> <code>{pay_desc}</code>\n"
                         f"🆔 <b>5SIM Order:</b> <code>{order.fivesim_order_id}</code>"
                     )
                 )
@@ -428,6 +485,7 @@ class VirtualNumbersService:
         return {
             "success": True,
             "refunded_amount": float(refund_amt),
+            "payment_method": "api" if is_api_pay else "bot",
             "service_name": order.service_name,
             "country": order.country
         }
@@ -489,12 +547,14 @@ class VirtualNumbersService:
                 }
 
             if status_5sim in ["CANCELED", "TIMEOUT", "BANNED"]:
-                # Si 5sim canceló o expiró, reembolsar
+                # Si 5sim canceló o expiró, reembolsar en el bot solo si pagó con saldo de bot
                 if not order.is_refunded:
-                    u_stmt = select(User).where(User.telegram_id == order.user_id).with_for_update()
-                    u_res = await session.execute(u_stmt)
-                    user = u_res.scalar_one()
-                    user.balance += order.price_usdt
+                    if getattr(order, "payment_method", "bot") != "api":
+                        u_stmt = select(User).where(User.telegram_id == order.user_id).with_for_update()
+                        u_res = await session.execute(u_stmt)
+                        user = u_res.scalar_one_or_none()
+                        if user:
+                            user.balance += order.price_usdt
                     order.is_refunded = True
                 order.status = "TIMEOUT" if status_5sim == "TIMEOUT" else "CANCELLED"
                 await session.commit()
@@ -513,7 +573,7 @@ async def check_and_notify_pending_virtual_orders(app: Client):
     Monitor periódico que revisa las órdenes de números virtuales
     que están en estado PENDING:
     - Si el SMS llegó: guarda el código, finaliza en 5SIM y le envía un DM de felicitación al usuario.
-    - Si expiró (15 min): cancela en 5SIM, reembolsa el saldo en PostgreSQL y le notifica al usuario.
+    - Si expiró (15 min): cancela en 5SIM, reembolsa el saldo correspondiente y le notifica al usuario.
     """
     now = datetime.now(timezone.utc).replace(tzinfo=None)
     async with async_session() as session:
@@ -529,11 +589,19 @@ async def check_and_notify_pending_virtual_orders(app: Client):
             if order.expires_at <= now:
                 await virtual_numbers_service.cancel_and_refund_order(order.id, order.user_id, client=app)
                 try:
+                    if getattr(order, "payment_method", "bot") == "api":
+                        refund_info = (
+                            f"💰 <b>Reembolso:</b> <code>${float(order.cost_usd):.2f} USD</code> devueltos a tu cuenta de la API 5SIM.\n"
+                        )
+                    else:
+                        refund_info = (
+                            f"💰 <b>Reembolso Acreditado:</b> <code>+${float(order.price_usdt):.2f} USDT</code>\n"
+                            f"<i>Tus fondos han sido devueltos automáticamente a tu billetera del bot.</i>\n"
+                        )
                     alert_text = (
                         f"⏰ <b>TIEMPO AGOTADO - NÚMERO VIRTUAL</b>\n\n"
                         f"El tiempo de 15 minutos para el número <code>{order.phone}</code> ({order.service_name.upper()}) expiró sin recibir ningún SMS.\n\n"
-                        f"💰 <b>Reembolso Acreditado:</b> <code>+${float(order.price_usdt):.2f} USDT</code>\n"
-                        f"<i>Tus fondos han sido devueltos automáticamente a tu billetera.</i>"
+                        f"{refund_info}"
                     )
                     kb = InlineKeyboardMarkup([
                         [InlineKeyboardButton("⚡ Probar Otro Número (Mismo País)", callback_data=f"vnum:reorder:{order.service_name}:{order.country}")],
