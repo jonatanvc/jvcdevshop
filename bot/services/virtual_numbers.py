@@ -1,4 +1,5 @@
 import asyncio
+import logging
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Dict, Any, Optional, List, Tuple
@@ -14,6 +15,34 @@ from bot.services.pricing import pricing_service
 from bot.services.audit_logger import audit_logger
 from bot.services.vouchers import voucher_service
 from bot.utils.emojis import PLATFORM_EMOJIS, parse_emojis, parse_keyboard, InlineKeyboardButton
+
+logger = logging.getLogger(__name__)
+
+def parse_5sim_datetime(date_str: Optional[str]) -> Optional[datetime]:
+    """
+    Parsea de forma precisa la fecha ISO devuelta por la API de 5SIM (ej: '2026-09-12T15:10:18.627863Z')
+    convirtiéndola siempre a un datetime UTC naive para sincronización exacta en base de datos.
+    """
+    if not date_str:
+        return None
+    try:
+        clean = str(date_str).strip()
+        if clean.endswith("Z"):
+            clean = clean[:-1] + "+00:00"
+        dt = datetime.fromisoformat(clean)
+        if dt.tzinfo is not None:
+            return dt.astimezone(timezone.utc).replace(tzinfo=None)
+        return dt
+    except Exception:
+        for fmt in ("%Y-%m-%dT%H:%M:%S.%f%z", "%Y-%m-%dT%H:%M:%S%z", "%Y-%m-%d %H:%M:%S"):
+            try:
+                dt = datetime.strptime(str(date_str).strip(), fmt)
+                if dt.tzinfo is not None:
+                    return dt.astimezone(timezone.utc).replace(tzinfo=None)
+                return dt
+            except Exception:
+                continue
+        return None
 
 # Catálogo oficial de las 13 plataformas más usadas del mundo con nombres formateados
 CURATED_SERVICES: Dict[str, Dict[str, Any]] = {
@@ -379,14 +408,9 @@ class VirtualNumbersService:
                 user.balance -= Decimal(str(price_usdt))
                 user.total_spent += Decimal(str(price_usdt))
 
-            # Tiempo de expiración (generalmente 15 minutos en 5sim)
-            expires_at = now + timedelta(minutes=15)
-            if res_5sim.get("expires"):
-                try:
-                    exp_clean = res_5sim["expires"].replace("Z", "+00:00")
-                    expires_at = datetime.fromisoformat(exp_clean).astimezone(timezone.utc).replace(tzinfo=None)
-                except Exception:
-                    expires_at = now + timedelta(minutes=15)
+            # Tiempo exacto de expiración asignado por 5SIM (generalmente 15 a 20 minutos según operador)
+            fivesim_expires = parse_5sim_datetime(res_5sim.get("expires"))
+            expires_at = fivesim_expires or (now + timedelta(minutes=20))
 
             new_order = VirtualNumberOrder(
                 user_id=user_id,
@@ -492,16 +516,20 @@ class VirtualNumbersService:
 
     async def check_single_order(self, order_id: int) -> Dict[str, Any]:
         """
-        Consulta si ya entró el SMS para una orden específica.
-        Si entró el código: lo guarda en la BD, finaliza la orden en 5SIM y retorna el código.
+        Consulta si ya entró el SMS para una orden específica:
+        - Sincroniza el tiempo real de expiración según el reloj oficial de 5SIM.
+        - Si el SMS llegó, marca RECEIVED y retorna el código OTP.
+        - Si 5SIM marca TIMEOUT o CANCELED, procesa el reembolso correspondiente.
+        - Si sigue PENDING en 5SIM, respeta estrictamente su tiempo y NUNCA cancela antes.
         """
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
         async with async_session() as session:
-            stmt = select(VirtualNumberOrder).where(VirtualNumberOrder.id == order_id)
+            stmt = select(VirtualNumberOrder).where(VirtualNumberOrder.id == order_id).with_for_update()
             res = await session.execute(stmt)
             order = res.scalar_one_or_none()
 
             if not order:
-                return {"error": "Orden no encontrada."}
+                return {"status": "NOT_FOUND"}
 
             if order.status == "RECEIVED":
                 return {
@@ -517,17 +545,23 @@ class VirtualNumbersService:
             if order.status in ["CANCELLED", "TIMEOUT"]:
                 return {"status": order.status, "is_refunded": order.is_refunded}
 
-            # Consultar estado en 5SIM
+            # Consultar estado oficial en 5SIM
             res_5sim = await fivesim_api.check_order(order.fivesim_order_id)
             status_5sim = res_5sim.get("status", "").upper()
             sms_list = res_5sim.get("sms", [])
 
+            # Sincronizar expires_at con la fecha oficial del proveedor 5SIM
+            fivesim_expires = parse_5sim_datetime(res_5sim.get("expires"))
+            if fivesim_expires and fivesim_expires != order.expires_at:
+                order.expires_at = fivesim_expires
+                await session.commit()
+
+            # 1. SMS OTP Recibido
             if sms_list and len(sms_list) > 0:
                 first_sms = sms_list[0]
                 sms_code = str(first_sms.get("code") or "").strip()
                 sms_text = str(first_sms.get("text") or "").strip()
 
-                # Guardar en BD
                 order.status = "RECEIVED"
                 order.sms_code = sms_code
                 order.sms_full_text = sms_text
@@ -546,8 +580,8 @@ class VirtualNumbersService:
                     "price_usdt": float(order.price_usdt)
                 }
 
+            # 2. Expiración o cancelación detectada directamente por 5SIM
             if status_5sim in ["CANCELED", "TIMEOUT", "BANNED"]:
-                # Si 5sim canceló o expiró, reembolsar en el bot solo si pagó con saldo de bot
                 if not order.is_refunded:
                     if getattr(order, "payment_method", "bot") != "api":
                         u_stmt = select(User).where(User.telegram_id == order.user_id).with_for_update()
@@ -560,6 +594,23 @@ class VirtualNumbersService:
                 await session.commit()
                 return {"status": order.status, "is_refunded": True}
 
+            # 3. Si 5SIM sigue PENDING: verificar si ya pasó el tiempo total de expiración + ventana de gracia
+            grace_period = timedelta(seconds=60)
+            if now >= (order.expires_at + grace_period):
+                # El tiempo de 5SIM ha concluido por completo y se superó el margen de gracia
+                if not order.is_refunded:
+                    if getattr(order, "payment_method", "bot") != "api":
+                        u_stmt = select(User).where(User.telegram_id == order.user_id).with_for_update()
+                        u_res = await session.execute(u_stmt)
+                        user = u_res.scalar_one_or_none()
+                        if user:
+                            user.balance += order.price_usdt
+                    order.is_refunded = True
+                order.status = "TIMEOUT"
+                await session.commit()
+                asyncio.create_task(fivesim_api.cancel_order(order.fivesim_order_id))
+                return {"status": "TIMEOUT", "is_refunded": True}
+
             return {
                 "status": "PENDING",
                 "phone": order.phone,
@@ -570,12 +621,11 @@ virtual_numbers_service = VirtualNumbersService()
 
 async def check_and_notify_pending_virtual_orders(app: Client):
     """
-    Monitor periódico que revisa las órdenes de números virtuales
-    que están en estado PENDING:
-    - Si el SMS llegó: guarda el código, finaliza en 5SIM y le envía un DM de felicitación al usuario.
-    - Si expiró (15 min): cancela en 5SIM, reembolsa el saldo correspondiente y le notifica al usuario.
+    Monitor periódico que revisa las órdenes de números virtuales pendientes:
+    - Respeta estrictamente el tiempo de expiración asignado por 5SIM (nunca cancela antes de tiempo).
+    - Si el SMS llegó: guarda el código, finaliza en 5SIM y notifica al usuario con su OTP y comprobante.
+    - Si expiró en 5SIM: procesa el reembolso y notifica al usuario que el tiempo concluyó.
     """
-    now = datetime.now(timezone.utc).replace(tzinfo=None)
     async with async_session() as session:
         stmt = select(VirtualNumberOrder).where(
             VirtualNumberOrder.status == "PENDING"
@@ -585,37 +635,12 @@ async def check_and_notify_pending_virtual_orders(app: Client):
 
     for order in pending_orders:
         try:
-            # 1. Comprobar si ya expiró el tiempo sin recibir SMS
-            if order.expires_at <= now:
-                await virtual_numbers_service.cancel_and_refund_order(order.id, order.user_id, client=app)
-                try:
-                    if getattr(order, "payment_method", "bot") == "api":
-                        refund_info = (
-                            f"💰 <b>Reembolso:</b> <code>${float(order.cost_usd):.2f} USD</code> devueltos a tu cuenta de la API 5SIM.\n"
-                        )
-                    else:
-                        refund_info = (
-                            f"💰 <b>Reembolso Acreditado:</b> <code>+${float(order.price_usdt):.2f} USDT</code>\n"
-                            f"<i>Tus fondos han sido devueltos automáticamente a tu billetera del bot.</i>\n"
-                        )
-                    alert_text = (
-                        f"⏰ <b>TIEMPO AGOTADO - NÚMERO VIRTUAL</b>\n\n"
-                        f"El tiempo de 15 minutos para el número <code>{order.phone}</code> ({order.service_name.upper()}) expiró sin recibir ningún SMS.\n\n"
-                        f"{refund_info}"
-                    )
-                    kb = InlineKeyboardMarkup([
-                        [InlineKeyboardButton("⚡ Probar Otro Número (Mismo País)", callback_data=f"vnum:reorder:{order.service_name}:{order.country}")],
-                        [InlineKeyboardButton("📱 Probar con Otro País", callback_data=f"vnum:select_service:{order.service_name}:1")],
-                        [InlineKeyboardButton("👛 Ver Billetera", callback_data="wallet:deposit_menu")]
-                    ])
-                    await app.send_message(order.user_id, parse_emojis(alert_text), parse_mode=ParseMode.HTML, reply_markup=parse_keyboard(kb))
-                except Exception:
-                    pass
-                continue
-
-            # 2. Consultar si entró el SMS en 5SIM
+            # Consultar estado real en 5SIM (sincroniza y respeta la expiración oficial)
             check_res = await virtual_numbers_service.check_single_order(order.id)
-            if check_res.get("status") == "RECEIVED":
+            st = check_res.get("status")
+
+            # 1. Código OTP Recibido
+            if st == "RECEIVED":
                 code = check_res.get("code", "")
                 text_msg = check_res.get("text", "")
 
@@ -694,7 +719,39 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                     await app.send_message(order.user_id, parse_emojis(success_text), parse_mode=ParseMode.HTML, reply_markup=parse_keyboard(kb))
                 except Exception:
                     pass
+                continue
 
+            # 2. Orden Expirada o Cancelada por 5SIM
+            if st in ["TIMEOUT", "CANCELLED"]:
+                try:
+                    if getattr(order, "payment_method", "bot") == "api":
+                        refund_info = (
+                            f"💰 <b>Reembolso:</b> <code>${float(order.cost_usd):.2f} USD</code> devueltos a tu cuenta de la API 5SIM.\n"
+                        )
+                    else:
+                        refund_info = (
+                            f"💰 <b>Reembolso Acreditado:</b> <code>+${float(order.price_usdt):.2f} USDT</code>\n"
+                            f"<i>Tus fondos han sido devueltos automáticamente a tu billetera del bot.</i>\n"
+                        )
+
+                    service_info = CURATED_SERVICES.get(order.service_name, {"name": order.service_name.upper()})
+                    service_display = service_info.get("name", order.service_name.upper())
+
+                    alert_text = (
+                        f"⏰ <b>TIEMPO AGOTADO - NÚMERO VIRTUAL</b>\n\n"
+                        f"El tiempo de espera para el número <code>{order.phone}</code> ({service_display}) ha expirado sin recibir ningún SMS.\n\n"
+                        f"{refund_info}"
+                    )
+                    kb = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("⚡ Probar Otro Número (Mismo País)", callback_data=f"vnum:reorder:{order.service_name}:{order.country}")],
+                        [InlineKeyboardButton("📱 Probar con Otro País", callback_data=f"vnum:select_service:{order.service_name}:1")],
+                        [InlineKeyboardButton("👛 Ver Billetera", callback_data="wallet:deposit_menu")]
+                    ])
+                    await app.send_message(order.user_id, parse_emojis(alert_text), parse_mode=ParseMode.HTML, reply_markup=parse_keyboard(kb))
+                except Exception:
+                    pass
+                continue
+
+            # 3. Si sigue PENDING: no hacer nada, seguir esperando el tiempo asignado por 5SIM
         except Exception as e:
             print(f"[VirtualOrdersWorker Error on order {order.id}]: {e}")
-

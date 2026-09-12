@@ -847,26 +847,27 @@ async def show_live_order_screen(client: Client, target: Any, order_id: int, use
             return
 
         now = datetime.now(timezone.utc).replace(tzinfo=None)
-        remaining_seconds = max(0, int((order.expires_at - now).total_seconds()))
+        remaining_seconds = int((order.expires_at - now).total_seconds())
 
-    # Si ya expiró, chequear en 5sim
+    # Si el temporizador llegó a 0 o menos, consultar estado real en 5SIM antes de darlo por vencido
     if remaining_seconds <= 0:
-        await virtual_numbers_service.check_single_order(order_id)
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("📱 Nuevo Número", callback_data="vnum:catalog")],
-            [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]
-        ])
-        if getattr(order, "payment_method", "bot") == "api":
-            exp_text = "⏰ <b>Tiempo agotado sin recibir el código SMS.</b>\n\n<i>La orden fue cancelada y tu saldo fue reintegrado a tu cuenta de la API 5SIM.</i>"
-        else:
-            exp_text = "⏰ <b>Tiempo agotado sin recibir el código SMS.</b>\n\n<i>La orden fue cancelada y tu saldo fue reembolsado al 100% en tu billetera.</i>"
-        await render_screen(
-            client,
-            target,
-            exp_text,
-            keyboard
-        )
-        return
+        check_res = await virtual_numbers_service.check_single_order(order_id)
+        if check_res.get("status") == "RECEIVED":
+            await show_success_screen(client, target, check_res, order_id)
+            return
+        if check_res.get("status") in ["CANCELLED", "TIMEOUT"]:
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("📱 Nuevo Número", callback_data="vnum:catalog")],
+                [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]
+            ])
+            if getattr(order, "payment_method", "bot") == "api":
+                exp_text = "⏰ <b>Tiempo agotado sin recibir el código SMS.</b>\n\n<i>La orden finalizó y tu saldo fue reintegrado a tu cuenta de la API 5SIM.</i>"
+            else:
+                exp_text = "⏰ <b>Tiempo agotado sin recibir el código SMS.</b>\n\n<i>La orden finalizó y tu saldo fue reembolsado al 100% en tu billetera.</i>"
+            await render_screen(client, target, exp_text, keyboard)
+            return
+        # Si 5SIM todavía lo reporta como PENDING (margen de gracia), permitir seguir esperando
+        remaining_seconds = 0
 
     minutes = remaining_seconds // 60
     seconds = remaining_seconds % 60
