@@ -207,12 +207,24 @@ def register_orders_handlers(app: Client):
                 items=format_delivered_credentials(order.delivered_items)
             )
 
-            keyboard = InlineKeyboardMarkup([
+            keyboard_buttons = []
+            if order.rating:
+                keyboard_buttons.append([InlineKeyboardButton(f"✅ Calificaste con {'⭐' * order.rating} ({order.rating}/5)", callback_data="noop")])
+            else:
+                keyboard_buttons.append([
+                    InlineKeyboardButton("⭐ 1", callback_data=f"rate:order:{order.id}:1"),
+                    InlineKeyboardButton("⭐ 2", callback_data=f"rate:order:{order.id}:2"),
+                    InlineKeyboardButton("⭐ 3", callback_data=f"rate:order:{order.id}:3"),
+                    InlineKeyboardButton("⭐ 4", callback_data=f"rate:order:{order.id}:4"),
+                    InlineKeyboardButton("⭐ 5", callback_data=f"rate:order:{order.id}:5"),
+                ])
+
+            keyboard_buttons.extend([
                 [InlineKeyboardButton(t("btn_back", lang), callback_data=f"orders:page:{page}:{src}")],
                 [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
             ])
 
-            await render_screen(client, callback, text, keyboard)
+            await render_screen(client, callback, text, InlineKeyboardMarkup(keyboard_buttons))
 
     # ========================================================
     # 📲 HISTORIAL DE NÚMEROS VIRTUALES (PESTAÑA SECUNDARIA)
@@ -379,6 +391,19 @@ def register_orders_handlers(app: Client):
 
         buttons = []
         if order.status in ["RECEIVED", "FINISHED"]:
+            if order.rating:
+                buttons.append([
+                    InlineKeyboardButton(f"✅ Calificaste con {'⭐' * order.rating} ({order.rating}/5)", callback_data="noop")
+                ])
+            else:
+                buttons.append([
+                    InlineKeyboardButton("⭐ 1", callback_data=f"rate:vnum:{order.id}:1"),
+                    InlineKeyboardButton("⭐ 2", callback_data=f"rate:vnum:{order.id}:2"),
+                    InlineKeyboardButton("⭐ 3", callback_data=f"rate:vnum:{order.id}:3"),
+                    InlineKeyboardButton("⭐ 4", callback_data=f"rate:vnum:{order.id}:4"),
+                    InlineKeyboardButton("⭐ 5", callback_data=f"rate:vnum:{order.id}:5"),
+                ])
+
             buttons.append([
                 InlineKeyboardButton("⚡ Pedir Otro Número (Mismo País)", callback_data=f"vnum:reorder:{order.service_name}:{order.country}")
             ])

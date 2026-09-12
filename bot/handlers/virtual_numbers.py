@@ -530,6 +530,7 @@ def register_virtual_numbers_handlers(app: Client):
                     )
                     if v_id:
                         v_ord.voucher_message_id = v_id
+                        v_ord.rating = 5
                         await session.commit()
 
             await show_success_screen(client, callback, check_res, order_id)
@@ -675,6 +676,64 @@ def register_virtual_numbers_handlers(app: Client):
         new_order_id = purchase_res["order_id"]
         await show_live_order_screen(client, callback, new_order_id, user_id)
 
+    # ==========================================
+    # ⭐ 9. CALIFICACIÓN DE NÚMERO VIRTUAL
+    # ==========================================
+
+    @app.on_callback_query(filters.regex(r"^rate:vnum:(\d+):([1-5])$"))
+    async def cb_rate_vnum_order(client: Client, callback: CallbackQuery):
+        order_id = int(callback.matches[0].group(1))
+        stars = int(callback.matches[0].group(2))
+        user_id = callback.from_user.id
+
+        async with async_session() as session:
+            res = await session.execute(select(VirtualNumberOrder).where(VirtualNumberOrder.id == order_id))
+            order = res.scalar_one_or_none()
+            if not order or order.user_id != user_id:
+                await callback.answer("❌ Orden no encontrada.", show_alert=True)
+                return
+
+            order.rating = stars
+            voucher_msg_id = order.voucher_message_id
+            service_name = order.service_name
+            country = order.country
+            phone = order.phone
+            price_usdt = float(order.price_usdt)
+            await session.commit()
+
+        if voucher_msg_id:
+            await voucher_service.update_virtual_number_voucher_rating(
+                client=client,
+                voucher_msg_id=voucher_msg_id,
+                order_id=order_id,
+                service_name=service_name,
+                country_code=country,
+                phone=phone,
+                price_usdt=price_usdt,
+                user_id=user_id,
+                username=callback.from_user.username,
+                first_name=callback.from_user.first_name,
+                stars=stars
+            )
+
+        # Respuesta toast instantánea sin enviar nuevos mensajes al chat
+        await callback.answer(f"¡Muchas gracias! Calificación de {stars} ⭐ registrada.", show_alert=False)
+
+        # Actualizar fila de estrellas en el MISMO mensaje en vivo sin repetir ni enviar nuevos mensajes
+        if callback.message and callback.message.reply_markup:
+            new_kb = []
+            for row in callback.message.reply_markup.inline_keyboard:
+                if any(btn.callback_data and btn.callback_data.startswith("rate:vnum:") for btn in row):
+                    new_kb.append([
+                        InlineKeyboardButton(f"✅ Calificaste con {'⭐' * stars} ({stars}/5)", callback_data="noop")
+                    ])
+                else:
+                    new_kb.append(row)
+            try:
+                await callback.message.edit_reply_markup(reply_markup=InlineKeyboardMarkup(new_kb))
+            except Exception:
+                pass
+
 async def show_live_order_screen(client: Client, target: Any, order_id: int, user_id: int):
     """Renderiza la pantalla de espera en vivo con temporizador y número copiable"""
     async with async_session() as session:
@@ -744,13 +803,14 @@ async def show_success_screen(client: Client, target: Any, check_res: Dict[str, 
     service = check_res.get("service_name", "")
     country = check_res.get("country", "")
 
-    if not service or not country:
-        async with async_session() as session:
-            r = await session.execute(select(VirtualNumberOrder).where(VirtualNumberOrder.id == order_id))
-            o = r.scalar_one_or_none()
-            if o:
-                service = o.service_name
-                country = o.country
+    current_rating = None
+    async with async_session() as session:
+        r = await session.execute(select(VirtualNumberOrder).where(VirtualNumberOrder.id == order_id))
+        o = r.scalar_one_or_none()
+        if o:
+            service = service or o.service_name
+            country = country or o.country
+            current_rating = o.rating
 
     text = (
         f"🎉 <b>¡CÓDIGO DE VERIFICACIÓN RECIBIDO!</b>\n\n"
@@ -763,6 +823,20 @@ async def show_success_screen(client: Client, target: Any, check_res: Dict[str, 
     )
 
     buttons = []
+    # Fila de estrellas integrada sin repetir mensajes
+    if current_rating:
+        buttons.append([
+            InlineKeyboardButton(f"✅ Calificaste con {'⭐' * current_rating} ({current_rating}/5)", callback_data="noop")
+        ])
+    else:
+        buttons.append([
+            InlineKeyboardButton("⭐ 1", callback_data=f"rate:vnum:{order_id}:1"),
+            InlineKeyboardButton("⭐ 2", callback_data=f"rate:vnum:{order_id}:2"),
+            InlineKeyboardButton("⭐ 3", callback_data=f"rate:vnum:{order_id}:3"),
+            InlineKeyboardButton("⭐ 4", callback_data=f"rate:vnum:{order_id}:4"),
+            InlineKeyboardButton("⭐ 5", callback_data=f"rate:vnum:{order_id}:5"),
+        ])
+
     if service and country:
         buttons.append([InlineKeyboardButton("⚡ Pedir Otro Número (Mismo País)", callback_data=f"vnum:reorder:{service}:{country}")])
 

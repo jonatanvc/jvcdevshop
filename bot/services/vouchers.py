@@ -170,6 +170,43 @@ class VoucherService:
             logger.warning(f"[VoucherService] No se pudo actualizar calificación en voucher {voucher_msg_id}: {e}")
             return False
 
+    def _format_virtual_number_voucher_text(
+        self,
+        order_id: int,
+        service_name: str,
+        country_code: str,
+        phone: str,
+        price_usdt: float,
+        user_id: int,
+        username: Optional[str] = None,
+        first_name: Optional[str] = None,
+        stars: int = 5,
+        now_str: Optional[str] = None
+    ) -> str:
+        from bot.services.virtual_numbers import CURATED_SERVICES, get_country_display
+
+        masked_user = self._mask_user(user_id, username, first_name)
+        masked_phone = self._mask_phone(phone)
+        flag, country_name = get_country_display(country_code)
+        service_display = CURATED_SERVICES.get(service_name.lower(), {}).get("name", service_name.upper())
+        now = now_str or get_now_str("%Y-%m-%d %H:%M:%S")
+        stars_clamped = max(1, min(5, stars))
+        stars_bar = "⭐" * stars_clamped
+
+        return (
+            f"📲 <b>ACTIVACIÓN DE NÚMERO VIRTUAL</b>\n\n"
+            f"👤 <b>Cliente:</b> {masked_user}\n"
+            f"🌐 <b>Plataforma:</b> <b>{service_display}</b>\n"
+            f"📍 <b>País:</b> {flag} {country_name}\n"
+            f"📞 <b>Número:</b> <code>{masked_phone}</code>\n"
+            f"💵 <b>Precio:</b> <code>${price_usdt:.2f} USDT</code>\n"
+            f"🆔 <b>Comprobante #:</b> <code>#VNUM_{order_id}</code>\n"
+            f"🌟 <b>Calificación:</b> {stars_bar} ({stars_clamped}/5)\n"
+            f"✅ <b>Estado:</b> <code>SMS OTP Recibido</code>\n"
+            f"📅 <b>Fecha:</b> <code>{now}</code>\n\n"
+            f"🛡️ <i>Activación instantánea y 100% verificada.</i>"
+        )
+
     async def publish_virtual_number_voucher(
         self,
         client: Client,
@@ -180,35 +217,26 @@ class VoucherService:
         price_usdt: float,
         user_id: int,
         username: Optional[str] = None,
-        first_name: Optional[str] = None
+        first_name: Optional[str] = None,
+        stars: int = 5
     ) -> Optional[int]:
         """
-        Publica automáticamente el comprobante de activación de número virtual
-        en el canal público (sin solicitar estrellas al usuario en privado).
+        Publica el comprobante de activación de número virtual en el canal público.
         """
         if not self.channel_id or self.channel_id == 0:
             return None
 
         try:
-            from bot.services.virtual_numbers import CURATED_SERVICES, get_country_display
-
-            masked_user = self._mask_user(user_id, username, first_name)
-            masked_phone = self._mask_phone(phone)
-            flag, country_name = get_country_display(country_code)
-            service_display = CURATED_SERVICES.get(service_name.lower(), {}).get("name", service_name.upper())
-            now = get_now_str("%Y-%m-%d %H:%M:%S")
-
-            text = (
-                f"📲 <b>ACTIVACIÓN DE NÚMERO VIRTUAL</b>\n\n"
-                f"👤 <b>Cliente:</b> {masked_user}\n"
-                f"🌐 <b>Plataforma:</b> <b>{service_display}</b>\n"
-                f"📍 <b>País:</b> {flag} {country_name}\n"
-                f"📞 <b>Número:</b> <code>{masked_phone}</code>\n"
-                f"💵 <b>Precio:</b> <code>${price_usdt:.2f} USDT</code>\n"
-                f"🆔 <b>Comprobante #:</b> <code>#VNUM_{order_id}</code>\n"
-                f"✅ <b>Estado:</b> <code>SMS OTP Recibido</code>\n"
-                f"📅 <b>Fecha:</b> <code>{now}</code>\n\n"
-                f"🛡️ <i>Activación instantánea y 100% verificada.</i>"
+            text = self._format_virtual_number_voucher_text(
+                order_id=order_id,
+                service_name=service_name,
+                country_code=country_code,
+                phone=phone,
+                price_usdt=price_usdt,
+                user_id=user_id,
+                username=username,
+                first_name=first_name,
+                stars=stars
             )
 
             bot_username = await self._get_bot_username(client)
@@ -228,5 +256,55 @@ class VoucherService:
         except Exception as e:
             logger.warning(f"[VoucherService] No se pudo publicar comprobante de número virtual #{order_id}: {e}")
             return None
+
+    async def update_virtual_number_voucher_rating(
+        self,
+        client: Client,
+        voucher_msg_id: int,
+        order_id: int,
+        service_name: str,
+        country_code: str,
+        phone: str,
+        price_usdt: float,
+        user_id: int,
+        username: Optional[str] = None,
+        first_name: Optional[str] = None,
+        stars: int = 5
+    ) -> bool:
+        """Actualiza la calificación por estrellas en el comprobante de número virtual del canal público"""
+        if not self.channel_id or self.channel_id == 0 or not voucher_msg_id:
+            return False
+
+        try:
+            bot_username = await self._get_bot_username(client)
+            text = self._format_virtual_number_voucher_text(
+                order_id=order_id,
+                service_name=service_name,
+                country_code=country_code,
+                phone=phone,
+                price_usdt=price_usdt,
+                user_id=user_id,
+                username=username,
+                first_name=first_name,
+                stars=stars
+            )
+
+            buttons = []
+            if bot_username:
+                buttons.append([InlineKeyboardButton("📲 Conseguir Número Virtual", url=f"https://t.me/{bot_username}")])
+            keyboard = InlineKeyboardMarkup(buttons) if buttons else None
+
+            await client.edit_message_text(
+                chat_id=self.channel_id,
+                message_id=voucher_msg_id,
+                text=parse_emojis(text),
+                parse_mode=ParseMode.HTML,
+                disable_web_page_preview=True,
+                reply_markup=keyboard
+            )
+            return True
+        except Exception as e:
+            logger.warning(f"[VoucherService] No se pudo actualizar calificación en voucher vnum {voucher_msg_id}: {e}")
+            return False
 
 voucher_service = VoucherService()

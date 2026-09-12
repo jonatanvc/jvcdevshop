@@ -551,7 +551,7 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                 code = check_res.get("code", "")
                 text_msg = check_res.get("text", "")
 
-                # Publicar comprobante automático en el canal público (sin spam al usuario)
+                # Publicar comprobante automático en el canal público
                 if not order.voucher_message_id:
                     v_msg_id = await voucher_service.publish_virtual_number_voucher(
                         client=app,
@@ -560,14 +560,15 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                         country_code=order.country,
                         phone=order.phone,
                         price_usdt=float(order.price_usdt),
-                        user_id=order.user_id
+                        user_id=order.user_id,
+                        stars=5
                     )
                     if v_msg_id:
                         async with async_session() as s2:
                             await s2.execute(
                                 update(VirtualNumberOrder)
                                 .where(VirtualNumberOrder.id == order.id)
-                                .values(voucher_message_id=v_msg_id)
+                                .values(voucher_message_id=v_msg_id, rating=5)
                             )
                             await s2.commit()
 
@@ -583,6 +584,13 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                         f"✅ <i>¡Activación completada con éxito!</i>"
                     )
                     kb = InlineKeyboardMarkup([
+                        [
+                            InlineKeyboardButton("⭐ 1", callback_data=f"rate:vnum:{order.id}:1"),
+                            InlineKeyboardButton("⭐ 2", callback_data=f"rate:vnum:{order.id}:2"),
+                            InlineKeyboardButton("⭐ 3", callback_data=f"rate:vnum:{order.id}:3"),
+                            InlineKeyboardButton("⭐ 4", callback_data=f"rate:vnum:{order.id}:4"),
+                            InlineKeyboardButton("⭐ 5", callback_data=f"rate:vnum:{order.id}:5"),
+                        ],
                         [InlineKeyboardButton("⚡ Pedir Otro Número (Mismo País)", callback_data=f"vnum:reorder:{order.service_name}:{order.country}")],
                         [InlineKeyboardButton("📱 Comprar Otro Número", callback_data="vnum:catalog")],
                         [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]

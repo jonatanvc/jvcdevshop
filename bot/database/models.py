@@ -181,6 +181,7 @@ class VirtualNumberOrder(Base):
     status = Column(String(20), default="PENDING", nullable=False, index=True)  # PENDING, RECEIVED, FINISHED, CANCELLED, TIMEOUT
     is_refunded = Column(Boolean, default=False, nullable=False)
     voucher_message_id = Column(BigInteger, nullable=True)
+    rating = Column(Integer, nullable=True)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=utc_now, nullable=False)
 
