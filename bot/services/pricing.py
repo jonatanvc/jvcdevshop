@@ -101,6 +101,39 @@ class PricingService:
             return self.calculate_vip_price(final_price)
         return final_price
 
+    async def get_virtual_number_pricing(self, country: str, service_name: str) -> Optional[Dict[str, float]]:
+        """
+        Obtiene el costo real de 5SIM y calcula el precio de venta en USDT con el margen de ganancia.
+        """
+        from bot.services.fivesim_client import fivesim_api
+        offers = await fivesim_api.get_service_offers(service_name)
+        matched = next((o for o in offers if o["country"].lower() == country.lower()), None)
+        if not matched:
+            raw = await fivesim_api.get_raw_prices(country=country, product=service_name)
+            cost = 0.0
+            if isinstance(raw, dict):
+                c_data = raw.get(country, raw).get(service_name, raw.get(country, raw))
+                if isinstance(c_data, dict):
+                    for op, info in c_data.items():
+                        if isinstance(info, dict) and int(info.get("count", 0)) > 0:
+                            c = float(info.get("cost", 0.0))
+                            if cost == 0.0 or c < cost:
+                                cost = c
+            if cost <= 0.0:
+                return None
+            cost_usd = cost
+        else:
+            cost_usd = matched["cost_usd"]
+
+        retail_price_usdt = self.calculate_virtual_number_price(cost_usd, is_vip=False, is_owner=False)
+        vip_price_usdt = self.calculate_virtual_number_price(cost_usd, is_vip=True, is_owner=False)
+
+        return {
+            "fivesim_cost_usd": cost_usd,
+            "retail_price_usdt": retail_price_usdt,
+            "vip_price_usdt": vip_price_usdt,
+        }
+
     async def calculate_product_price(
         self,
         base_price: float,
