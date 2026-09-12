@@ -1,6 +1,7 @@
 import math
+import unicodedata
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional
+from typing import Dict, Any, Optional, Tuple, List
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, Message, InlineKeyboardMarkup
 from sqlalchemy import select
@@ -22,6 +23,12 @@ from bot.utils.emojis import (
 )
 
 COUNTRIES_PER_PAGE = 6
+VNUM_SEARCH_STATES: Dict[int, str] = {}
+VNUM_LAST_SEARCH: Dict[int, Tuple[str, str]] = {}
+
+def normalize_text(text: str) -> str:
+    """Normaliza texto removiendo acentos y convirtiendo a minúsculas para búsquedas flexibles"""
+    return "".join(c for c in unicodedata.normalize("NFD", text) if unicodedata.category(c) != "Mn").lower()
 
 def get_services_catalog_keyboard() -> InlineKeyboardMarkup:
     """Genera la botonera con las 13 plataformas más populares del mundo en 2 columnas"""
@@ -55,6 +62,192 @@ def get_services_catalog_keyboard() -> InlineKeyboardMarkup:
         InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")
     ])
     return InlineKeyboardMarkup(buttons)
+
+async def render_countries_screen(client: Client, target: Any, user_id: int, service_code: str, page: int):
+    """Renderiza la lista paginada de países con botones limpios, buscador y botón actualizar"""
+    service_info = CURATED_SERVICES.get(service_code)
+    if not service_info:
+        return
+
+    offers = await fivesim_api.get_service_offers(service_code)
+
+    is_owner = settings.is_owner(user_id)
+    async with async_session() as session:
+        u_stmt = select(User).where(User.telegram_id == user_id)
+        u_res = await session.execute(u_stmt)
+        user = u_res.scalar_one_or_none()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
+
+    if not offers:
+        text = (
+            f"📲 <b>{service_info['name']} — Países no disponibles</b>\n\n"
+            f"En este momento no hay números en stock para <b>{service_info['name']}</b> en los proveedores de 5SIM.\n\n"
+            f"<i>Por favor intenta más tarde o prueba con otra plataforma.</i>"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔄 Reintentar", callback_data=f"vnum:select_service:{service_code}:1")],
+            [InlineKeyboardButton("🔙 Volver a Servicios", callback_data="vnum:catalog")]
+        ])
+        await render_screen(client, target, text, keyboard)
+        return
+
+    total_offers = len(offers)
+    total_pages = max(1, math.ceil(total_offers / COUNTRIES_PER_PAGE))
+    page = max(1, min(page, total_pages))
+
+    start_idx = (page - 1) * COUNTRIES_PER_PAGE
+    page_offers = offers[start_idx:start_idx + COUNTRIES_PER_PAGE]
+
+    price_label = "USD" if is_owner else "USDT"
+    owner_note = "\n👑 <i>(Modo Owner: Precios de costo neto de API 5SIM)</i>\n" if is_owner else ""
+    vip_note = "\n👑 <i>(Beneficio VIP: 20% OFF aplicado)</i>\n" if (is_vip and not is_owner) else ""
+
+    text = (
+        f"📲 <b>NÚMEROS VIRTUALES PARA {service_info['name'].upper()}</b>\n{owner_note}{vip_note}\n"
+        f"Elige el país de tu preferencia para recibir el código de verificación:\n\n"
+        f"• <b>Países con Stock:</b> <code>{total_offers}</code>\n"
+        f"• <b>Página:</b> <code>{page}/{total_pages}</code>\n\n"
+        f"<i>Precios en {price_label} con entrega instantánea:</i>"
+    )
+
+    buttons = []
+    for off in page_offers:
+        c_code = off["country"]
+        cost_usd = off["cost_usd"]
+        flag, name = get_country_display(c_code)
+
+        # Calcular precio en USDT con margen Bunai y VIP (o al costo si es Owner)
+        price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
+
+        # Botón limpio: solo bandera, nombre del país y precio
+        btn_label = f"{flag} {name} — ${price_usdt:.2f} {price_label}"
+        buttons.append([
+            InlineKeyboardButton(
+                btn_label,
+                callback_data=f"vnum:confirm:{service_code}:{c_code}"
+            )
+        ])
+
+    # Navegación paginada
+    if total_pages > 1:
+        nav_row = []
+        if page > 1:
+            nav_row.append(InlineKeyboardButton("◀️", callback_data=f"vnum:select_service:{service_code}:{page - 1}"))
+        else:
+            nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
+
+        nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
+
+        if page < total_pages:
+            nav_row.append(InlineKeyboardButton("▶️", callback_data=f"vnum:select_service:{service_code}:{page + 1}"))
+        else:
+            nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
+
+        buttons.append(nav_row)
+
+    # Fila de Controles: Actualizar y Buscar País (idéntico al catálogo de productos)
+    buttons.append([
+        InlineKeyboardButton("🔄 Actualizar", callback_data=f"vnum:refresh:{service_code}:{page}"),
+        InlineKeyboardButton("🔍 Buscar País", callback_data=f"vnum:search_prompt:{service_code}")
+    ])
+
+    buttons.append([
+        InlineKeyboardButton("🔙 Volver a Plataformas", callback_data="vnum:catalog")
+    ])
+
+    await render_screen(client, target, text, InlineKeyboardMarkup(buttons))
+
+async def execute_vnum_search(client: Client, user_id: int, service_code: str, query: str, page: int = 1, callback: Optional[CallbackQuery] = None):
+    """Ejecuta la búsqueda de países filtrando por código y nombre en español"""
+    VNUM_LAST_SEARCH[user_id] = (service_code, query)
+    service_info = CURATED_SERVICES.get(service_code, {"name": service_code.capitalize()})
+    offers = await fivesim_api.get_service_offers(service_code)
+
+    norm_query = normalize_text(query)
+
+    matched_offers = []
+    for off in offers:
+        c_code = off["country"].lower()
+        flag, name = get_country_display(c_code)
+        norm_name = normalize_text(name)
+        if norm_query in c_code or norm_query in norm_name:
+            matched_offers.append(off)
+
+    is_owner = settings.is_owner(user_id)
+    async with async_session() as session:
+        u_stmt = select(User).where(User.telegram_id == user_id)
+        u_res = await session.execute(u_stmt)
+        user = u_res.scalar_one_or_none()
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
+
+    price_label = "USD" if is_owner else "USDT"
+    target = callback if callback else user_id
+
+    if not matched_offers:
+        text = (
+            f"🔍 <b>BUSCADOR DE PAÍSES ({service_info['name'].upper()})</b>\n\n"
+            f"❌ No se encontraron países con stock disponibles que coincidan con <b>\"{query}\"</b>.\n\n"
+            f"<i>Puedes intentar con otro término o ver el catálogo completo de países.</i>"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔍 Otra Búsqueda", callback_data=f"vnum:search_prompt:{service_code}")],
+            [InlineKeyboardButton("🔙 Ver Todos los Países", callback_data=f"vnum:select_service:{service_code}:1")]
+        ])
+        await render_screen(client, target, text, keyboard)
+        return
+
+    total_matches = len(matched_offers)
+    total_pages = max(1, math.ceil(total_matches / COUNTRIES_PER_PAGE))
+    page = max(1, min(page, total_pages))
+
+    start_idx = (page - 1) * COUNTRIES_PER_PAGE
+    page_offers = matched_offers[start_idx:start_idx + COUNTRIES_PER_PAGE]
+
+    text = (
+        f"🔍 <b>RESULTADOS PARA \"{query.upper()}\" ({service_info['name'].upper()})</b>\n\n"
+        f"• <b>Coincidencias encontradas:</b> <code>{total_matches} país(es)</code>\n"
+        f"• <b>Página:</b> <code>{page}/{total_pages}</code>\n\n"
+        f"<i>Toca un país para adquirir tu número:</i>"
+    )
+
+    buttons = []
+    for off in page_offers:
+        c_code = off["country"]
+        cost_usd = off["cost_usd"]
+        flag, name = get_country_display(c_code)
+        price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
+        btn_label = f"{flag} {name} — ${price_usdt:.2f} {price_label}"
+        buttons.append([
+            InlineKeyboardButton(
+                btn_label,
+                callback_data=f"vnum:confirm:{service_code}:{c_code}"
+            )
+        ])
+
+    if total_pages > 1:
+        nav_row = []
+        if page > 1:
+            nav_row.append(InlineKeyboardButton("◀️", callback_data=f"vnum:spage:{page - 1}"))
+        else:
+            nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
+
+        nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
+
+        if page < total_pages:
+            nav_row.append(InlineKeyboardButton("▶️", callback_data=f"vnum:spage:{page + 1}"))
+        else:
+            nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
+
+        buttons.append(nav_row)
+
+    buttons.append([
+        InlineKeyboardButton("🔍 Otra Búsqueda", callback_data=f"vnum:search_prompt:{service_code}"),
+        InlineKeyboardButton("🔙 Ver Todos los Países", callback_data=f"vnum:select_service:{service_code}:1")
+    ])
+
+    await render_screen(client, target, text, InlineKeyboardMarkup(buttons))
 
 def register_virtual_numbers_handlers(app: Client):
 
@@ -110,85 +303,75 @@ def register_virtual_numbers_handlers(app: Client):
             return
 
         await callback.answer("⏳ Consultando países disponibles en 5SIM...")
+        await render_countries_screen(client, callback, user_id, service_code, page)
 
-        # Consultar ofertas disponibles en tiempo real en 5SIM
-        offers = await fivesim_api.get_service_offers(service_code)
+    # ==========================================
+    # 🔄 2.1. ACTUALIZAR PAÍSES EN TIEMPO REAL
+    # ==========================================
 
-        async with async_session() as session:
-            u_stmt = select(User).where(User.telegram_id == user_id)
-            u_res = await session.execute(u_stmt)
-            user = u_res.scalar_one_or_none()
-            now = datetime.now(timezone.utc).replace(tzinfo=None)
-            is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
-
-        if not offers:
-            text = (
-                f"📲 <b>{service_info['name']} — Países no disponibles</b>\n\n"
-                f"En este momento no hay números en stock para <b>{service_info['name']}</b> en los proveedores de 5SIM.\n\n"
-                f"<i>Por favor intenta más tarde o prueba con otra plataforma.</i>"
-            )
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton("🔄 Reintentar", callback_data=f"vnum:select_service:{service_code}:1")],
-                [InlineKeyboardButton("🔙 Volver a Servicios", callback_data="vnum:catalog")]
-            ])
-            await render_screen(client, callback, text, keyboard)
+    @app.on_callback_query(filters.regex(r"^vnum:refresh:([a-z0-9_]+):(\d+)$"))
+    async def cb_vnum_refresh(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if rate_limiter.is_rate_limited(user_id):
             return
 
-        total_offers = len(offers)
-        total_pages = max(1, math.ceil(total_offers / COUNTRIES_PER_PAGE))
-        page = max(1, min(page, total_pages))
+        service_code = callback.matches[0].group(1)
+        page = int(callback.matches[0].group(2))
 
-        start_idx = (page - 1) * COUNTRIES_PER_PAGE
-        page_offers = offers[start_idx:start_idx + COUNTRIES_PER_PAGE]
+        # Invalidar caché local de 5SIM para datos frescos
+        fivesim_api._prices_cache.clear()
+        fivesim_api._prices_cache_ts = 0.0
+
+        await callback.answer("🔄 Actualizando lista y stock...")
+        await render_countries_screen(client, callback, user_id, service_code, page)
+
+    # ==========================================
+    # 🔍 2.2. BUSCADOR DE PAÍS POR TEXTO
+    # ==========================================
+
+    @app.on_callback_query(filters.regex(r"^vnum:search_prompt:([a-z0-9_]+)$"))
+    async def cb_vnum_search_prompt(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        service_code = callback.matches[0].group(1)
+        service_info = CURATED_SERVICES.get(service_code, {"name": service_code.capitalize()})
+        VNUM_SEARCH_STATES[user_id] = service_code
 
         text = (
-            f"📲 <b>NÚMEROS VIRTUALES PARA {service_info['name'].upper()}</b>\n\n"
-            f"Elige el país de tu preferencia para recibir el código de verificación:\n\n"
-            f"• <b>Países con Stock:</b> <code>{total_offers}</code>\n"
-            f"• <b>Página:</b> <code>{page}/{total_pages}</code>\n\n"
-            f"<i>Precios en USDT con entrega instantánea:</i>"
+            f"🔍 <b>BUSCADOR DE PAÍSES ({service_info['name'].upper()})</b>\n\n"
+            f"Escribe el nombre o código del país que buscas (ejemplo: <code>Colombia</code>, <code>España</code>, <code>Estados Unidos</code>, <code>Argentina</code>).\n\n"
+            f"<i>O pulsa el botón volver para regresar a la lista de países.</i>"
         )
-
-        buttons = []
-        for off in page_offers:
-            c_code = off["country"]
-            cost_usd = off["cost_usd"]
-            stock = off["stock"]
-            flag, name = get_country_display(c_code)
-
-            # Calcular precio en USDT con margen Bunai y VIP
-            price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip)
-
-            btn_label = f"{flag} {name} — ${price_usdt:.2f} USDT ({stock} disp.)"
-            buttons.append([
-                InlineKeyboardButton(
-                    btn_label,
-                    callback_data=f"vnum:confirm:{service_code}:{c_code}"
-                )
-            ])
-
-        # Navegación paginada
-        if total_pages > 1:
-            nav_row = []
-            if page > 1:
-                nav_row.append(InlineKeyboardButton("◀️", callback_data=f"vnum:select_service:{service_code}:{page - 1}"))
-            else:
-                nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
-
-            nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
-
-            if page < total_pages:
-                nav_row.append(InlineKeyboardButton("▶️", callback_data=f"vnum:select_service:{service_code}:{page + 1}"))
-            else:
-                nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
-
-            buttons.append(nav_row)
-
-        buttons.append([
-            InlineKeyboardButton("🔙 Volver a Plataformas", callback_data="vnum:catalog")
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("🔙 Volver a la Lista", callback_data=f"vnum:select_service:{service_code}:1")]
         ])
+        await render_screen(client, callback, text, keyboard)
 
-        await render_screen(client, callback, text, InlineKeyboardMarkup(buttons))
+    @app.on_callback_query(filters.regex(r"^vnum:spage:(\d+)$"))
+    async def cb_vnum_search_page(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        page = int(callback.matches[0].group(1))
+        cached = VNUM_LAST_SEARCH.get(user_id)
+        if not cached:
+            await callback.answer("⚠️ Búsqueda expirada. Selecciona la plataforma.", show_alert=True)
+            await cb_vnum_catalog(client, callback)
+            return
+
+        service_code, query = cached
+        await execute_vnum_search(client, user_id, service_code, query, page=page, callback=callback)
+
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=5)
+    async def handle_vnum_search_text(client: Client, message: Message):
+        user_id = message.from_user.id
+        if user_id in VNUM_SEARCH_STATES:
+            service_code = VNUM_SEARCH_STATES.pop(user_id)
+            try:
+                await message.delete()
+            except Exception:
+                pass
+            query = message.text.strip()
+            await execute_vnum_search(client, user_id, service_code, query, page=1)
+            return
+        message.continue_propagation()
 
     # ==========================================
     # 💳 3. PANTALLA DE CONFIRMACIÓN DE COMPRA
@@ -209,7 +392,7 @@ def register_virtual_numbers_handlers(app: Client):
 
         flag, country_name = get_country_display(country_code)
 
-        # Consultar precio actual
+        # Consultar precio y stock actual
         offers = await fivesim_api.get_service_offers(service_code)
         matched_offer = next((o for o in offers if o["country"] == country_code), None)
 
@@ -219,7 +402,9 @@ def register_virtual_numbers_handlers(app: Client):
             return
 
         cost_usd = matched_offer["cost_usd"]
+        stock_available = matched_offer.get("stock", 0)
 
+        is_owner = settings.is_owner(user_id)
         async with async_session() as session:
             stmt = select(User).where(User.telegram_id == user_id)
             res = await session.execute(stmt)
@@ -230,13 +415,15 @@ def register_virtual_numbers_handlers(app: Client):
             is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
 
         regular_price = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=False)
-        final_price = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip)
+        final_price = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
 
-        vip_text = ""
-        if is_vip:
-            vip_text = f"👑 <b>Tarifa Revendedor VIP:</b> <s>${regular_price:.2f}</s> <b>${final_price:.2f} USDT</b> (20% OFF)\n"
+        currency_label = "USD (Costo API)" if is_owner else "USDT"
+        if is_owner:
+            price_text = f"👑 <b>Tarifa Owner (Precio Costo API):</b> <code>${final_price:.2f} USD</code>\n"
+        elif is_vip:
+            price_text = f"👑 <b>Tarifa Revendedor VIP:</b> <s>${regular_price:.2f}</s> <b>${final_price:.2f} USDT</b> (20% OFF)\n"
         else:
-            vip_text = f"💵 <b>Precio Total:</b> <code>${final_price:.2f} USDT</code>\n"
+            price_text = f"💵 <b>Precio Total:</b> <code>${final_price:.2f} USDT</code>\n"
 
         has_sufficient = balance_val >= final_price
 
@@ -244,20 +431,22 @@ def register_virtual_numbers_handlers(app: Client):
             f"📲 <b>CONFIRMAR NÚMERO VIRTUAL</b>\n\n"
             f"• <b>Plataforma:</b> {service_info['name']}\n"
             f"• <b>País:</b> {flag} {country_name}\n"
-            f"{vip_text}"
+            f"• <b>Stock Disponible:</b> <code>{stock_available} números</code>\n"
+            f"{price_text}"
             f"💳 <b>Tu Saldo Actual:</b> <code>${balance_val:.2f} USDT</code>\n\n"
             f"🛡️ <b>Garantía Cero Riesgo:</b>\n"
             f"<i>El saldo solo se cobra si el SMS llega con éxito. Si el código no entra o cancelas la solicitud en los próximos 15 minutos, se te reembolsa el 100% automáticamente.</i>"
         )
 
+        currency_btn = "USD" if is_owner else "USDT"
         if has_sufficient:
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"✅ Confirmar Compra (${final_price:.2f} USDT)", callback_data=f"vnum:execute:{service_code}:{country_code}")],
+                [InlineKeyboardButton(f"✅ Confirmar Compra (${final_price:.2f} {currency_btn})", callback_data=f"vnum:execute:{service_code}:{country_code}")],
                 [InlineKeyboardButton("❌ Cancelar", callback_data=f"vnum:select_service:{service_code}:1")]
             ])
         else:
             diff = final_price - balance_val
-            text += f"\n\n⚠️ <i>Te faltan <b>${diff:.2f} USDT</b> para completar esta compra.</i>"
+            text += f"\n\n⚠️ <i>Te faltan <b>${diff:.2f} {currency_btn}</b> para completar esta compra.</i>"
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("👛 Recargar Mi Billetera", callback_data="wallet:deposit_menu")],
                 [InlineKeyboardButton("🔙 Elegir Otro País", callback_data=f"vnum:select_service:{service_code}:1")]
@@ -280,7 +469,8 @@ def register_virtual_numbers_handlers(app: Client):
 
         await callback.answer("⏳ Solicitando número en 5SIM...")
 
-        result = await virtual_numbers_service.purchase_number(user_id, service_code, country_code)
+        is_owner = settings.is_owner(user_id)
+        result = await virtual_numbers_service.purchase_number(user_id, service_code, country_code, is_owner=is_owner)
 
         if "error" in result:
             err_text = result["error"]

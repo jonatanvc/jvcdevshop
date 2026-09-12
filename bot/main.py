@@ -14,6 +14,7 @@ from bot.services.vip_service import vip_service
 from bot.services.deposit_reminder import check_and_send_deposit_reminders
 from bot.services.virtual_numbers import check_and_notify_pending_virtual_orders
 from bot.services.fivesim_client import fivesim_api
+from bot.utils.emojis import parse_emojis
 
 async def provider_balance_monitor(app: Client):
     """Monitorea periódicamente el saldo en BunaiStore para alertar al Owner si está bajo"""
@@ -23,16 +24,66 @@ async def provider_balance_monitor(app: Client):
             profile = await bunai_api.get_me()
             balance = float(profile.get("balance", 0.0))
             if balance < 10.0:
+                alert_text = (
+                    f"Tu saldo actual en BunaiStore es de <b>${balance:.2f} USD</b>.\n"
+                    f"<i>Por favor recarga fondos en el bot del proveedor para asegurar entregas continuas.</i>"
+                )
                 await audit_logger.log_system_alert(
                     client=app,
                     title="SALDO BAJO EN BUNAISTORE",
-                    details=(
-                        f"Tu saldo actual en BunaiStore es de <b>${balance:.2f} USD</b>.\n"
-                        f"<i>Por favor recarga fondos en el bot del proveedor para asegurar entregas continuas.</i>"
-                    )
+                    details=alert_text
                 )
+                if settings.OWNER_ID:
+                    try:
+                        owner_msg = (
+                            f"⚠️ <b>ALERTA OWNER: SALDO BAJO EN BUNAISTORE</b>\n\n"
+                            f"{alert_text}"
+                        )
+                        await app.send_message(settings.OWNER_ID, parse_emojis(owner_msg))
+                    except Exception:
+                        pass
         except Exception as e:
             print(f"[Monitor Error] {e}")
+            await asyncio.sleep(600)
+
+async def fivesim_balance_monitor(app: Client):
+    """Monitorea periódicamente el saldo en 5SIM.net para alertar al Owner si está bajo"""
+    while True:
+        try:
+            await asyncio.sleep(1800)  # Cada 30 minutos
+            if not fivesim_api.is_configured():
+                await asyncio.sleep(1800)
+                continue
+
+            profile = await fivesim_api.get_profile()
+            if "error" in profile and not profile.get("balance"):
+                await asyncio.sleep(600)
+                continue
+
+            balance = float(profile.get("balance", 0.0))
+            # Alerta si el saldo en 5SIM baja de $5.00 USD
+            if balance < 5.0:
+                alert_text = (
+                    f"Tu saldo actual en 5SIM.net es de <b>${balance:.2f} USD</b>.\n"
+                    f"<i>Por favor recarga fondos en tu cuenta de 5SIM para asegurar activaciones continuas de números virtuales.</i>"
+                )
+                await audit_logger.log_system_alert(
+                    client=app,
+                    title="SALDO BAJO EN 5SIM",
+                    details=alert_text
+                )
+                if settings.OWNER_ID:
+                    try:
+                        owner_msg = (
+                            f"⚠️ <b>ALERTA OWNER: SALDO BAJO EN 5SIM.NET</b>\n\n"
+                            f"Tu saldo actual en la API de 5SIM es de <b>${balance:.2f} USD</b>.\n"
+                            f"<i>Te recomendamos recargar para que las compras de números virtuales sigan operando con normalidad.</i>"
+                        )
+                        await app.send_message(settings.OWNER_ID, parse_emojis(owner_msg))
+                    except Exception:
+                        pass
+        except Exception as e:
+            print(f"[FiveSimBalanceMonitor Error] {e}")
             await asyncio.sleep(600)
 
 async def deposit_expiry_worker():
@@ -161,6 +212,7 @@ async def main():
 
     # 6. Lanzar monitores y workers en segundo plano
     asyncio.create_task(provider_balance_monitor(app))
+    asyncio.create_task(fivesim_balance_monitor(app))
     asyncio.create_task(deposit_expiry_worker())
     asyncio.create_task(deposit_reminder_worker(app))
     asyncio.create_task(virtual_numbers_worker(app))

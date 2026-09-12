@@ -83,7 +83,7 @@ CURATED_SERVICES: Dict[str, Dict[str, Any]] = {
     }
 }
 
-# Mapeo de países de 5SIM con sus banderas oficiales en español
+# Mapeo completo de todos los 155 países de 5SIM con sus banderas oficiales en español
 COUNTRY_NAMES: Dict[str, Tuple[str, str]] = {
     # América Latina y Caribe
     "colombia": ("🇨🇴", "Colombia"),
@@ -110,6 +110,17 @@ COUNTRY_NAMES: Dict[str, Tuple[str, str]] = {
     "jamaica": ("🇯🇲", "Jamaica"),
     "guyana": ("🇬🇾", "Guyana"),
     "suriname": ("🇸🇷", "Surinam"),
+    "antiguaandbarbuda": ("🇦🇬", "Antigua y Barbuda"),
+    "aruba": ("🇦🇼", "Aruba"),
+    "bahamas": ("🇧🇸", "Bahamas"),
+    "barbados": ("🇧🇧", "Barbados"),
+    "belize": ("🇧🇿", "Belice"),
+    "frenchguiana": ("🇬🇫", "Guayana Francesa"),
+    "guadeloupe": ("🇬🇵", "Guadalupe"),
+    "saintkittsandnevis": ("🇰🇳", "San Cristóbal y Nieves"),
+    "saintlucia": ("🇱🇨", "Santa Lucía"),
+    "saintvincentandgrenadines": ("🇻🇨", "San Vicente y las Granadinas"),
+    "tit": ("🇹🇹", "Trinidad y Tobago"),
 
     # Norteamérica y Europa
     "usa": ("🇺🇸", "Estados Unidos"),
@@ -152,6 +163,9 @@ COUNTRY_NAMES: Dict[str, Tuple[str, str]] = {
     "georgia": ("🇬🇪", "Georgia"),
     "armenia": ("🇦🇲", "Armenia"),
     "azerbaijan": ("🇦🇿", "Azerbaiyán"),
+    "luxembourg": ("🇱🇺", "Luxemburgo"),
+    "montenegro": ("🇲🇪", "Montenegro"),
+    "northmacedonia": ("🇲🇰", "Macedonia del Norte"),
 
     # Asia y Oceanía
     "china": ("🇨🇳", "China"),
@@ -182,6 +196,13 @@ COUNTRY_NAMES: Dict[str, Tuple[str, str]] = {
     "mongolia": ("🇲🇳", "Mongolia"),
     "easttimor": ("🇹🇱", "Timor Oriental"),
     "bhutane": ("🇧🇹", "Bután"),
+    "macau": ("🇲🇴", "Macao"),
+    "maldives": ("🇲🇻", "Maldivas"),
+    "kyrgyzstan": ("🇰🇬", "Kirguistán"),
+    "newcaledonia": ("🇳🇨", "Nueva Caledonia"),
+    "papuanewguinea": ("🇵🇬", "Papúa Nueva Guinea"),
+    "samoa": ("🇼🇸", "Samoa"),
+    "solomonislands": ("🇸🇧", "Islas Salomón"),
 
     # Medio Oriente y África
     "turkey": ("🇹🇷", "Turquía"),
@@ -218,15 +239,34 @@ COUNTRY_NAMES: Dict[str, Tuple[str, str]] = {
     "malawi": ("🇲🇼", "Malaui"),
     "rwanda": ("🇷🇼", "Ruanda"),
     "sierraleone": ("🇸🇱", "Sierra Leona"),
-    "togo": ("🇹🇬", "Togo")
+    "togo": ("🇹🇬", "Togo"),
+    "bahrain": ("🇧🇭", "Baréin"),
+    "botswana": ("🇧🇼", "Botsuana"),
+    "capeverde": ("🇨🇻", "Cabo Verde"),
+    "chad": ("🇹🇩", "Chad"),
+    "comoros": ("🇰🇲", "Comoras"),
+    "djibouti": ("🇩🇯", "Yibuti"),
+    "equatorialguinea": ("🇬🇶", "Guinea Ecuatorial"),
+    "guineabissau": ("🇬🇼", "Guinea-Bisáu"),
+    "jordan": ("🇯🇴", "Jordania"),
+    "kuwait": ("🇰🇼", "Kuwait"),
+    "lesotho": ("🇱🇸", "Lesoto"),
+    "mauritania": ("🇲🇷", "Mauritania"),
+    "mauritius": ("🇲🇺", "Mauricio"),
+    "namibia": ("🇳🇦", "Namibia"),
+    "oman": ("🇴🇲", "Omán"),
+    "reunion": ("🇷🇪", "Reunión"),
+    "seychelles": ("🇸🇨", "Seychelles"),
+    "swaziland": ("🇸🇿", "Suazilandia")
 }
 
 def get_country_display(country_code: str) -> Tuple[str, str]:
-    """Retorna (bandera, nombre_en_espanol) para cualquier código de 5SIM"""
+    """Retorna (bandera, nombre_en_espanol) para cualquier código de 5SIM (sin bolita del mundo)"""
     code_clean = country_code.lower().strip()
     if code_clean in COUNTRY_NAMES:
         return COUNTRY_NAMES[code_clean]
-    return ("🌐", country_code.capitalize())
+    # En caso imprevisto de país no listado, bandera neutral (nunca globo terráqueo)
+    return ("🏳️", country_code.capitalize())
 
 class VirtualNumbersService:
 
@@ -235,11 +275,12 @@ class VirtualNumbersService:
         user_id: int,
         service_code: str,
         country: str,
-        operator: str = "any"
+        operator: str = "any",
+        is_owner: bool = False
     ) -> Dict[str, Any]:
         """
         Adquiere un número temporal en 5SIM, debita el saldo atómicamente en PostgreSQL
-        con el margen de Bunai (+20% OFF si VIP) y crea el registro de orden.
+        con el margen de Bunai (+20% OFF si VIP, o costo neto 0% si Owner) y crea el registro de orden.
         Si 5SIM falla, revierte sin cobrar al usuario.
         """
         if not fivesim_api.is_configured():
@@ -269,8 +310,8 @@ class VirtualNumbersService:
         cost_usd = float(res_5sim.get("price", 0.0))
         op_used = res_5sim.get("operator", operator)
 
-        # 3. Calcular precio de venta al usuario con margen Bunai y VIP
-        price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip)
+        # 3. Calcular precio de venta al usuario con margen Bunai y VIP (o precio costo si Owner)
+        price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
 
         # 4. Transacción atómica: debitar saldo y crear orden en base de datos
         async with async_session() as session:
@@ -374,7 +415,7 @@ class VirtualNumbersService:
                     details=(
                         f"👤 <b>Usuario:</b> <code>{user_id}</code>\n"
                         f"📱 <b>Teléfono:</b> <code>{order.phone}</code>\n"
-                        f"🌐 <b>Servicio:</b> {order.service_name.upper()} ({order.country.upper()})\n"
+                        f"📲 <b>Servicio:</b> {order.service_name.upper()} ({order.country.upper()})\n"
                         f"💵 <b>Monto Reembolsado:</b> <code>+${float(refund_amt):.2f} USDT</code>\n"
                         f"🆔 <b>5SIM Order:</b> <code>{order.fivesim_order_id}</code>"
                     )

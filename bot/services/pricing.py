@@ -72,17 +72,21 @@ class PricingService:
         discount_factor = 1.0 - (settings.VIP_DISCOUNT_PERCENT / 100.0)
         return round(price * discount_factor, 2)
 
-    def calculate_virtual_number_price(self, cost_usd: float, is_vip: bool = False) -> float:
+    def calculate_virtual_number_price(self, cost_usd: float, is_vip: bool = False, is_owner: bool = False) -> float:
         """
         Calcula el precio de venta en USDT para números virtuales 5SIM aplicando
         la misma regla escalonada progresiva de Bunai:
+        - Si es Owner: compra a precio exacto de costo de la API (0% margen).
         - Costo < $0.50: x7.0 (+600% margen)
         - Costo $0.50 - $0.99: x4.0 (+300% margen)
         - Costo $1.00 - $2.99: x2.5 (+150% margen)
         - Costo >= $3.00: x2.0 (+100% margen / el doble)
-        - Piso mínimo de seguridad: $0.40 USDT
+        - Piso mínimo de seguridad: $0.40 USDT (excepto owner)
         Si el usuario tiene membresía VIP activa, aplica 20% de descuento adicional.
         """
+        if is_owner:
+            return round(cost_usd, 2)
+
         if cost_usd < 0.50:
             price = cost_usd * 7.0
         elif cost_usd < 1.00:
