@@ -96,7 +96,7 @@ async def render_screen(
                 except Exception:
                     pass
             return None
-        except (BadRequest, MessageIdInvalid) as e:
+        except (BadRequest, MessageIdInvalid):
             USER_LAST_MESSAGES.pop(user_id, None)
             clean_text = strip_custom_emojis(text)
             # Primero intentar conservar los iconos animados del teclado
@@ -136,7 +136,7 @@ async def render_screen(
                     return edited_msg
                 except Exception:
                     pass
-        except Exception as e:
+        except Exception:
             USER_LAST_MESSAGES.pop(user_id, None)
 
     # 2. Si no se pudo editar o era una foto previa, enviamos el mensaje nuevo
@@ -178,7 +178,7 @@ async def render_screen(
                 except Exception:
                     pass
             return new_msg
-        except Exception as e2:
+        except Exception:
             # Fallback 2: limpiar también iconos de botones si fuera el teclado
             clean_kb = strip_keyboard_icons(reply_markup) if reply_markup else None
             try:
@@ -196,7 +196,7 @@ async def render_screen(
                     except Exception:
                         pass
                 return new_msg
-            except Exception as e3:
+            except Exception:
                 # Fallback 3: remover absolutamente cualquier etiqueta HTML para entrega garantizada
                 try:
                     plain_text = re.sub(r'<[^>]+>', '', clean_text)

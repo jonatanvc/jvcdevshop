@@ -259,6 +259,7 @@ def register_virtual_numbers_handlers(app: Client):
     @app.on_callback_query(filters.regex(r"^vnum:(catalog|menu)$"))
     async def cb_vnum_catalog(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
+        VNUM_SEARCH_STATES.pop(user_id, None)
         if rate_limiter.is_rate_limited(user_id):
             return
 
@@ -292,6 +293,7 @@ def register_virtual_numbers_handlers(app: Client):
     @app.on_callback_query(filters.regex(r"^vnum:select_service:([a-z0-9_]+):(\d+)$"))
     async def cb_vnum_select_service(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
+        VNUM_SEARCH_STATES.pop(user_id, None)
         if rate_limiter.is_rate_limited(user_id):
             return
 
@@ -418,7 +420,6 @@ def register_virtual_numbers_handlers(app: Client):
         regular_price = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=False)
         final_price = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
 
-        currency_label = "USD (Costo API)" if is_owner else "USDT"
         if is_owner:
             price_text = f"👑 <b>Tarifa Owner (Precio Costo API):</b> <code>${final_price:.2f} USD</code>\n"
         elif is_vip:

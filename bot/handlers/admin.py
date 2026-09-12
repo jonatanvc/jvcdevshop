@@ -10,6 +10,7 @@ from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, Order, VirtualNumberOrder, Deposit, DepositStatus, Setting
 from bot.services.bunai_client import bunai_api
+from bot.services.fivesim_client import fivesim_api
 from bot.services.pricing import pricing_service
 from bot.services.backup_service import backup_service
 from bot.services.audit_logger import audit_logger
@@ -52,7 +53,19 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
 
         orders_res = await session.execute(select(func.count(Order.id), func.sum(Order.total_price)))
         total_orders, total_sales = orders_res.first()
+        total_orders = total_orders or 0
         total_sales = float(total_sales or 0.0)
+
+        vnum_res = await session.execute(
+            select(func.count(VirtualNumberOrder.id), func.sum(VirtualNumberOrder.price_usdt))
+            .where(VirtualNumberOrder.status.in_(["RECEIVED", "FINISHED"]))
+        )
+        vnum_orders, vnum_sales = vnum_res.first()
+        vnum_orders = vnum_orders or 0
+        vnum_sales = float(vnum_sales or 0.0)
+
+        total_combined_orders = total_orders + vnum_orders
+        total_combined_revenue = total_sales + vnum_sales
 
         dep_res = await session.execute(
             select(func.sum(Deposit.exact_amount)).where(Deposit.status == DepositStatus.CONFIRMED)
@@ -87,7 +100,9 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
         f"{EMOJI_ADMIN} <b>PANEL DE ADMINISTRACIÓN & MÉTRICAS</b>\n\n"
         f"{EMOJI_USERS} <b>Usuarios Totales:</b> <code>{total_users}</code>\n"
         f"{EMOJI_CARD} <b>Total Depositado (USDT):</b> <code>${total_deposited:.2f}</code>\n"
-        f"{EMOJI_SHOPPING} <b>Ventas Realizadas:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n\n"
+        f"{EMOJI_SHOPPING} <b>Ventas Cuentas/Servicios:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n"
+        f"📱 <b>Ventas Números Virtuales:</b> <code>{vnum_orders} activaciones</code> (${vnum_sales:.2f} USDT)\n"
+        f"💰 <b>Total Facturado:</b> <code>{total_combined_orders} ventas</code> (${total_combined_revenue:.2f} USDT)\n\n"
         f"{EMOJI_PROVIDER} <b>Saldo en BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
         f"{fivesim_line}"
         f"{EMOJI_CHART_DOWN} <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n\n"

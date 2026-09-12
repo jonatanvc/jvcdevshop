@@ -149,7 +149,6 @@ def register_admin_promos_handlers(app: Client):
             return
 
         coupon_id = int(callback.matches[0].group(1))
-        page = int(callback.matches[0].group(2))
 
         async with async_session() as session:
             stmt = select(Coupon).where(Coupon.id == coupon_id)

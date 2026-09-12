@@ -7,7 +7,7 @@ from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineK
 from sqlalchemy import select, func
 from bot.config import settings
 from bot.database.session import async_session
-from bot.database.models import User, Order, Setting
+from bot.database.models import User, Order, VirtualNumberOrder, Setting
 from bot.services.bunai_client import bunai_api
 from bot.utils.emojis import (
     EMOJI_USER, EMOJI_ID, EMOJI_MONEY, EMOJI_PROVIDER, EMOJI_SHOPPING,
@@ -169,7 +169,16 @@ def register_start_handlers(app: Client):
 
                 order_count_stmt = select(func.count(Order.id)).where(Order.user_id == user_id)
                 order_count_res = await session.execute(order_count_stmt)
-                orders_count = order_count_res.scalar() or 0
+                digital_orders = order_count_res.scalar() or 0
+
+                vnum_count_stmt = select(func.count(VirtualNumberOrder.id)).where(
+                    VirtualNumberOrder.user_id == user_id,
+                    VirtualNumberOrder.status.in_(["RECEIVED", "FINISHED"])
+                )
+                vnum_count_res = await session.execute(vnum_count_stmt)
+                vnum_orders = vnum_count_res.scalar() or 0
+
+                orders_count = digital_orders + vnum_orders
 
                 text = await build_main_menu_text(user, orders_count, session)
                 lang = getattr(user, "language", "es") or "es"
@@ -221,7 +230,16 @@ def register_start_handlers(app: Client):
 
                 order_count_stmt = select(func.count(Order.id)).where(Order.user_id == user_id)
                 order_count_res = await session.execute(order_count_stmt)
-                orders_count = order_count_res.scalar() or 0
+                digital_orders = order_count_res.scalar() or 0
+
+                vnum_count_stmt = select(func.count(VirtualNumberOrder.id)).where(
+                    VirtualNumberOrder.user_id == user_id,
+                    VirtualNumberOrder.status.in_(["RECEIVED", "FINISHED"])
+                )
+                vnum_count_res = await session.execute(vnum_count_stmt)
+                vnum_orders = vnum_count_res.scalar() or 0
+
+                orders_count = digital_orders + vnum_orders
 
                 text = await build_main_menu_text(user, orders_count, session)
                 lang = getattr(user, "language", "es") or "es"
@@ -265,7 +283,7 @@ def register_start_handlers(app: Client):
                     vip_btn = InlineKeyboardButton(t("btn_vip_plan", lang), callback_data="account:vip")
 
                 bunai_owner_line = ""
-                if user_id in settings.admin_ids:
+                if settings.is_owner(user_id):
                     try:
                         bunai_bal = await get_cached_bunai_balance()
                         bunai_owner_line = f"{EMOJI_PROVIDER} <b>{t('balance_provider', lang)}:</b> <code>${bunai_bal:.2f} USD</code>\n"

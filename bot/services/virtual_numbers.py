@@ -298,7 +298,8 @@ class VirtualNumbersService:
 
             now = datetime.now(timezone.utc).replace(tzinfo=None)
             is_vip = bool(user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
-            current_balance = float(user.balance)
+            if float(user.balance) <= 0.0 and not is_owner:
+                return {"error": "No tienes saldo suficiente en tu cuenta para comprar números virtuales."}
 
         # 2. Llamar a 5SIM para adquirir el número
         res_5sim = await fivesim_api.buy_activation(country, operator, service_code)
@@ -393,7 +394,7 @@ class VirtualNumbersService:
                 return {"error": "Esta orden ya fue reembolsada previamente."}
 
             # 1. Cancelar en la API de 5SIM
-            cancel_res = await fivesim_api.cancel_order(order.fivesim_order_id)
+            await fivesim_api.cancel_order(order.fivesim_order_id)
 
             # 2. Reembolsar en el bot
             u_stmt = select(User).where(User.telegram_id == user_id).with_for_update()
@@ -489,7 +490,6 @@ class VirtualNumbersService:
 
             if status_5sim in ["CANCELED", "TIMEOUT", "BANNED"]:
                 # Si 5sim canceló o expiró, reembolsar
-                now = datetime.now(timezone.utc).replace(tzinfo=None)
                 if not order.is_refunded:
                     u_stmt = select(User).where(User.telegram_id == order.user_id).with_for_update()
                     u_res = await session.execute(u_stmt)
