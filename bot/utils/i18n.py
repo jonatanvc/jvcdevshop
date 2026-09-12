@@ -126,7 +126,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_share_ref": "📢 Compartir Enlace",
 
         # Soporte
-        "support_text": f"{EMOJI_SUPPORT} <b>SOPORTE & AYUDA</b>\n\n¿Tienes alguna duda sobre tus compras, depósitos o necesitas asistencia?\n\n• 👤 <b>Contacto de Soporte:</b> @jvc2006\n• <b>Garantía:</b> Si algún servicio con garantía presenta inconvenientes durante el período activo, contáctanos inmediatamente con tu <b>ID de Orden</b>.\n• <b>Depósitos:</b> Los depósitos en USDT BEP-20 se acreditan automáticamente tras la confirmación de la red.\n\n{EMOJI_CHAT} <i>Para contactar directamente a soporte pulsa el botón inferior:</i>",
+        "support_text": f"{EMOJI_SUPPORT} <b>SOPORTE & AYUDA</b>\n\n¿Tienes alguna duda sobre tus compras, depósitos o necesitas asistencia?\n\n• <b>Garantía:</b> Si algún servicio con garantía presenta inconvenientes durante el período activo, contáctanos con tu <b>ID de Orden</b>.\n• <b>Depósitos:</b> Los depósitos en USDT BEP-20 se acreditan automáticamente tras la confirmación de la red.\n\n{EMOJI_CHAT} <i>Para contactar directamente a soporte pulsa el botón inferior:</i>",
 
         # Plan Revendedor VIP
         "btn_vip_plan": "👑 Plan Revendedor VIP (20% OFF)",
@@ -321,7 +321,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_share_ref": "📢 Share Referral Link",
 
         # Support
-        "support_text": f"{EMOJI_SUPPORT} <b>SUPPORT & HELP</b>\n\nDo you have questions about your purchases, deposits or need assistance?\n\n• 👤 <b>Support Contact:</b> @jvc2006\n• <b>Warranty:</b> If any service under warranty experiences issues during the active period, contact us immediately with your <b>Order ID</b>.\n• <b>Deposits:</b> USDT BEP-20 deposits are credited automatically after network confirmation.\n\n{EMOJI_CHAT} <i>To contact support directly tap the button below:</i>",
+        "support_text": f"{EMOJI_SUPPORT} <b>SUPPORT & HELP</b>\n\nDo you have questions about your purchases, deposits or need assistance?\n\n• <b>Warranty:</b> If any service under warranty experiences issues during the active period, contact us with your <b>Order ID</b>.\n• <b>Deposits:</b> USDT BEP-20 deposits are credited automatically after network confirmation.\n\n{EMOJI_CHAT} <i>To contact support directly tap the button below:</i>",
 
         # VIP Reseller Plan
         "btn_vip_plan": "👑 VIP Reseller Plan (20% OFF)",
@@ -516,7 +516,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "btn_share_ref": "📢 Compartilhar Link de Indicação",
 
         # Suporte
-        "support_text": f"{EMOJI_SUPPORT} <b>SUPORTE & AJUDA</b>\n\nTem dúvidas sobre compras, depósitos ou precisa de assistência?\n\n• 👤 <b>Contato de Suporte:</b> @jvc2006\n• <b>Garantia:</b> Se algum serviço com garantia apresentar problemas durante o período ativo, entre em contato imediatamente com o seu <b>ID de Pedido</b>.\n• <b>Depósitos:</b> Os depósitos em USDT BEP-20 são creditados automaticamente após a confirmação da rede.\n\n{EMOJI_CHAT} <i>Para falar diretamente com o suporte toque no botão abaixo:</i>",
+        "support_text": f"{EMOJI_SUPPORT} <b>SUPORTE & AJUDA</b>\n\nTem dúvidas sobre compras, depósitos ou precisa de assistência?\n\n• <b>Garantia:</b> Se algum serviço com garantia apresentar problemas durante o período ativo, entre em contato imediatamente com o seu <b>ID de Pedido</b>.\n• <b>Depósitos:</b> Os depósitos em USDT BEP-20 são creditados automaticamente após a confirmação da rede.\n\n{EMOJI_CHAT} <i>Para falar diretamente com o suporte toque no botão abaixo:</i>",
 
         # Plano Revendedor VIP
         "btn_vip_plan": "👑 Plano Revendedor VIP (20% OFF)",

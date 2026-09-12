@@ -356,7 +356,7 @@ def register_start_handlers(app: Client):
             text = t("support_text", lang)
             admin_tg_url = "https://t.me/jvc2006"
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"{t('btn_contact_admin', lang)} (@jvc2006)", url=admin_tg_url)],
+                [InlineKeyboardButton(t("btn_contact_admin", lang), url=admin_tg_url)],
                 [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
             ])
             await render_screen(client, user_id, text, keyboard)
@@ -381,7 +381,7 @@ def register_start_handlers(app: Client):
             text = t("support_text", lang)
             admin_tg_url = "https://t.me/jvc2006"
             keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(f"{t('btn_contact_admin', lang)} (@jvc2006)", url=admin_tg_url)],
+                [InlineKeyboardButton(t("btn_contact_admin", lang), url=admin_tg_url)],
                 [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
             ])
             await render_screen(client, callback, text, keyboard)
