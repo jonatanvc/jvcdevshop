@@ -58,6 +58,10 @@ def register_checkout_handlers(app: Client):
             user = user_res.scalar_one_or_none()
             lang = user.language if user else "es"
 
+            if getattr(user, "is_banned", False):
+                await callback.answer("🚫 Tu cuenta ha sido suspendida por administración. Contacta a soporte.", show_alert=True)
+                return
+
             # 1. Comprobar modo mantenimiento (Owner tiene bypass)
             m_stmt = select(Setting).where(Setting.key == "maintenance_mode")
             m_res = await session.execute(m_stmt)

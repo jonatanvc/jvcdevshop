@@ -700,6 +700,87 @@ def register_virtual_numbers_handlers(app: Client):
         await render_screen(client, callback, text, keyboard)
 
     # ==========================================
+    # 🚫 7.1. REPORTAR NÚMERO BLOQUEADO (BAN)
+    # ==========================================
+
+    @app.on_callback_query(filters.regex(r"^vnum:ban:(\d+)$"))
+    async def cb_vnum_ban(client: Client, callback: CallbackQuery):
+        order_id = int(callback.matches[0].group(1))
+        user_id = callback.from_user.id
+
+        await callback.answer("⏳ Reportando número bloqueado a 5SIM y reembolsando...")
+
+        res = await virtual_numbers_service.ban_and_refund_order(order_id, user_id, client=client)
+
+        if "error" in res:
+            await callback.answer(f"❌ {res['error']}", show_alert=True)
+            await show_live_order_screen(client, callback, order_id, user_id)
+            return
+
+        refunded = res.get("refunded_amount", 0.0)
+        c_service = res.get("service_name", "")
+        c_country = res.get("country", "")
+        is_api_pay = (res.get("payment_method") == "api")
+
+        if is_api_pay:
+            refund_info = (
+                f"💰 <b>Saldo Reintegrado:</b> <code>+${refunded:.2f} USD</code>\n"
+                f"<i>Los fondos volvieron directamente a tu cuenta de la API 5SIM.</i>"
+            )
+        else:
+            refund_info = (
+                f"💰 <b>Saldo Reembolsado:</b> <code>+${refunded:.2f} USDT</code>\n"
+                f"<i>Tus fondos están disponibles al 100% en tu billetera del bot.</i>"
+            )
+
+        text = (
+            f"🚫 <b>NÚMERO REPORTADO Y REEMBOLSADO</b>\n\n"
+            f"El número fue reportado a 5SIM como no funcional/bloqueado y se anuló cualquier cargo.\n\n"
+            f"{refund_info}\n\n"
+            f"<i>Puedes solicitar otro número inmediatamente:</i>"
+        )
+        buttons_ban = []
+        if c_service and c_country:
+            buttons_ban.append([InlineKeyboardButton("⚡ Pedir Otro Número (Mismo País)", callback_data=f"vnum:reorder:{c_service}:{c_country}")])
+        buttons_ban.extend([
+            [InlineKeyboardButton("📱 Probar con Otro País", callback_data=f"vnum:select_service:{c_service}:1" if c_service else "vnum:catalog")],
+            [InlineKeyboardButton("👛 Ver Mi Billetera", callback_data="wallet:menu")],
+            [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]
+        ])
+        await render_screen(client, callback, text, InlineKeyboardMarkup(buttons_ban))
+
+    # ==========================================
+    # 🔄 7.2. ESPERAR OTRO SMS (RE-SMS)
+    # ==========================================
+
+    @app.on_callback_query(filters.regex(r"^vnum:re_sms:(\d+)$"))
+    async def cb_vnum_re_sms(client: Client, callback: CallbackQuery):
+        order_id = int(callback.matches[0].group(1))
+        user_id = callback.from_user.id
+        await callback.answer("⏳ Comprobando nuevo SMS...")
+        await show_live_order_screen(client, callback, order_id, user_id)
+
+    # ==========================================
+    # ✅ 7.3. CONCLUIR Y FINALIZAR NÚMERO
+    # ==========================================
+
+    @app.on_callback_query(filters.regex(r"^vnum:finish:(\d+)$"))
+    async def cb_vnum_finish(client: Client, callback: CallbackQuery):
+        order_id = int(callback.matches[0].group(1))
+        await virtual_numbers_service.finish_and_close_order(order_id)
+        await callback.answer("✅ Número finalizado correctamente. ¡Gracias por tu compra!", show_alert=True)
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton("📱 Comprar Otro Número", callback_data="vnum:catalog")],
+            [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]
+        ])
+        await render_screen(
+            client,
+            callback,
+            "✅ <b>ACTIVACIÓN COMPLETADA</b>\n\nEl número ha sido finalizado con éxito. ¡Gracias por tu preferencia!",
+            keyboard
+        )
+
+    # ==========================================
     # ⚡ 8. REORDENAR INMEDIATO (1 SOLO CLIC)
     # ==========================================
 
@@ -925,6 +1006,9 @@ async def show_live_order_screen(client: Client, target: Any, order_id: int, use
             InlineKeyboardButton(cancel_btn_text, callback_data=f"vnum:cancel:{order_id}")
         ],
         [
+            InlineKeyboardButton("🚫 Número Bloqueado / En Uso", callback_data=f"vnum:ban:{order_id}")
+        ],
+        [
             InlineKeyboardButton("🏠 Volver al Menú", callback_data="menu_main")
         ]
     ])
@@ -955,7 +1039,7 @@ async def show_success_screen(client: Client, target: Any, check_res: Dict[str, 
         f"<code>{code}</code>\n\n"
         f"💬 <b>Mensaje Completo:</b>\n"
         f"<i>\"{full_text}\"</i>\n\n"
-        f"✅ <i>¡Activación completada con éxito!</i>"
+        f"✅ <i>¡Activación en curso! Si necesitas un segundo código del mismo número, pulsa 'Esperar Otro SMS'.</i>"
     )
 
     buttons = []
@@ -972,6 +1056,11 @@ async def show_success_screen(client: Client, target: Any, check_res: Dict[str, 
             InlineKeyboardButton("⭐ 4", callback_data=f"rate:vnum:{order_id}:4"),
             InlineKeyboardButton("⭐ 5", callback_data=f"rate:vnum:{order_id}:5"),
         ])
+
+    buttons.append([
+        InlineKeyboardButton("🔄 Esperar Otro SMS", callback_data=f"vnum:re_sms:{order_id}"),
+        InlineKeyboardButton("✅ Concluir Número", callback_data=f"vnum:finish:{order_id}")
+    ])
 
     if service and country:
         buttons.append([InlineKeyboardButton("⚡ Pedir Otro Número (Mismo País)", callback_data=f"vnum:reorder:{service}:{country}")])

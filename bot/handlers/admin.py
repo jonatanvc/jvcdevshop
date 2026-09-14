@@ -118,6 +118,10 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
 
     keyboard = InlineKeyboardMarkup([
         [
+            InlineKeyboardButton("🔍 Buscar Usuario", callback_data="admin:user_search_prompt"),
+            InlineKeyboardButton("📈 Ajustar Márgenes", callback_data="admin:margin_menu")
+        ],
+        [
             InlineKeyboardButton(f"⚙️ {'Desactivar' if maintenance_active else 'Activar'} Mantenimiento", callback_data="admin:toggle_maintenance"),
             InlineKeyboardButton("🌀 Sincronizar Catálogo", callback_data="admin:clear_cache")
         ],
@@ -483,7 +487,189 @@ def register_admin_handlers(app: Client):
         ])
         await render_screen(client, callback, text, keyboard)
 
-    @app.on_message(filters.private & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=3)
+    @app.on_message(filters.command("user") & filters.private)
+    async def cmd_user(client: Client, message: Message):
+        user_id = message.from_user.id
+        if not is_admin(user_id):
+            return
+        try:
+            await message.delete()
+        except Exception:
+            pass
+        if len(message.command) < 2:
+            await client.send_message(
+                chat_id=user_id,
+                text="⚠️ <b>Uso correcto:</b> <code>/user @usuario</code> o <code>/user 12345678</code>"
+            )
+            return
+        ident = message.command[1].strip()
+        async with async_session() as session:
+            user = await find_user_by_identifier(session, ident)
+        if not user:
+            await client.send_message(
+                chat_id=user_id,
+                text=f"❌ No se encontró ningún usuario con <code>{ident}</code>."
+            )
+            return
+        await render_user_card(client, user_id, user_id, user)
+
+    @app.on_callback_query(filters.regex(r"^admin:user_search_prompt$"))
+    async def cb_admin_user_search_prompt(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            return
+        ADMIN_STATES[user_id] = {"action": "waiting_user_search"}
+        await callback.answer()
+        text = (
+            f"🔍 <b>BUSCADOR DE USUARIOS</b>\n\n"
+            f"Envía el <b>@username</b> o el <b>ID numérico de Telegram</b> del usuario que deseas consultar.\n\n"
+            f"<i>Ejemplo: <code>@usuario</code> o <code>123456789</code></i>"
+        )
+        keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancelar", callback_data="admin:menu")]])
+        await render_screen(client, callback, text, keyboard)
+
+    @app.on_callback_query(filters.regex(r"^admin:user_card:(\d+)$"))
+    async def cb_admin_user_card(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            return
+        target_uid = int(callback.matches[0].group(1))
+        async with async_session() as session:
+            res = await session.execute(select(User).where(User.telegram_id == target_uid))
+            u = res.scalar_one_or_none()
+        if not u:
+            await callback.answer("❌ Usuario no encontrado.", show_alert=True)
+            return
+        await render_user_card(client, callback, user_id, u)
+
+    @app.on_callback_query(filters.regex(r"^admin:user_act:toggle_ban:(\d+)$"))
+    async def cb_admin_user_toggle_ban(client: Client, callback: CallbackQuery):
+        admin_id = callback.from_user.id
+        if not is_admin(admin_id):
+            return
+        target_uid = int(callback.matches[0].group(1))
+        async with async_session() as session:
+            res = await session.execute(select(User).where(User.telegram_id == target_uid))
+            u = res.scalar_one_or_none()
+            if u:
+                u.is_banned = not getattr(u, "is_banned", False)
+                new_state = u.is_banned
+                await session.commit()
+                await callback.answer(f"Usuario {'BANEADO 🚫' if new_state else 'DESBANEADO 🟢'}.", show_alert=True)
+                await render_user_card(client, callback, admin_id, u)
+
+    @app.on_callback_query(filters.regex(r"^admin:user_act:toggle_vip:(\d+)$"))
+    async def cb_admin_user_toggle_vip(client: Client, callback: CallbackQuery):
+        admin_id = callback.from_user.id
+        if not is_admin(admin_id):
+            return
+        target_uid = int(callback.matches[0].group(1))
+        async with async_session() as session:
+            res = await session.execute(select(User).where(User.telegram_id == target_uid))
+            u = res.scalar_one_or_none()
+            if u:
+                now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+                is_currently_vip = bool(u.is_vip and u.vip_expires_at and u.vip_expires_at > now_utc)
+                if is_currently_vip:
+                    u.is_vip = False
+                    u.vip_expires_at = None
+                else:
+                    u.is_vip = True
+                    u.vip_expires_at = now_utc + timedelta(days=30)
+                await session.commit()
+                await callback.answer("Estado VIP actualizado.", show_alert=True)
+                await render_user_card(client, callback, admin_id, u)
+
+    @app.on_callback_query(filters.regex(r"^admin:user_act:del_bal:(\d+)$"))
+    async def cb_admin_user_del_bal(client: Client, callback: CallbackQuery):
+        admin_id = callback.from_user.id
+        if not is_admin(admin_id):
+            return
+        target_uid = int(callback.matches[0].group(1))
+        async with async_session() as session:
+            res = await session.execute(select(User).where(User.telegram_id == target_uid))
+            u = res.scalar_one_or_none()
+            if u:
+                u.balance = Decimal("0.0000")
+                await session.commit()
+                await callback.answer("Saldo restablecido a 0.00 USDT.", show_alert=True)
+                await render_user_card(client, callback, admin_id, u)
+
+    @app.on_callback_query(filters.regex(r"^admin:user_act:prompt_dep:(\d+)$"))
+    async def cb_admin_user_prompt_dep(client: Client, callback: CallbackQuery):
+        target_uid = int(callback.matches[0].group(1))
+        await callback.answer()
+        await callback.message.reply_text(
+            f"➕ <b>Para añadir saldo usa el comando:</b>\n<code>/dep 5.00 {target_uid}</code>"
+        )
+
+    # ==========================================
+    # 📈 9. AJUSTE DE MÁRGENES DE GANANCIA
+    # ==========================================
+
+    @app.on_callback_query(filters.regex(r"^admin:margin_menu$"))
+    async def cb_admin_margin_menu(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            return
+        async with async_session() as session:
+            cur_margin = await pricing_service.get_global_margin(session)
+
+        text = (
+            f"📈 <b>AJUSTE DE MÁRGENES EN TIEMPO REAL</b>\n\n"
+            f"• <b>Margen Base Configurado:</b> <code>+{cur_margin:.1f}%</code>\n\n"
+            f"<i>La Estrategia Escalonada Progresiva multiplica los costos de la API para garantizar márgenes rentables:</i>\n"
+            f"• Costo &lt; $0.50: <code>x7.0 (+600%)</code>\n"
+            f"• Costo $0.50 - $0.99: <code>x4.0 (+300%)</code>\n"
+            f"• Costo $1.00 - $2.99: <code>x2.5 (+150%)</code>\n"
+            f"• Costo &ge; $3.00: <code>x2.0 (+100%)</code>\n\n"
+            f"<i>Selecciona un valor porcentual o define uno personalizado:</i>"
+        )
+        keyboard = InlineKeyboardMarkup([
+            [
+                InlineKeyboardButton("20%", callback_data="admin:set_margin:20"),
+                InlineKeyboardButton("30%", callback_data="admin:set_margin:30"),
+                InlineKeyboardButton("40%", callback_data="admin:set_margin:40"),
+                InlineKeyboardButton("50%", callback_data="admin:set_margin:50")
+            ],
+            [
+                InlineKeyboardButton("75%", callback_data="admin:set_margin:75"),
+                InlineKeyboardButton("100%", callback_data="admin:set_margin:100"),
+                InlineKeyboardButton("✏️ Personalizado", callback_data="admin:set_margin:custom")
+            ],
+            [
+                InlineKeyboardButton("🔙 Volver al Panel", callback_data="admin:menu")
+            ]
+        ])
+        await render_screen(client, callback, text, keyboard)
+
+    @app.on_callback_query(filters.regex(r"^admin:set_margin:([a-z0-9_]+)$"))
+    async def cb_admin_set_margin(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            return
+        val_arg = callback.matches[0].group(1)
+        if val_arg == "custom":
+            ADMIN_STATES[user_id] = {"action": "waiting_custom_margin"}
+            await callback.answer()
+            await render_screen(
+                client,
+                callback,
+                "✏️ <b>Ingresa el nuevo porcentaje de margen de ganancia:</b>\n\n<i>Ejemplo: envía <code>35</code> para 35%.</i>",
+                InlineKeyboardMarkup([[InlineKeyboardButton("❌ Cancelar", callback_data="admin:margin_menu")]])
+            )
+            return
+
+        try:
+            val = float(val_arg)
+            async with async_session() as session:
+                await pricing_service.set_global_margin(session, val)
+            await callback.answer(f"✅ Margen actualizado a {val:.1f}%.", show_alert=True)
+            await cb_admin_margin_menu(client, callback)
+        except Exception as e:
+            await callback.answer(f"Error: {e}", show_alert=True)
+
+    @app.on_message(filters.private & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep", "user", "reply", "vip"]), group=3)
     async def handle_admin_text(client: Client, message: Message):
         user_id = message.from_user.id
         if not is_admin(user_id):
@@ -497,7 +683,43 @@ def register_admin_handlers(app: Client):
 
         action = state.get("action")
 
-        if action == "waiting_broadcast":
+        if action == "waiting_user_search":
+            ADMIN_STATES.pop(user_id, None)
+            ident = message.text.strip() if message.text else ""
+            async with async_session() as session:
+                user = await find_user_by_identifier(session, ident)
+            if not user:
+                await client.send_message(
+                    chat_id=user_id,
+                    text=f"❌ No se encontró ningún usuario con <code>{ident}</code>.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Reintentar", callback_data="admin:user_search_prompt")]])
+                )
+                return
+            await render_user_card(client, user_id, user_id, user)
+            return
+
+        elif action == "waiting_custom_margin":
+            ADMIN_STATES.pop(user_id, None)
+            try:
+                val = float(message.text.strip().replace("%", "").replace(",", "."))
+                if val < 0 or val > 1000:
+                    raise ValueError
+                async with async_session() as session:
+                    await pricing_service.set_global_margin(session, val)
+                await client.send_message(
+                    chat_id=user_id,
+                    text=f"✅ <b>Margen de ganancia actualizado a {val:.1f}%</b> con éxito.",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Panel Admin", callback_data="admin:menu")]])
+                )
+            except Exception:
+                await client.send_message(
+                    chat_id=user_id,
+                    text="❌ Valor de margen inválido. Debe ser un número entre 0 y 1000 (ejemplo: <code>35</code>).",
+                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("🔄 Reintentar", callback_data="admin:margin_menu")]])
+                )
+            return
+
+        elif action == "waiting_broadcast":
             seg_key = state.get("segment", "all")
             seg_info = BROADCAST_SEGMENTS.get(seg_key, BROADCAST_SEGMENTS["all"])
             ADMIN_STATES.pop(user_id, None)
@@ -556,3 +778,73 @@ def register_admin_handlers(app: Client):
             )
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("😀 Volver al Panel", callback_data="admin:menu")]])
             await render_screen(client, user_id, result_text, keyboard)
+
+async def render_user_card(client: Client, target: Any, admin_id: int, user_obj: User):
+    """Muestra la ficha técnica completa del usuario al administrador con botones de acción"""
+    uid = user_obj.telegram_id
+    uname = f"@{user_obj.username}" if user_obj.username else "Sin username"
+    bal = float(user_obj.balance)
+    spent = float(user_obj.total_spent)
+    is_ban = getattr(user_obj, "is_banned", False)
+
+    now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
+    is_vip = bool(user_obj.is_vip and user_obj.vip_expires_at and user_obj.vip_expires_at > now_utc)
+    vip_str = f"👑 Activo (hasta {user_obj.vip_expires_at.strftime('%Y-%m-%d')})" if is_vip else "Inactivo"
+
+    async with async_session() as session:
+        # Cuentas compradas
+        ord_count_stmt = select(func.count(Order.id)).where(Order.user_id == uid)
+        ord_res = await session.execute(ord_count_stmt)
+        total_orders = ord_res.scalar() or 0
+
+        # Números virtuales
+        vnum_count_stmt = select(func.count(VirtualNumberOrder.id)).where(
+            VirtualNumberOrder.user_id == uid,
+            VirtualNumberOrder.status.in_(["RECEIVED", "FINISHED"])
+        )
+        vnum_res = await session.execute(vnum_count_stmt)
+        total_vnums = vnum_res.scalar() or 0
+
+        # Referidos
+        ref_count_stmt = select(func.count(User.telegram_id)).where(User.referred_by == uid)
+        ref_res = await session.execute(ref_count_stmt)
+        total_refs = ref_res.scalar() or 0
+
+    status_badge = "🚫 BANEADO" if is_ban else "🟢 ACTIVO"
+    reg_date = user_obj.created_at.strftime("%Y-%m-%d %H:%M") if user_obj.created_at else "N/A"
+
+    text = (
+        f"👤 <b>FICHA DE USUARIO</b>\n\n"
+        f"• <b>Usuario:</b> {uname} (<code>{uid}</code>)\n"
+        f"• <b>Nombre:</b> <code>{user_obj.first_name or 'N/A'}</code>\n"
+        f"• <b>Estado:</b> <b>{status_badge}</b>\n"
+        f"• <b>Registro:</b> <code>{reg_date}</code>\n"
+        f"• <b>Idioma:</b> <code>{user_obj.language or 'es'}</code>\n\n"
+        f"💰 <b>Saldo Billetera:</b> <code>${bal:.2f} USDT</code>\n"
+        f"💵 <b>Total Gastado:</b> <code>${spent:.2f} USDT</code>\n"
+        f"👑 <b>Membresía VIP:</b> <code>{vip_str}</code>\n\n"
+        f"📦 <b>Cuentas Adquiridas:</b> <code>{total_orders} pedidos</code>\n"
+        f"📱 <b>Números Activados:</b> <code>{total_vnums} activaciones</code>\n"
+        f"👥 <b>Referidos Directos:</b> <code>{total_refs} usuarios</code>\n\n"
+        f"<i>Acciones administrativas rápidas:</i>"
+    )
+
+    ban_btn_text = "🟢 Desbanear Usuario" if is_ban else "🚫 Banear Usuario"
+    vip_btn_text = "❌ Quitar VIP" if is_vip else "👑 Otorgar VIP (30d)"
+
+    keyboard = InlineKeyboardMarkup([
+        [
+            InlineKeyboardButton("➕ Añadir Saldo", callback_data=f"admin:user_act:prompt_dep:{uid}"),
+            InlineKeyboardButton("🗑️ Resetear Saldo", callback_data=f"admin:user_act:del_bal:{uid}")
+        ],
+        [
+            InlineKeyboardButton(vip_btn_text, callback_data=f"admin:user_act:toggle_vip:{uid}"),
+            InlineKeyboardButton(ban_btn_text, callback_data=f"admin:user_act:toggle_ban:{uid}")
+        ],
+        [
+            InlineKeyboardButton("🔙 Buscar Otro", callback_data="admin:user_search_prompt"),
+            InlineKeyboardButton("🏠 Panel Admin", callback_data="admin:menu")
+        ]
+    ])
+
+    await render_screen(client, target, text, keyboard)

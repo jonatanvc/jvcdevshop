@@ -8,7 +8,7 @@ from pyrogram.enums import ParseMode
 from sqlalchemy import select, update
 from bot.config import settings
 from bot.database.session import async_session
-from bot.database.models import User, Deposit, DepositStatus
+from bot.database.models import User, Deposit, DepositStatus, Order, VirtualNumberOrder
 from bot.services.blockchain import bsc_validator
 from bot.services.audit_logger import audit_logger
 from bot.services.qr_generator import get_wallet_qr_media
@@ -44,6 +44,9 @@ def get_deposit_menu_keyboard(lang: str = "es", active_coupon: Optional[str] = N
         ],
         [
             coupon_btn
+        ],
+        [
+            InlineKeyboardButton("📜 Historial de Movimientos", callback_data="wallet:transactions:1")
         ],
         [
             InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")
@@ -615,6 +618,44 @@ def register_wallet_handlers(app: Client):
                             commission = credited_amount * comm_rate
                             referrer.balance += commission
 
+                            ref_uid = referrer.telegram_id
+                            ref_lang = referrer.language or "es"
+                            ref_new_bal = float(referrer.balance)
+                            ref_comm_val = float(commission)
+                            user_tag = f"@{message.from_user.username}" if message.from_user.username else f"Usuario #{user_id}"
+
+                            try:
+                                ref_msg = (
+                                    f"🎉 <b>¡Comisión de Referido Recibida!</b>\n\n"
+                                    f"Tu referido <b>{user_tag}</b> acaba de realizar una recarga de saldo.\n\n"
+                                    f"➕ <b>Comisión acreditada:</b> <code>+${ref_comm_val:.2f} USDT</code>\n"
+                                    f"👛 <b>Tu nuevo saldo:</b> <code>${ref_new_bal:.2f} USDT</code>\n\n"
+                                    f"<i>¡Gracias por recomendar nuestro servicio!</i>"
+                                )
+                                if ref_lang == "en":
+                                    ref_msg = (
+                                        f"🎉 <b>Referral Commission Received!</b>\n\n"
+                                        f"Your referral <b>{user_tag}</b> has just completed a balance deposit.\n\n"
+                                        f"➕ <b>Credited Commission:</b> <code>+${ref_comm_val:.2f} USDT</code>\n"
+                                        f"👛 <b>Your New Balance:</b> <code>${ref_new_bal:.2f} USDT</code>\n\n"
+                                        f"<i>Thank you for sharing our store!</i>"
+                                    )
+                                elif ref_lang == "pt":
+                                    ref_msg = (
+                                        f"🎉 <b>Comissão de Indicação Recebida!</b>\n\n"
+                                        f"Seu indicado <b>{user_tag}</b> acabou de recarregar saldo.\n\n"
+                                        f"➕ <b>Comissão creditada:</b> <code>+${ref_comm_val:.2f} USDT</code>\n"
+                                        f"👛 <b>Seu novo saldo:</b> <code>${ref_new_bal:.2f} USDT</code>\n\n"
+                                        f"<i>Obrigado por recomendar nosso serviço!</i>"
+                                    )
+                                asyncio.create_task(client.send_message(
+                                    chat_id=ref_uid,
+                                    text=ref_msg,
+                                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("👛 Ver Billetera", callback_data="wallet:menu")]])
+                                ))
+                            except Exception as e:
+                                print(f"[ReferralDM Error]: {e}")
+
                     await session.commit()
             finally:
                 _ACTIVE_HASH_VERIFICATIONS.discard(tx_hash)
@@ -733,3 +774,135 @@ def register_wallet_handlers(app: Client):
             ])
             await render_screen(client, user_id, succ_text, succ_kb)
             return
+
+    # ==========================================
+    # 📜 5. HISTORIAL Y EXTRACTO DE MOVIMIENTOS
+    # ==========================================
+
+    @app.on_callback_query(filters.regex(r"^wallet:transactions:(\d+)$"))
+    async def cb_wallet_transactions(client: Client, callback: CallbackQuery):
+        try:
+            await callback.answer()
+        except Exception:
+            pass
+
+        user_id = callback.from_user.id
+        if rate_limiter.is_rate_limited(user_id):
+            return
+
+        page = int(callback.matches[0].group(1))
+        page_size = 5
+
+        async with async_session() as session:
+            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user = user_res.scalar_one_or_none()
+            lang = getattr(user, "language", "es") or "es"
+            bal = float(user.balance) if user else 0.0
+
+            # 1. Obtener depósitos confirmados
+            dep_stmt = (
+                select(Deposit)
+                .where(Deposit.user_id == user_id, Deposit.status == DepositStatus.CONFIRMED)
+            )
+            dep_res = await session.execute(dep_stmt)
+            deposits = dep_res.scalars().all()
+
+            # 2. Obtener órdenes de productos
+            ord_stmt = select(Order).where(Order.user_id == user_id)
+            ord_res = await session.execute(ord_stmt)
+            orders = ord_res.scalars().all()
+
+            # 3. Obtener órdenes de números virtuales
+            vnum_stmt = select(VirtualNumberOrder).where(VirtualNumberOrder.user_id == user_id)
+            vnum_res = await session.execute(vnum_stmt)
+            vnums = vnum_res.scalars().all()
+
+        # Construir lista combinada de movimientos
+        events = []
+        for d in deposits:
+            events.append({
+                "type": "deposit",
+                "date": d.confirmed_at or d.created_at,
+                "title": "Recarga de Saldo (USDT BEP-20)",
+                "amount": f"+${float(d.exact_amount):.2f} USDT",
+                "is_credit": True
+            })
+
+        for o in orders:
+            events.append({
+                "type": "order",
+                "date": o.created_at,
+                "title": f"Compra: {o.product_name[:25]}",
+                "amount": f"-${float(o.total_price):.2f} USDT",
+                "is_credit": False
+            })
+
+        for v in vnums:
+            if v.status in ["RECEIVED", "FINISHED"]:
+                events.append({
+                    "type": "vnum",
+                    "date": v.created_at,
+                    "title": f"Número Virtual: {v.service_name.upper()} ({v.country.upper()})",
+                    "amount": f"-${float(v.price_usdt):.2f} USDT",
+                    "is_credit": False
+                })
+            elif v.is_refunded:
+                events.append({
+                    "type": "refund",
+                    "date": v.created_at,
+                    "title": f"Reembolso Número: {v.service_name.upper()}",
+                    "amount": f"+${float(v.price_usdt):.2f} USDT",
+                    "is_credit": True
+                })
+
+        # Ordenar por fecha descendente
+        events.sort(key=lambda x: x["date"] or datetime.min, reverse=True)
+
+        total_events = len(events)
+        if total_events == 0:
+            empty_text = (
+                f"📜 <b>HISTORIAL DE MOVIMIENTOS</b>\n\n"
+                f"💳 <b>Saldo Actual:</b> <code>${bal:.2f} USDT</code>\n\n"
+                f"<i>Aún no tienes movimientos registrados en tu billetera.</i>"
+            )
+            keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
+            await render_screen(client, callback, empty_text, keyboard)
+            return
+
+        total_pages = max(1, (total_events + page_size - 1) // page_size)
+        page = max(1, min(page, total_pages))
+        offset = (page - 1) * page_size
+        page_events = events[offset:offset + page_size]
+
+        lines = []
+        for ev in page_events:
+            d_str = ev["date"].strftime("%Y-%m-%d %H:%M") if ev["date"] else "N/A"
+            icon = "🟢" if ev["is_credit"] else "🔴"
+            lines.append(
+                f"{icon} <b>{ev['title']}</b>\n"
+                f"   💵 <code>{ev['amount']}</code> | 🕒 <code>{d_str}</code>"
+            )
+
+        header = (
+            f"📜 <b>EXTRACTO DE MOVIMIENTOS</b>\n\n"
+            f"💳 <b>Saldo Actual:</b> <code>${bal:.2f} USDT</code>\n"
+            f"📄 <b>Página:</b> <code>{page}/{total_pages}</code> ({total_events} registros)\n\n"
+        )
+        text = header + "\n\n".join(lines)
+
+        buttons = []
+        if total_pages > 1:
+            nav_row = []
+            if page > 1:
+                nav_row.append(InlineKeyboardButton("◀️", callback_data=f"wallet:transactions:{page - 1}"))
+            else:
+                nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
+            nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
+            if page < total_pages:
+                nav_row.append(InlineKeyboardButton("▶️", callback_data=f"wallet:transactions:{page + 1}"))
+            else:
+                nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
+            buttons.append(nav_row)
+
+        buttons.append([InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")])
+        await render_screen(client, callback, text, InlineKeyboardMarkup(buttons))

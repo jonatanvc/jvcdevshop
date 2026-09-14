@@ -8,6 +8,7 @@ from .admin import register_admin_handlers
 from .admin_promos import register_admin_promos_handlers
 from .vip import register_vip_handlers
 from .virtual_numbers import register_virtual_numbers_handlers
+from .support import register_support_handlers
 
 def register_all_handlers(app):
     register_start_handlers(app)
@@ -20,4 +21,5 @@ def register_all_handlers(app):
     register_admin_promos_handlers(app)
     register_vip_handlers(app)
     register_virtual_numbers_handlers(app)
+    register_support_handlers(app)
 

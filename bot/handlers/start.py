@@ -167,6 +167,19 @@ def register_start_handlers(app: Client):
                     user.first_name = first_name
                     await session.commit()
 
+                if getattr(user, "is_banned", False):
+                    ban_text = (
+                        "🚫 <b>CUENTA SUSPENDIDA</b>\n\n"
+                        "Tu cuenta ha sido suspendida por el equipo de administración y las funciones de compra están deshabilitadas.\n\n"
+                        "<i>Si crees que se trata de un error o deseas resolver tu caso, pulsa el botón inferior para contactar a soporte:</i>"
+                    )
+                    ban_kb = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🆘 Abrir Ticket de Soporte", callback_data="support:new")],
+                        [InlineKeyboardButton("💬 Ver Mis Tickets", callback_data="support:view")]
+                    ])
+                    await render_screen(client, user_id, ban_text, ban_kb)
+                    return
+
                 order_count_stmt = select(func.count(Order.id)).where(Order.user_id == user_id)
                 order_count_res = await session.execute(order_count_stmt)
                 digital_orders = order_count_res.scalar() or 0
@@ -227,6 +240,19 @@ def register_start_handlers(app: Client):
                     session.add(user)
                     await session.commit()
                     await session.refresh(user)
+
+                if getattr(user, "is_banned", False):
+                    ban_text = (
+                        "🚫 <b>CUENTA SUSPENDIDA</b>\n\n"
+                        "Tu cuenta ha sido suspendida por el equipo de administración y las funciones de compra están deshabilitadas.\n\n"
+                        "<i>Si crees que se trata de un error o deseas resolver tu caso, pulsa el botón inferior para contactar a soporte:</i>"
+                    )
+                    ban_kb = InlineKeyboardMarkup([
+                        [InlineKeyboardButton("🆘 Abrir Ticket de Soporte", callback_data="support:new")],
+                        [InlineKeyboardButton("💬 Ver Mis Tickets", callback_data="support:view")]
+                    ])
+                    await render_screen(client, callback, ban_text, ban_kb)
+                    return
 
                 order_count_stmt = select(func.count(Order.id)).where(Order.user_id == user_id)
                 order_count_res = await session.execute(order_count_stmt)
@@ -307,6 +333,9 @@ def register_start_handlers(app: Client):
                     ],
                     [
                         InlineKeyboardButton(t("btn_my_orders", lang), callback_data="orders:page:1:profile"),
+                        InlineKeyboardButton(t("btn_wallet_transactions", lang), callback_data="wallet:transactions:1")
+                    ],
+                    [
                         InlineKeyboardButton(t("btn_language", lang), callback_data="account:language")
                     ],
                     [
@@ -356,52 +385,3 @@ def register_start_handlers(app: Client):
             await cb_account_view(client, callback)
         except Exception as e:
             print(f"[Error in cb_set_language]: {e}")
-
-    @app.on_message(filters.command(["soporte", "support", "ayuda", "help"]) & filters.private)
-    async def cmd_support(client: Client, message: Message):
-        user_id = message.from_user.id
-        try:
-            await message.delete()
-        except Exception:
-            pass
-        try:
-            async with async_session() as session:
-                stmt = select(User).where(User.telegram_id == user_id)
-                result = await session.execute(stmt)
-                user = result.scalar_one_or_none()
-                lang = getattr(user, "language", "es") or "es"
-
-            text = t("support_text", lang)
-            admin_tg_url = "https://t.me/jvc2006"
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(t("btn_contact_admin", lang), url=admin_tg_url)],
-                [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
-            ])
-            await render_screen(client, user_id, text, keyboard)
-        except Exception as e:
-            print(f"[Error in cmd_support]: {e}")
-
-    @app.on_callback_query(filters.regex("^support:view$"))
-    async def cb_support_view(client: Client, callback: CallbackQuery):
-        try:
-            await callback.answer()
-        except Exception:
-            pass
-
-        user_id = callback.from_user.id
-        try:
-            async with async_session() as session:
-                stmt = select(User).where(User.telegram_id == user_id)
-                result = await session.execute(stmt)
-                user = result.scalar_one_or_none()
-                lang = getattr(user, "language", "es") or "es"
-
-            text = t("support_text", lang)
-            admin_tg_url = "https://t.me/jvc2006"
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(t("btn_contact_admin", lang), url=admin_tg_url)],
-                [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")]
-            ])
-            await render_screen(client, callback, text, keyboard)
-        except Exception as e:
-            print(f"[Error in cb_support_view]: {e}")

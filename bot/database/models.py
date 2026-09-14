@@ -40,6 +40,7 @@ class User(Base):
     vip_warned_24h = Column(Boolean, default=False, nullable=False)
     vip_warned_2h = Column(Boolean, default=False, nullable=False)
     active_coupon_code = Column(String(32), nullable=True)
+    is_banned = Column(Boolean, default=False, nullable=False, index=True)
     created_at = Column(DateTime, default=utc_now, nullable=False)
     updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
 
@@ -187,4 +188,31 @@ class VirtualNumberOrder(Base):
     created_at = Column(DateTime, default=utc_now, nullable=False)
 
     user = relationship("User")
+
+class SupportTicket(Base):
+    __tablename__ = "support_tickets"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    user_id = Column(BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True)
+    status = Column(String(20), default="OPEN", nullable=False, index=True)  # OPEN, RESOLVED, CLOSED
+    subject = Column(String(255), nullable=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    updated_at = Column(DateTime, default=utc_now, onupdate=utc_now, nullable=False)
+
+    user = relationship("User")
+    messages = relationship("TicketMessage", back_populates="ticket", cascade="all, delete-orphan", order_by="TicketMessage.created_at")
+
+class TicketMessage(Base):
+    __tablename__ = "ticket_messages"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    ticket_id = Column(Integer, ForeignKey("support_tickets.id"), nullable=False, index=True)
+    sender_id = Column(BigInteger, nullable=False)
+    is_admin = Column(Boolean, default=False, nullable=False)
+    message_text = Column(Text, nullable=True)
+    media_file_id = Column(String(255), nullable=True)
+    media_type = Column(String(32), nullable=True)  # "photo", "document", etc.
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+
+    ticket = relationship("SupportTicket", back_populates="messages")
 
