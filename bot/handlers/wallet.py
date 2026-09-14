@@ -650,8 +650,9 @@ def register_wallet_handlers(app: Client):
                                     )
                                 asyncio.create_task(client.send_message(
                                     chat_id=ref_uid,
-                                    text=ref_msg,
-                                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("👛 Ver Billetera", callback_data="wallet:menu")]])
+                                    text=parse_emojis(ref_msg),
+                                    reply_markup=parse_keyboard(InlineKeyboardMarkup([[InlineKeyboardButton("👛 Ver Mi Billetera", callback_data="wallet:deposit_menu")]])),
+                                    disable_web_page_preview=True
                                 ))
                             except Exception as e:
                                 print(f"[ReferralDM Error]: {e}")

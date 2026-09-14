@@ -503,6 +503,20 @@ EMOJI_MAP_CORE = {
     "👀": "5276395476646653290",  # Ojos / Ver / Filtrar
     "♾️": "5427168083074628963",  # Infinito / Permanente
     "♾": "5427168083074628963",
+    "🚫": "5208429100951159058",  # Prohibido / Suspendido / Bloqueado
+    "📜": "5334544901428229844",  # Historial / Extracto / Movimientos
+    "🎫": "5890883384057533697",  # Ticket de soporte
+    "📸": "5407025283456835913",  # Foto / Captura
+    "📷": "5407025283456835913",
+    "📨": "5276220667182736079",  # Bandeja / Mensaje recibido
+    "🔘": "5339366229851260759",  # Radio button activo
+    "🕒": "5276412364458059956",  # Reloj / Hora
+    "💻": "5406809207947142040",  # Computadora / Soporte
+    "🌍": "5447410659077661506",  # Planeta tierra
+    "📡": "5407025283456835913",  # Señal / Operador
+    "💤": "5370715282044100355",  # Inactivo / Vacío
+    "👨": "5787467546596743616",  # Persona / Admin
+    "🏳": "5447410659077661506",  # Bandera fallback
 
     # --- Números Virtuales y Teléfonos ---
     "📱": "5407025283456835913",

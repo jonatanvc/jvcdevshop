@@ -9,7 +9,7 @@ from bot.database.session import async_session
 from bot.database.models import User, SupportTicket, TicketMessage
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
-from bot.utils.emojis import parse_emojis
+from bot.utils.emojis import parse_emojis, parse_keyboard
 
 # Estados en memoria para captura de mensajes de soporte
 SUPPORT_USER_STATES: Dict[int, Dict[str, Any]] = {}
@@ -391,8 +391,9 @@ def register_support_handlers(app: Client):
             try:
                 await client.send_message(
                     chat_id=target_uid,
-                    text=f"🔒 <b>Tu Ticket #{ticket_id} ha sido cerrado por el equipo de soporte.</b>\nSi requieres más ayuda, puedes abrir uno nuevo.",
-                    reply_markup=InlineKeyboardMarkup([[InlineKeyboardButton("📋 Mis Tickets", callback_data="support:list:1")]])
+                    text=parse_emojis(f"🔒 <b>Tu Ticket #{ticket_id} ha sido cerrado por el equipo de soporte.</b>\n\n<i>Si requieres más ayuda, puedes abrir uno nuevo en cualquier momento.</i>"),
+                    reply_markup=parse_keyboard(InlineKeyboardMarkup([[InlineKeyboardButton("📋 Mis Tickets", callback_data="support:list:1")]])),
+                    disable_web_page_preview=True
                 )
             except Exception:
                 pass
@@ -590,7 +591,7 @@ async def deliver_admin_ticket_reply(client: Client, admin_id: int, ticket_id: i
     # Confirmación al Admin
     await client.send_message(
         chat_id=admin_id,
-        text=f"✅ <b>Respuesta entregada al cliente del Ticket #{ticket_id}.</b>"
+        text=parse_emojis(f"✅ <b>Respuesta entregada al cliente del Ticket #{ticket_id}.</b>")
     )
 
     # Envío al Cliente por DM
@@ -611,7 +612,7 @@ async def deliver_admin_ticket_reply(client: Client, admin_id: int, ticket_id: i
         ]
     ])
     try:
-        await client.send_message(chat_id=target_uid, text=dm_text, reply_markup=dm_keyboard)
+        await client.send_message(chat_id=target_uid, text=parse_emojis(dm_text), reply_markup=parse_keyboard(dm_keyboard))
     except Exception as e:
         print(f"[DeliverReply Error]: {e}")
 
@@ -641,9 +642,9 @@ async def notify_admins_new_ticket(client: Client, ticket_id: int, user_id: int,
 
     try:
         if media_id and media_type == "photo":
-            await client.send_photo(chat_id=target_chat, photo=media_id, caption=admin_text, reply_markup=keyboard)
+            await client.send_photo(chat_id=target_chat, photo=media_id, caption=parse_emojis(admin_text), reply_markup=parse_keyboard(keyboard))
         else:
-            await client.send_message(chat_id=target_chat, text=admin_text, reply_markup=keyboard)
+            await client.send_message(chat_id=target_chat, text=parse_emojis(admin_text), reply_markup=parse_keyboard(keyboard))
     except Exception as e:
         print(f"[NotifyNewTicket Error]: {e}")
 
@@ -664,6 +665,6 @@ async def notify_admins_ticket_update(client: Client, ticket_id: int, user_id: i
     ])
     target_chat = settings.LOG_GROUP_ID if settings.LOG_GROUP_ID != 0 else (settings.admin_ids[0] if settings.admin_ids else 8670239783)
     try:
-        await client.send_message(chat_id=target_chat, text=admin_text, reply_markup=keyboard)
+        await client.send_message(chat_id=target_chat, text=parse_emojis(admin_text), reply_markup=parse_keyboard(keyboard))
     except Exception as e:
         print(f"[NotifyTicketUpdate Error]: {e}")
