@@ -87,11 +87,15 @@ class FiveSimClient:
             print(f"[FiveSimClient.get_raw_prices Error]: {e}")
             return self._prices_cache.get(cache_key, {})
 
-    async def get_service_offers(self, product: str) -> List[Dict[str, Any]]:
+    async def get_service_offers(self, product: str, sort_by: str = "pop") -> List[Dict[str, Any]]:
         """
         Obtiene las mejores ofertas disponibles por país para un servicio específico (ej: whatsapp).
         Selecciona el operador con mejor tasa de recepción (calidad) y calcula el stock total.
-        Retorna la lista estrictamente ordenada por Popularidad, Calidad de entrega y Disponibilidad.
+        Retorna la lista ordenada según el criterio:
+        - 'pop': Por popularidad (Top demandados primero, calidad y stock).
+        - 'qual': Por calidad (Mayor tasa de entrega SMS % primero).
+        - 'cheap': Más barato (Menor precio de costo primero).
+        - 'exp': Más caro (Mayor precio primero).
         """
         # Prioridad de Popularidad (Nivel 1: Top demandados, Nivel 2: Regiones clave, Nivel 3: Resto)
         popular_ranking: Dict[str, int] = {
@@ -196,18 +200,26 @@ class FiveSimClient:
                     "rate": max(0.0, best_rate)
                 })
 
-        # Ordenar por:
-        # 1. Popularidad del país (Tier 1 -> Tier 2 -> Resto del mundo)
-        # 2. Calidad de recepción del SMS (mayor tasa de éxito primero: -rate)
-        # 3. Stock disponible (mayor disponibilidad primero: -stock)
-        # 4. Precio de costo (menor costo primero)
-        def _sort_offers(offer: Dict[str, Any]) -> Tuple[int, float, int, float]:
+        # Ordenar según criterio seleccionado
+        def _sort_offers(offer: Dict[str, Any]) -> Tuple[Any, ...]:
             c_code = offer["country"].lower().strip()
             rank = popular_ranking.get(c_code, 100)
             rate = float(offer.get("rate", 0.0))
             stock = int(offer.get("stock", 0))
             cost = float(offer.get("cost_usd", 999.0))
-            return (rank, -rate, -stock, cost)
+
+            if sort_by == "qual":
+                # Mayor calidad (tasa SMS) primero, luego popularidad, stock y costo
+                return (-rate, rank, -stock, cost)
+            elif sort_by == "cheap":
+                # Más barato primero, luego stock, tasa y popularidad
+                return (cost, -stock, -rate, rank)
+            elif sort_by == "exp":
+                # Más caro primero, luego stock, tasa y popularidad
+                return (-cost, -stock, -rate, rank)
+            else:
+                # Popularidad por defecto: 1. Tier popularidad, 2. Calidad, 3. Stock, 4. Costo
+                return (rank, -rate, -stock, cost)
 
         offers.sort(key=_sort_offers)
         return offers

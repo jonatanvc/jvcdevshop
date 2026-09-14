@@ -65,13 +65,24 @@ def get_services_catalog_keyboard() -> InlineKeyboardMarkup:
     ])
     return InlineKeyboardMarkup(buttons)
 
-async def render_countries_screen(client: Client, target: Any, user_id: int, service_code: str, page: int):
-    """Renderiza la lista paginada de países con botones limpios, buscador y botón actualizar"""
+VNUM_SORT_CONFIG: Dict[str, Tuple[str, str]] = {
+    "pop": ("🌟 Popularidad", "Países más recomendados y demandados"),
+    "qual": ("🎯 Mayor Calidad", "Mayor tasa de éxito en recepción de SMS"),
+    "cheap": ("📉 Más Barato", "Menor costo de adquisición primero"),
+    "exp": ("📈 Más Caro", "Líneas de mayor costo y exclusividad")
+}
+
+async def render_countries_screen(client: Client, target: Any, user_id: int, service_code: str, page: int, sort_by: str = "pop"):
+    """Renderiza la lista paginada de países con filtros de ordenamiento interactivos (popularidad, calidad, barato, caro)"""
     service_info = CURATED_SERVICES.get(service_code)
     if not service_info:
         return
 
-    offers = await fivesim_api.get_service_offers(service_code)
+    if sort_by not in VNUM_SORT_CONFIG:
+        sort_by = "pop"
+
+    sort_title, sort_desc = VNUM_SORT_CONFIG[sort_by]
+    offers = await fivesim_api.get_service_offers(service_code, sort_by=sort_by)
 
     is_owner = settings.is_owner(user_id)
     async with async_session() as session:
@@ -88,7 +99,7 @@ async def render_countries_screen(client: Client, target: Any, user_id: int, ser
             f"<i>Por favor intenta más tarde o prueba con otra plataforma.</i>"
         )
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton("🔄 Reintentar", callback_data=f"vnum:select_service:{service_code}:1")],
+            [InlineKeyboardButton("🔄 Reintentar", callback_data=f"vnum:select_service:{service_code}:1:{sort_by}")],
             [InlineKeyboardButton("🔙 Volver a Servicios", callback_data="vnum:catalog")]
         ])
         await render_screen(client, target, text, keyboard)
@@ -109,6 +120,7 @@ async def render_countries_screen(client: Client, target: Any, user_id: int, ser
         f"📲 <b>NÚMEROS VIRTUALES PARA {service_info['name'].upper()}</b>\n{owner_note}{vip_note}\n"
         f"Elige el país de tu preferencia para recibir el código de verificación:\n\n"
         f"• <b>Países con Stock:</b> <code>{total_offers}</code>\n"
+        f"• <b>Filtro activo:</b> <b>{sort_title}</b> (<i>{sort_desc}</i>)\n"
         f"• <b>Página:</b> <code>{page}/{total_pages}</code>\n\n"
         f"<i>Precios en {price_label} con entrega instantánea:</i>"
     )
@@ -122,8 +134,12 @@ async def render_countries_screen(client: Client, target: Any, user_id: int, ser
         # Calcular precio en USDT con margen Bunai y VIP (o al costo si es Owner)
         price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
 
-        # Botón limpio: solo bandera, nombre del país y precio
-        btn_label = f"{flag} {name} — ${price_usdt:.2f} {price_label}"
+        # En modo calidad mostrar % de éxito de entrega si está disponible
+        if sort_by == "qual" and off.get("rate", 0) > 0:
+            btn_label = f"{flag} {name} ({off['rate']:.0f}% éxito) — ${price_usdt:.2f} {price_label}"
+        else:
+            btn_label = f"{flag} {name} — ${price_usdt:.2f} {price_label}"
+
         buttons.append([
             InlineKeyboardButton(
                 btn_label,
@@ -131,26 +147,39 @@ async def render_countries_screen(client: Client, target: Any, user_id: int, ser
             )
         ])
 
-    # Navegación paginada
+    # Navegación paginada (conservando el filtro de ordenamiento activo)
     if total_pages > 1:
         nav_row = []
         if page > 1:
-            nav_row.append(InlineKeyboardButton("◀️", callback_data=f"vnum:select_service:{service_code}:{page - 1}"))
+            nav_row.append(InlineKeyboardButton("◀️", callback_data=f"vnum:select_service:{service_code}:{page - 1}:{sort_by}"))
         else:
             nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
 
         nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
 
         if page < total_pages:
-            nav_row.append(InlineKeyboardButton("▶️", callback_data=f"vnum:select_service:{service_code}:{page + 1}"))
+            nav_row.append(InlineKeyboardButton("▶️", callback_data=f"vnum:select_service:{service_code}:{page + 1}:{sort_by}"))
         else:
             nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
 
         buttons.append(nav_row)
 
+    # Botones de Filtro de Ordenamiento (2 filas de 2 botones)
+    def _filter_lbl(key: str, base_lbl: str) -> str:
+        return f"🔘 {base_lbl}" if sort_by == key else base_lbl
+
+    buttons.append([
+        InlineKeyboardButton(_filter_lbl("pop", "🌟 Popularidad"), callback_data=f"vnum:select_service:{service_code}:1:pop"),
+        InlineKeyboardButton(_filter_lbl("qual", "🎯 Mayor Calidad"), callback_data=f"vnum:select_service:{service_code}:1:qual")
+    ])
+    buttons.append([
+        InlineKeyboardButton(_filter_lbl("cheap", "📉 Más Barato"), callback_data=f"vnum:select_service:{service_code}:1:cheap"),
+        InlineKeyboardButton(_filter_lbl("exp", "📈 Más Caro"), callback_data=f"vnum:select_service:{service_code}:1:exp")
+    ])
+
     # Fila de Controles: Actualizar y Buscar País (idéntico al catálogo de productos)
     buttons.append([
-        InlineKeyboardButton("🔄 Actualizar", callback_data=f"vnum:refresh:{service_code}:{page}"),
+        InlineKeyboardButton("🔄 Actualizar", callback_data=f"vnum:refresh:{service_code}:{page}:{sort_by}"),
         InlineKeyboardButton("🔍 Buscar País", callback_data=f"vnum:search_prompt:{service_code}")
     ])
 
@@ -291,7 +320,7 @@ def register_virtual_numbers_handlers(app: Client):
     # 🌍 2. SELECTOR DE PAÍSES Y PRECIOS
     # ==========================================
 
-    @app.on_callback_query(filters.regex(r"^vnum:select_service:([a-z0-9_]+):(\d+)$"))
+    @app.on_callback_query(filters.regex(r"^vnum:select_service:([a-z0-9_]+):(\d+)(?::([a-z]+))?$"))
     async def cb_vnum_select_service(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
         VNUM_SEARCH_STATES.pop(user_id, None)
@@ -300,6 +329,7 @@ def register_virtual_numbers_handlers(app: Client):
 
         service_code = callback.matches[0].group(1)
         page = int(callback.matches[0].group(2))
+        sort_by = callback.matches[0].group(3) or "pop"
 
         service_info = CURATED_SERVICES.get(service_code)
         if not service_info:
@@ -307,13 +337,13 @@ def register_virtual_numbers_handlers(app: Client):
             return
 
         await callback.answer("⏳ Consultando países disponibles en 5SIM...")
-        await render_countries_screen(client, callback, user_id, service_code, page)
+        await render_countries_screen(client, callback, user_id, service_code, page, sort_by=sort_by)
 
     # ==========================================
     # 🔄 2.1. ACTUALIZAR PAÍSES EN TIEMPO REAL
     # ==========================================
 
-    @app.on_callback_query(filters.regex(r"^vnum:refresh:([a-z0-9_]+):(\d+)$"))
+    @app.on_callback_query(filters.regex(r"^vnum:refresh:([a-z0-9_]+):(\d+)(?::([a-z]+))?$"))
     async def cb_vnum_refresh(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
         if rate_limiter.is_rate_limited(user_id):
@@ -321,13 +351,14 @@ def register_virtual_numbers_handlers(app: Client):
 
         service_code = callback.matches[0].group(1)
         page = int(callback.matches[0].group(2))
+        sort_by = callback.matches[0].group(3) or "pop"
 
         # Invalidar caché local de 5SIM para datos frescos
         fivesim_api._prices_cache.clear()
         fivesim_api._prices_cache_ts = 0.0
 
         await callback.answer("🔄 Actualizando lista y stock...")
-        await render_countries_screen(client, callback, user_id, service_code, page)
+        await render_countries_screen(client, callback, user_id, service_code, page, sort_by=sort_by)
 
     # ==========================================
     # 🔍 2.2. BUSCADOR DE PAÍS POR TEXTO
