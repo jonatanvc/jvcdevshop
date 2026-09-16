@@ -8,9 +8,8 @@ from sqlalchemy import select, func
 from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, Order, VirtualNumberOrder, Setting
-from bot.services.bunai_client import bunai_api
 from bot.utils.emojis import (
-    EMOJI_USER, EMOJI_ID, EMOJI_MONEY, EMOJI_PROVIDER, EMOJI_SHOPPING,
+    EMOJI_USER, EMOJI_ID, EMOJI_MONEY, EMOJI_SHOPPING,
     EMOJI_WALLET, EMOJI_LANG, EMOJI_GLOBE, EMOJI_CALENDAR, clean_popup_text
 )
 from bot.utils.navigation import render_screen, USER_LAST_MESSAGES
@@ -18,22 +17,6 @@ from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t, LANGUAGES
 from bot.utils.time_utils import format_dt
 from bot.services.audit_logger import audit_logger
-
-_BUNAI_BALANCE_CACHE = {"balance": 0.0, "ts": 0.0}
-
-async def get_cached_bunai_balance() -> float:
-    """Obtiene el saldo de BunaiStore con caché en memoria (60s TTL) y timeout adecuado"""
-    now = time.time()
-    if now - _BUNAI_BALANCE_CACHE["ts"] < 60.0 and _BUNAI_BALANCE_CACHE["ts"] > 0:
-        return _BUNAI_BALANCE_CACHE["balance"]
-    try:
-        bunai_data = await asyncio.wait_for(bunai_api.get_me(), timeout=8.0)
-        bal = float(bunai_data.get("balance", 0.0))
-        _BUNAI_BALANCE_CACHE["balance"] = bal
-        _BUNAI_BALANCE_CACHE["ts"] = now
-        return bal
-    except Exception:
-        return _BUNAI_BALANCE_CACHE["balance"]
 
 def get_main_menu_keyboard(user_id: int, lang: str = "es") -> InlineKeyboardMarkup:
     """Genera la botonera inline del menú principal exactamente según la distribución solicitada"""
@@ -80,15 +63,6 @@ async def build_main_menu_text(user: User, orders_count: int, session) -> str:
         pass
 
     user_name = user.first_name or user.username or f"Usuario {user.telegram_id}"
-
-    bunai_line = ""
-    if settings.is_owner(user.telegram_id):
-        try:
-            bunai_balance = await get_cached_bunai_balance()
-            bunai_line = f"👑 <b>Saldo API BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>\n"
-        except Exception:
-            bunai_line = ""
-
     balance_val = float(getattr(user, "balance", 0.0))
 
     text = (
@@ -97,7 +71,6 @@ async def build_main_menu_text(user: User, orders_count: int, session) -> str:
         f"{EMOJI_USER} <b>{t('user_label', lang)}:</b> {user_name}\n"
         f"{EMOJI_ID} <b>ID:</b> <code>{user.telegram_id}</code>\n"
         f"{EMOJI_MONEY} <b>{t('balance_bot', lang)}:</b> <code>${balance_val:.2f} USDT</code>\n"
-        f"{bunai_line}"
         f"{EMOJI_SHOPPING} <b>{t('orders_made', lang)}:</b> <code>{orders_count}</code>\n\n"
         f"<i>{t('select_option', lang)}</i>"
     )
@@ -308,20 +281,11 @@ def register_start_handlers(app: Client):
                     vip_status_text = f"👑 <b>Estado:</b> <code>{t('vip_status_regular', lang)}</code>\n"
                     vip_btn = InlineKeyboardButton(t("btn_vip_plan", lang), callback_data="account:vip")
 
-                bunai_owner_line = ""
-                if settings.is_owner(user_id):
-                    try:
-                        bunai_bal = await get_cached_bunai_balance()
-                        bunai_owner_line = f"{EMOJI_PROVIDER} <b>{t('balance_provider', lang)}:</b> <code>${bunai_bal:.2f} USD</code>\n"
-                    except Exception:
-                        pass
-
                 text = (
                     f"{t('profile_title', lang)}\n\n"
                     f"{EMOJI_ID} <b>ID:</b> <code>{user.telegram_id}</code>\n"
                     f"{EMOJI_WALLET} <b>{t('balance_bot', lang)}:</b> <code>{float(user.balance):.2f} USDT</code>\n"
                     f"{vip_status_text}"
-                    f"{bunai_owner_line}"
                     f"{EMOJI_LANG} <b>{t('lang_label', lang)}:</b> <code>{lang.upper()}</code> ({LANGUAGES.get(lang, 'Español')})\n"
                     f"{EMOJI_GLOBE} <b>Timezone:</b> <code>{settings.TIMEZONE}</code>\n"
                     f"{EMOJI_CALENDAR} <b>{t('registered', lang)}:</b> <code>{reg_date}</code>"

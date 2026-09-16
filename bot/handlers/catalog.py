@@ -151,42 +151,17 @@ def build_product_calculator_keyboard(
     ])
 
     # Fila 4: Botones de acción principal (compra)
-    if is_owner:
-        can_buy_api = (api_balance >= total_price)
-        can_buy_bot = (user_balance >= total_price)
-
-        if can_buy_api:
-            buttons.append([
-                InlineKeyboardButton(
-                    f"👑 Comprar {calc_qty} con Saldo API (${total_price:.2f} USD)",
-                    callback_data=f"checkout:confirm:{product_id}:{calc_qty}:api"
-                )
-            ])
-
-        if can_buy_bot:
-            buttons.append([
-                InlineKeyboardButton(
-                    f"🛍️ Comprar {calc_qty} con Saldo Bot (${total_price:.2f} USD)",
-                    callback_data=f"checkout:confirm:{product_id}:{calc_qty}:bot"
-                )
-            ])
-
-        if not can_buy_api and not can_buy_bot:
-            buttons.append([
-                InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet_main")
-            ])
+    if can_buy:
+        buttons.append([
+            InlineKeyboardButton(
+                f"🛍️ Comprar {calc_qty} (${total_price:.2f} USDT)",
+                callback_data=f"checkout:confirm:{product_id}:{calc_qty}"
+            )
+        ])
     else:
-        if can_buy:
-            buttons.append([
-                InlineKeyboardButton(
-                    f"🛍️ Comprar {calc_qty} por ${total_price:.2f} USD",
-                    callback_data=f"checkout:confirm:{product_id}:{calc_qty}:bot"
-                )
-            ])
-        else:
-            buttons.append([
-                InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet_main")
-            ])
+        buttons.append([
+            InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet:deposit_menu")
+        ])
 
     # Fila 5: Ver Nota (solo si el producto tiene nota configurada)
     if has_note:
@@ -558,8 +533,8 @@ def register_catalog_handlers(app: Client):
             if not has_stock:
                 total_price = 0.0
                 can_buy = False
-                unit_price = base_price if is_owner else (await pricing_service.calculate_product_price(base_price, product_id, session))
-                if is_active_vip and not is_owner:
+                unit_price = await pricing_service.calculate_product_price(base_price, product_id, session)
+                if is_active_vip:
                     vip_unit_price = pricing_service.calculate_vip_price(unit_price)
                     price_line = f"{EMOJI_TAG} <b>Precio Normal:</b> <s>{unit_price:.2f} USDT</s> ➡️ <b>VIP (-20%):</b> <code>{vip_unit_price:.2f} USDT</code> ⭐"
                 else:
@@ -567,21 +542,6 @@ def register_catalog_handlers(app: Client):
                 total_line = f"{EMOJI_WARN} <b>Estado:</b> <code>Agotado / Sin Stock</code>"
                 balance_line = f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {user_balance:.2f} USDT"
                 offer_line = ""
-            elif is_owner:
-                unit_price = base_price
-                api_balance = await bunai_api.get_balance()
-                effective_balance = api_balance
-                offer_line = ""
-                calc_qty = max(1, qty)
-                total_price = round(calc_qty * unit_price, 2)
-                can_buy = (api_balance >= total_price or user_balance >= total_price) and (infinite_stock or stock_count >= calc_qty)
-
-                price_line = f"{EMOJI_TAG} <b>Precio Costo Proveedor:</b> <code>${unit_price:.2f} USD</code> 👑"
-                total_line = f"{EMOJI_MONEY} <b>Total a Pagar (Costo):</b> <code>${total_price:.2f} USD</code> 👑"
-                balance_line = (
-                    f"{EMOJI_PROVIDER} <b>Saldo API BunaiStore:</b> <code>${api_balance:.2f} USD</code> 👑\n"
-                    f"{EMOJI_WALLET} <b>Saldo en el Bot:</b> <code>${user_balance:.2f} USDT</code>"
-                )
             else:
                 unit_price = await pricing_service.calculate_product_price(base_price, product_id, session)
                 effective_balance = user_balance
@@ -627,7 +587,7 @@ def register_catalog_handlers(app: Client):
                         user.active_coupon_code = None
 
                 total_price = round(subtotal, 2)
-                can_buy = (effective_balance >= total_price) and (infinite_stock or stock_count >= qty)
+                can_buy = (is_owner or effective_balance >= total_price) and (infinite_stock or stock_count >= qty)
 
                 vip_tag = " <i>(⭐ Tarifa VIP 20% OFF)</i>" if is_active_vip else ""
                 total_line = f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT{vip_tag}{coupon_line}"

@@ -142,14 +142,17 @@ def register_checkout_handlers(app: Client):
 
             # 3. Verificación y descuento de saldo
             if pay_with_api:
-                # El owner paga directamente con su saldo en la API de BunaiStore
+                # El owner paga directamente con su saldo en la API de BunaiStore (precio costo)
                 api_balance = await bunai_api.get_balance(force_refresh=True)
-                if api_balance < total_price:
-                    await callback.answer(f"❌ Saldo API insuficiente (${api_balance:.2f} < ${total_price:.2f} USD)", show_alert=True)
+                if api_balance >= total_price:
+                    remaining_balance = Decimal(str(round(api_balance - total_price, 2)))
+                elif float(user.balance) >= total_price:
+                    pay_with_api = False
+                else:
+                    await callback.answer(f"❌ Saldo insuficiente (${api_balance:.2f} API / ${float(user.balance):.2f} Bot)", show_alert=True)
                     return
-                # No se descuenta nada de user.balance en la base de datos local
-                remaining_balance = Decimal(str(round(api_balance - total_price, 2)))
-            else:
+
+            if not pay_with_api:
                 # Transacción atómica de descuento de saldo (Anti Doble-Gasto)
                 deduct_stmt = (
                     update(User)
@@ -171,10 +174,6 @@ def register_checkout_handlers(app: Client):
 
         # 4. Mensaje temporal de procesamiento traducido
         proc_text = t("processing_order", lang, qty=qty, product=product_name)
-        if pay_with_api:
-            proc_text += "\n👑 <i>(Procesando compra directa con saldo API)</i>"
-        elif is_owner:
-            proc_text += "\n👑 <i>(Procesando compra Owner a precio de costo con saldo Bot)</i>"
         await render_screen(client, callback, proc_text, None)
 
         # 5. Ejecutar compra en BunaiStore API

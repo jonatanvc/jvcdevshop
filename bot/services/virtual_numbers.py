@@ -332,9 +332,9 @@ class VirtualNumbersService:
                 prof_5sim = await fivesim_api.get_profile()
                 fivesim_bal = float(prof_5sim.get("balance", 0.0))
                 if fivesim_bal < 0.05:
-                    return {"error": f"Saldo insuficiente en tu cuenta de 5SIM (${fivesim_bal:.2f} USD)."}
-            except Exception as ex:
-                return {"error": f"No se pudo consultar el saldo de la API de 5SIM: {ex}"}
+                    pay_with_api = False  # Fallback a débito de saldo del bot a precio de costo
+            except Exception:
+                pay_with_api = False
 
         # 2. Verificar usuario en base de datos (auto-crearlo si no existe para evitar error de clave foránea)
         now = datetime.now(timezone.utc).replace(tzinfo=None)

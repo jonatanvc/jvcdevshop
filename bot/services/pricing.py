@@ -41,12 +41,21 @@ class PricingService:
 
     def calculate_price_from_custom(self, base_price: float, custom: Optional[CustomPricing] = None) -> float:
         """
-        Calcula el precio de venta final aplicando la Estrategia Escalonada Progresiva:
+        Calcula el precio de venta final aplicando la Estrategia Escalonada Progresiva Optimizada:
         1. Prioridad: Precios o márgenes personalizados en la BD (CustomPricing).
-        2. Tramo 1 (Costo < $0.50): Multiplicador x7.0 (+600% margen).
-        3. Tramo 2 (Costo $0.50 a $0.99): Multiplicador x4.0 (+300% margen).
-        4. Tramo 3 (Costo $1.00 a $2.99): Multiplicador x2.5 (+150% margen).
-        5. Tramo 4 (Costo >= $3.00): Multiplicador x2.0 (+100% margen / el doble).
+        2. Tramo Micro (Costo < $0.50): Multiplicador x3.5 (+250% margen). Piso mínimo: $0.35 USDT.
+        3. Tramo Bajo (Costo $0.50 a $0.99): Multiplicador x2.4 (+140% margen).
+        4. Tramo Medio (Costo $1.00 a $2.99): Multiplicador x1.75 (+75% margen).
+        5. Tramo Estándar (Costo $3.00 a $7.99): Multiplicador x1.50 (+50% margen).
+        6. Tramo Alto (Costo >= $8.00): Multiplicador x1.38 (+38% margen).
+
+        Garantía VIP: Con el 20% de descuento del Plan Revendedor VIP (factor 0.80),
+        todos los tramos garantizan margen de ganancia neto positivo para el Owner:
+        - Micro: +180% neto
+        - Bajo: +92% neto
+        - Medio: +40% neto
+        - Estándar: +20% neto
+        - Alto: +10.4% neto
         """
         if custom:
             if custom.custom_price is not None:
@@ -55,15 +64,17 @@ class PricingService:
                 margin = float(custom.custom_margin)
                 return round(base_price * (1.0 + margin / 100.0), 2)
 
-        # Regla Escalonada Progresiva Suave
+        # Regla Escalonada Progresiva Optimizada y Competitiva
         if base_price < 0.50:
-            final_price = base_price * 7.0
+            final_price = max(0.35, base_price * 3.5)
         elif base_price < 1.00:
-            final_price = base_price * 4.0
+            final_price = base_price * 2.4
         elif base_price < 3.00:
-            final_price = base_price * 2.5
+            final_price = base_price * 1.75
+        elif base_price < 8.00:
+            final_price = base_price * 1.50
         else:
-            final_price = base_price * 2.0
+            final_price = base_price * 1.38
 
         return round(final_price, 2)
 
@@ -74,29 +85,27 @@ class PricingService:
 
     def calculate_virtual_number_price(self, cost_usd: float, is_vip: bool = False, is_owner: bool = False) -> float:
         """
-        Calcula el precio de venta en USDT para números virtuales 5SIM aplicando
-        la misma regla escalonada progresiva de Bunai:
-        - Si es Owner: compra a precio exacto de costo de la API (0% margen).
-        - Costo < $0.50: x7.0 (+600% margen)
-        - Costo $0.50 - $0.99: x4.0 (+300% margen)
-        - Costo $1.00 - $2.99: x2.5 (+150% margen)
-        - Costo >= $3.00: x2.0 (+100% margen / el doble)
-        - Piso mínimo de seguridad: $0.40 USDT (excepto owner)
+        Calcula el precio de venta en USDT para números virtuales 5SIM:
+        - Si es Owner: tarifa de costo neto de la API (0% margen).
+        - Si es usuario regular: aplica la regla escalonada progresiva optimizada.
+        - Piso mínimo de seguridad: $0.35 USDT (excepto owner).
         Si el usuario tiene membresía VIP activa, aplica 20% de descuento adicional.
         """
         if is_owner:
             return round(cost_usd, 2)
 
         if cost_usd < 0.50:
-            price = cost_usd * 7.0
+            price = max(0.35, cost_usd * 3.5)
         elif cost_usd < 1.00:
-            price = cost_usd * 4.0
+            price = cost_usd * 2.4
         elif cost_usd < 3.00:
-            price = cost_usd * 2.5
+            price = cost_usd * 1.75
+        elif cost_usd < 8.00:
+            price = cost_usd * 1.50
         else:
-            price = cost_usd * 2.0
+            price = cost_usd * 1.38
 
-        final_price = max(0.40, round(price, 2))
+        final_price = round(price, 2)
         if is_vip:
             return self.calculate_vip_price(final_price)
         return final_price

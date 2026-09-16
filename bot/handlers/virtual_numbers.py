@@ -112,12 +112,11 @@ async def render_countries_screen(client: Client, target: Any, user_id: int, ser
     start_idx = (page - 1) * COUNTRIES_PER_PAGE
     page_offers = offers[start_idx:start_idx + COUNTRIES_PER_PAGE]
 
-    price_label = "USD" if is_owner else "USDT"
-    owner_note = "\n👑 <i>(Modo Owner: Precios de costo neto de API 5SIM)</i>\n" if is_owner else ""
-    vip_note = "\n👑 <i>(Beneficio VIP: 20% OFF aplicado)</i>\n" if (is_vip and not is_owner) else ""
+    price_label = "USDT"
+    vip_note = "\n👑 <i>(Beneficio VIP: 20% OFF aplicado)</i>\n" if is_vip else ""
 
     text = (
-        f"📲 <b>NÚMEROS VIRTUALES PARA {service_info['name'].upper()}</b>\n{owner_note}{vip_note}\n"
+        f"📲 <b>NÚMEROS VIRTUALES PARA {service_info['name'].upper()}</b>\n{vip_note}\n"
         f"Elige el país de tu preferencia para recibir el código de verificación:\n\n"
         f"• <b>Países con Stock:</b> <code>{total_offers}</code>\n"
         f"• <b>Filtro activo:</b> <b>{sort_title}</b> (<i>{sort_desc}</i>)\n"
@@ -131,8 +130,8 @@ async def render_countries_screen(client: Client, target: Any, user_id: int, ser
         cost_usd = off["cost_usd"]
         flag, name = get_country_display(c_code)
 
-        # Calcular precio en USDT con margen Bunai y VIP (o al costo si es Owner)
-        price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
+        # Calcular precio en USDT con margen Bunai y VIP
+        price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=False)
 
         # En modo calidad mostrar % de éxito de entrega si está disponible
         if sort_by == "qual" and off.get("rate", 0) > 0:
@@ -213,7 +212,7 @@ async def execute_vnum_search(client: Client, user_id: int, service_code: str, q
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
 
-    price_label = "USD" if is_owner else "USDT"
+    price_label = "USDT"
     target = callback if callback else user_id
 
     if not matched_offers:
@@ -248,7 +247,7 @@ async def execute_vnum_search(client: Client, user_id: int, service_code: str, q
         c_code = off["country"]
         cost_usd = off["cost_usd"]
         flag, name = get_country_display(c_code)
-        price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
+        price_usdt = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=False)
         btn_label = f"{flag} {name} — ${price_usdt:.2f} {price_label}"
         buttons.append([
             InlineKeyboardButton(
@@ -450,29 +449,13 @@ def register_virtual_numbers_handlers(app: Client):
             is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
 
         regular_price = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=False)
-        final_price = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=is_owner)
+        final_price = pricing_service.calculate_virtual_number_price(cost_usd, is_vip=is_vip, is_owner=False)
 
-        fivesim_bal = 0.0
-        if is_owner:
-            try:
-                prof = await fivesim_api.get_profile()
-                fivesim_bal = float(prof.get("balance", 0.0))
-            except Exception:
-                fivesim_bal = 0.0
-
-        if is_owner:
-            price_text = f"👑 <b>Tarifa Owner (Precio Costo API):</b> <code>${final_price:.2f} USD</code>\n"
-            balance_section = (
-                f"💳 <b>Tus Saldos Disponibles:</b>\n"
-                f"• 📱 <b>Saldo API 5SIM.net:</b> <code>${fivesim_bal:.2f} USD</code> 👑\n"
-                f"• 👛 <b>Saldo Billetera Bot:</b> <code>${balance_val:.2f} USDT</code>\n\n"
-            )
-        elif is_vip:
+        if is_vip:
             price_text = f"👑 <b>Tarifa Revendedor VIP:</b> <s>${regular_price:.2f}</s> <b>${final_price:.2f} USDT</b> (20% OFF)\n"
-            balance_section = f"💳 <b>Tu Saldo Actual:</b> <code>${balance_val:.2f} USDT</code>\n\n"
         else:
             price_text = f"💵 <b>Precio Total:</b> <code>${final_price:.2f} USDT</code>\n"
-            balance_section = f"💳 <b>Tu Saldo Actual:</b> <code>${balance_val:.2f} USDT</code>\n\n"
+        balance_section = f"💳 <b>Tu Saldo Actual:</b> <code>${balance_val:.2f} USDT</code>\n\n"
 
         text = (
             f"📲 <b>CONFIRMAR NÚMERO VIRTUAL</b>\n\n"
@@ -485,43 +468,19 @@ def register_virtual_numbers_handlers(app: Client):
             f"<i>El saldo solo se cobra si el SMS llega con éxito. Si el código no entra o cancelas la solicitud en los próximos 15 minutos, se te reembolsa el 100% automáticamente.</i>"
         )
 
-        if is_owner:
-            buttons = []
-            if fivesim_bal >= final_price:
-                buttons.append([InlineKeyboardButton(
-                    f"👑 Comprar con Saldo API 5SIM (${final_price:.2f} USD)",
-                    callback_data=f"vnum:execute:{service_code}:{country_code}:api"
-                )])
-            if balance_val >= final_price:
-                buttons.append([InlineKeyboardButton(
-                    f"🛍️ Comprar con Saldo Bot (${final_price:.2f} USDT)",
-                    callback_data=f"vnum:execute:{service_code}:{country_code}:bot"
-                )])
-
-            if not buttons:
-                diff_api = final_price - fivesim_bal
-                text += f"\n\n⚠️ <i>Saldo insuficiente en 5SIM (faltan ${diff_api:.2f} USD) y en el bot (faltan ${final_price - balance_val:.2f} USDT).</i>"
-                keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("👛 Recargar Mi Billetera", callback_data="wallet:deposit_menu")],
-                    [InlineKeyboardButton("🔙 Elegir Otro País", callback_data=f"vnum:select_service:{service_code}:1")]
-                ])
-            else:
-                buttons.append([InlineKeyboardButton("❌ Cancelar", callback_data=f"vnum:select_service:{service_code}:1")])
-                keyboard = InlineKeyboardMarkup(buttons)
+        has_sufficient = (balance_val >= final_price) or is_owner
+        if has_sufficient:
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton(f"✅ Confirmar Compra (${final_price:.2f} USDT)", callback_data=f"vnum:execute:{service_code}:{country_code}")],
+                [InlineKeyboardButton("❌ Cancelar", callback_data=f"vnum:select_service:{service_code}:1")]
+            ])
         else:
-            has_sufficient = balance_val >= final_price
-            if has_sufficient:
-                keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton(f"✅ Confirmar Compra (${final_price:.2f} USDT)", callback_data=f"vnum:execute:{service_code}:{country_code}:bot")],
-                    [InlineKeyboardButton("❌ Cancelar", callback_data=f"vnum:select_service:{service_code}:1")]
-                ])
-            else:
-                diff = final_price - balance_val
-                text += f"\n\n⚠️ <i>Te faltan <b>${diff:.2f} USDT</b> para completar esta compra.</i>"
-                keyboard = InlineKeyboardMarkup([
-                    [InlineKeyboardButton("👛 Recargar Mi Billetera", callback_data="wallet:deposit_menu")],
-                    [InlineKeyboardButton("🔙 Elegir Otro País", callback_data=f"vnum:select_service:{service_code}:1")]
-                ])
+            diff = final_price - balance_val
+            text += f"\n\n⚠️ <i>Te faltan <b>${diff:.2f} USDT</b> para completar esta compra.</i>"
+            keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("👛 Recargar Mi Billetera", callback_data="wallet:deposit_menu")],
+                [InlineKeyboardButton("🔙 Elegir Otro País", callback_data=f"vnum:select_service:{service_code}:1")]
+            ])
 
         await render_screen(client, callback, text, keyboard)
 
