@@ -89,14 +89,18 @@ def register_checkout_handlers(app: Client):
             now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
             is_active_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
 
+            # Calcular precio público del bot para mostrar siempre en el canal de reseñas
+            public_unit_price = await pricing_service.calculate_product_price(base_price, product_id, session)
+            if is_active_vip:
+                public_unit_price = pricing_service.calculate_vip_price(public_unit_price)
+            public_total_price = round(qty * public_unit_price, 2)
+
             if is_owner:
                 # El owner siempre paga el precio de costo exacto del proveedor (0% margen)
                 unit_price = base_price
                 discount_pct = 0.0
             else:
-                unit_price = await pricing_service.calculate_product_price(base_price, product_id, session)
-                if is_active_vip:
-                    unit_price = pricing_service.calculate_vip_price(unit_price)
+                unit_price = public_unit_price
                 discount_pct = 0.0
                 has_promo = bool(p_data.get("has_promo", False))
                 if has_promo:
@@ -297,12 +301,14 @@ def register_checkout_handlers(app: Client):
         )
 
         # Publicar comprobante en el canal público de vouchers (si está configurado)
+        # Si es el Owner, en el canal de reseñas se muestra siempre el precio público del bot
+        voucher_price = public_total_price if is_owner else total_price
         voucher_msg_id = await voucher_service.publish_product_voucher(
             client=client,
             order_id=internal_order_id,
             product_name=product_name,
             qty=qty,
-            total_price=total_price,
+            total_price=voucher_price,
             user_id=user_id,
             username=callback.from_user.username,
             first_name=callback.from_user.first_name or "Usuario",

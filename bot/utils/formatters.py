@@ -114,9 +114,14 @@ def format_single_credential_line(raw_line: str) -> str:
         if len(colon_parts) == 2 and "@" in colon_parts[0] and " " not in colon_parts[0]:
             return f"Usuario: {colon_parts[0].strip()}\nPassword: {colon_parts[1].strip()}"
 
-    # 3. Si es un enlace de invitación / activación
-    if line.startswith("http://") or line.startswith("https://"):
-        return f"Enlace: {line}"
+    # 3. Si es un enlace de invitación / activación (devolver URL limpia para copiado directo con un solo toque)
+    clean_url = line
+    for pfx in ["enlace:", "link:", "url:", "enlace :", "link :"]:
+        if clean_url.lower().startswith(pfx):
+            clean_url = clean_url[len(pfx):].strip()
+            break
+    if clean_url.startswith("http://") or clean_url.startswith("https://"):
+        return clean_url
 
     # 4. Si es una clave de licencia o token (ej: Windows retail key XXXX-XXXX-XXXX-XXXX o sk-...)
     if re.match(r'^[A-Z0-9]{4,5}(-[A-Z0-9]{4,5}){3,5}$', line) or line.startswith("sk-"):

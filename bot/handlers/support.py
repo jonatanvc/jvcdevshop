@@ -67,7 +67,6 @@ def register_support_handlers(app: Client):
             total_res = await session.execute(total_stmt)
             total_tickets = total_res.scalar() or 0
 
-        admin_url = "https://t.me/jvc2006"
         status_note = f"\n🟢 <i>Tienes <b>{open_tickets}</b> ticket(s) en curso con nuestro equipo.</i>\n" if open_tickets > 0 else ""
 
         text = (
@@ -76,7 +75,7 @@ def register_support_handlers(app: Client):
             f"{status_note}\n"
             f"• <b>Tiempo promedio de respuesta:</b> <code>&lt; 15 minutos</code>\n"
             f"• <b>Horario de atención:</b> <code>24/7 Soporte Automatizado &amp; Staff</code>\n\n"
-            f"<i>Puedes abrir un ticket interactivo dentro del bot (con capturas de pantalla) o escribir a nuestro canal privado de Telegram:</i>"
+            f"<i>Puedes abrir un ticket interactivo dentro del bot (con capturas de pantalla) para recibir asistencia de nuestro equipo:</i>"
         )
         if lang == "en":
             text = (
@@ -85,7 +84,7 @@ def register_support_handlers(app: Client):
                 f"{status_note}\n"
                 f"• <b>Average response time:</b> <code>&lt; 15 minutes</code>\n"
                 f"• <b>Availability:</b> <code>24/7 Automated &amp; Staff Support</code>\n\n"
-                f"<i>You can open a support ticket directly inside the bot (including screenshots) or reach out via direct Telegram:</i>"
+                f"<i>You can open a support ticket directly inside the bot (including screenshots) to get assistance from our team:</i>"
             )
         elif lang == "pt":
             text = (
@@ -94,18 +93,16 @@ def register_support_handlers(app: Client):
                 f"{status_note}\n"
                 f"• <b>Tempo médio de resposta:</b> <code>&lt; 15 minutos</code>\n"
                 f"• <b>Horário:</b> <code>24/7 Suporte Automatizado e Staff</code>\n\n"
-                f"<i>Abra um ticket interativo aqui no bot (com capturas de tela) ou fale pelo Telegram direto:</i>"
+                f"<i>Abra um ticket interativo aqui no bot (com capturas de tela) para receber assistência da nossa equipe:</i>"
             )
 
         btn_new = "💬 Abrir Nuevo Ticket" if lang == "es" else ("💬 Open New Ticket" if lang == "en" else "💬 Abrir Novo Ticket")
         btn_list = f"📋 Mis Tickets ({total_tickets})" if lang == "es" else (f"📋 My Tickets ({total_tickets})" if lang == "en" else f"📋 Meus Tickets ({total_tickets})")
-        btn_direct = "👤 Contacto Directo Telegram" if lang == "es" else ("👤 Direct Telegram Contact" if lang == "en" else "👤 Contato Direto Telegram")
         btn_back = "🔙 Volver al Menú" if lang == "es" else ("🔙 Back to Menu" if lang == "en" else "🔙 Voltar ao Menu")
 
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(btn_new, callback_data="support:new")],
             [InlineKeyboardButton(btn_list, callback_data="support:list:1")],
-            [InlineKeyboardButton(btn_direct, url=admin_url)],
             [InlineKeyboardButton(btn_back, callback_data="menu_main")]
         ])
 

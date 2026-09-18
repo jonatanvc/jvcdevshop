@@ -555,13 +555,16 @@ def register_virtual_numbers_handlers(app: Client):
                 res_o = await session.execute(select(VirtualNumberOrder).where(VirtualNumberOrder.id == order_id))
                 v_ord = res_o.scalar_one_or_none()
                 if v_ord and not v_ord.voucher_message_id:
+                    is_owner = settings.is_owner(v_ord.user_id)
+                    pub_vnum_price = pricing_service.calculate_virtual_number_price(float(v_ord.cost_usd), is_vip=False, is_owner=False) if is_owner else float(v_ord.price_usdt)
+
                     v_id = await voucher_service.publish_virtual_number_voucher(
                         client=client,
                         order_id=v_ord.id,
                         service_name=v_ord.service_name,
                         country_code=v_ord.country,
                         phone=v_ord.phone,
-                        price_usdt=float(v_ord.price_usdt),
+                        price_usdt=pub_vnum_price,
                         user_id=v_ord.user_id,
                         username=callback.from_user.username,
                         first_name=callback.from_user.first_name

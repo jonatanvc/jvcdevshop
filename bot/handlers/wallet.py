@@ -46,9 +46,6 @@ def get_deposit_menu_keyboard(lang: str = "es", active_coupon: Optional[str] = N
             coupon_btn
         ],
         [
-            InlineKeyboardButton("📜 Historial de Movimientos", callback_data="wallet:transactions:1")
-        ],
-        [
             InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")
         ]
     ])
@@ -905,5 +902,5 @@ def register_wallet_handlers(app: Client):
                 nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
             buttons.append(nav_row)
 
-        buttons.append([InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")])
+        buttons.append([InlineKeyboardButton(t("btn_back", lang), callback_data="account:view")])
         await render_screen(client, callback, text, InlineKeyboardMarkup(buttons))

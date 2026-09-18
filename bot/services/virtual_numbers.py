@@ -716,13 +716,16 @@ async def check_and_notify_pending_virtual_orders(app: Client):
 
                 # Publicar comprobante automático en el canal público y en auditoría
                 if not order.voucher_message_id:
+                    is_owner = settings.is_owner(order.user_id)
+                    pub_vnum_price = pricing_service.calculate_virtual_number_price(float(order.cost_usd), is_vip=False, is_owner=False) if is_owner else float(order.price_usdt)
+
                     v_msg_id = await voucher_service.publish_virtual_number_voucher(
                         client=app,
                         order_id=order.id,
                         service_name=order.service_name,
                         country_code=order.country,
                         phone=order.phone,
-                        price_usdt=float(order.price_usdt),
+                        price_usdt=pub_vnum_price,
                         user_id=order.user_id,
                         stars=5
                     )

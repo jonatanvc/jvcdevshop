@@ -593,12 +593,21 @@ def register_catalog_handlers(app: Client):
                 total_line = f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT{vip_tag}{coupon_line}"
                 balance_line = f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {effective_balance:.2f} USDT"
 
+            raw_note = p_data.get("note", "")
+            has_note = bool(raw_note and str(raw_note).strip())
+            note_section = ""
+            if has_note:
+                clean_raw_note = str(raw_note).strip()
+                translated_note = await translate_text(clean_raw_note, lang)
+                note_section = f"\n\n📝 <b>{t('product_note_label', lang)}:</b>\n<blockquote>{translated_note}</blockquote>"
+
             if not has_stock:
                 text = (
                     f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
                     f"{price_line}\n"
                     f"{EMOJI_DICE} <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
-                    f"{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> {warranty_display}\n\n"
+                    f"{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
+                    f"{note_section}\n\n"
                     f"{total_line}\n"
                     f"{balance_line}\n\n"
                     f"<i>{EMOJI_BELL} Toca el botón de abajo para que el bot te notifique de inmediato cuando este servicio tenga stock disponible.</i>"
@@ -609,14 +618,12 @@ def register_catalog_handlers(app: Client):
                     f"{price_line}\n"
                     f"{EMOJI_DICE} <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
                     f"{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
-                    f"{offer_line}\n\n"
+                    f"{offer_line}"
+                    f"{note_section}\n\n"
                     f"{EMOJI_CALC} <b>{t('selected_qty', lang)}:</b> {qty}\n"
                     f"{total_line}\n"
                     f"{balance_line}"
                 )
-
-            raw_note = p_data.get("note", "")
-            has_note = bool(raw_note and str(raw_note).strip())
 
             bot_username = getattr(client.me, "username", "") or (await client.get_me()).username
 
@@ -630,7 +637,7 @@ def register_catalog_handlers(app: Client):
                 is_alert_active=is_alert_active,
                 total_price=total_price,
                 bot_username=bot_username,
-                has_note=has_note,
+                has_note=False,
                 lang=lang,
                 is_owner=is_owner,
                 api_balance=api_balance,
