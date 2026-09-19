@@ -1,6 +1,7 @@
 import time
 import asyncio
 import traceback
+import html
 from datetime import datetime, timezone
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
@@ -62,12 +63,13 @@ async def build_main_menu_text(user: User, orders_count: int, session) -> str:
         pass
 
     user_name = user.first_name or user.username or f"Usuario {user.telegram_id}"
+    safe_user_name = html.escape(user_name)
     balance_val = float(getattr(user, "balance", 0.0))
 
     text = (
         f"{maintenance_banner}"
         f"{t('welcome_header', lang)}\n\n"
-        f"{EMOJI_USER} <b>{t('user_label', lang)}:</b> {user_name}\n"
+        f"{EMOJI_USER} <b>{t('user_label', lang)}:</b> {safe_user_name}\n"
         f"{EMOJI_ID} <b>ID:</b> <code>{user.telegram_id}</code>\n"
         f"{EMOJI_MONEY} <b>{t('balance_bot', lang)}:</b> <code>${balance_val:.2f} USDT</code>\n"
         f"{EMOJI_SHOPPING} <b>{t('orders_made', lang)}:</b> <code>{orders_count}</code>\n\n"
@@ -177,7 +179,7 @@ def register_start_handlers(app: Client):
             # Fallback seguro en caso de error
             fallback_text = (
                 f"{t('welcome_header', 'es')}\n\n"
-                f"👤 <b>Usuario:</b> {first_name}\n"
+                f"👤 <b>Usuario:</b> {html.escape(first_name)}\n"
                 f"🆔 <b>ID:</b> <code>{user_id}</code>\n\n"
                 "<i>Selecciona una opción del menú inferior para comenzar:</i>"
             )

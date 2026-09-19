@@ -1,4 +1,5 @@
 import asyncio
+import html
 from datetime import datetime, timezone
 from typing import Union, Optional
 from pyrogram import Client, filters
@@ -418,12 +419,13 @@ def register_catalog_handlers(app: Client):
         message.continue_propagation()
 
     async def execute_search(client: Client, user_id: int, query: str, lang: str):
+        safe_query = html.escape(query)
         async with async_session() as session:
             products = await pricing_service.get_processed_catalog(session, filter_mode="todos", force_refresh=False)
             results = [p for p in products if query in p["name"].lower() or query in p["product_id"].lower()]
 
             if not results:
-                text = t("search_no_results", lang, query=query)
+                text = t("search_no_results", lang, query=safe_query)
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
                     [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
@@ -438,7 +440,7 @@ def register_catalog_handlers(app: Client):
 
             items_page, total_pages, current_page = pricing_service.paginate(results, page=1, page_size=PAGE_SIZE)
             vip_banner = "👑 <i>(Modo Revendedor VIP: 20% OFF aplicado)</i>\n\n" if is_vip else ""
-            text = f"{vip_banner}" + t("search_results_title", lang, query=query, count=len(results)) + "\n"
+            text = f"{vip_banner}" + t("search_results_title", lang, query=safe_query, count=len(results)) + "\n"
             keyboard = build_catalog_keyboard(items_page, current_page, total_pages, "todos", lang, is_vip=is_vip)
             await render_screen(client, user_id, text, keyboard)
 

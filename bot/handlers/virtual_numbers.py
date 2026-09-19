@@ -1,4 +1,5 @@
 import math
+import html
 import unicodedata
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional, Tuple, List
@@ -214,11 +215,12 @@ async def execute_vnum_search(client: Client, user_id: int, service_code: str, q
 
     price_label = "USDT"
     target = callback if callback else user_id
+    safe_query = html.escape(query)
 
     if not matched_offers:
         text = (
             f"🔍 <b>BUSCADOR DE PAÍSES ({service_info['name'].upper()})</b>\n\n"
-            f"❌ No se encontraron países con stock disponibles que coincidan con <b>\"{query}\"</b>.\n\n"
+            f"❌ No se encontraron países con stock disponibles que coincidan con <b>\"{safe_query}\"</b>.\n\n"
             f"<i>Puedes intentar con otro término o ver el catálogo completo de países.</i>"
         )
         keyboard = InlineKeyboardMarkup([
@@ -236,7 +238,7 @@ async def execute_vnum_search(client: Client, user_id: int, service_code: str, q
     page_offers = matched_offers[start_idx:start_idx + COUNTRIES_PER_PAGE]
 
     text = (
-        f"🔍 <b>RESULTADOS PARA \"{query.upper()}\" ({service_info['name'].upper()})</b>\n\n"
+        f"🔍 <b>RESULTADOS PARA \"{safe_query.upper()}\" ({service_info['name'].upper()})</b>\n\n"
         f"• <b>Coincidencias encontradas:</b> <code>{total_matches} país(es)</code>\n"
         f"• <b>Página:</b> <code>{page}/{total_pages}</code>\n\n"
         f"<i>Toca un país para adquirir tu número:</i>"

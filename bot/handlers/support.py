@@ -1,4 +1,5 @@
 import asyncio
+import html
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from pyrogram import Client, filters
@@ -251,11 +252,12 @@ def register_support_handlers(app: Client):
         status_tag = "🟢 ABIERTO (Esperando respuesta)" if ticket.status == "OPEN" else ("✅ RESUELTO" if ticket.status == "RESOLVED" else "🔒 CERRADO")
         date_created = ticket.created_at.strftime("%Y-%m-%d %H:%M") if ticket.created_at else "N/A"
 
+        safe_subject = html.escape(ticket.subject or 'Consulta general')
         header = (
             f"🎫 <b>TICKET DE SOPORTE #{ticket.id}</b>\n\n"
             f"• <b>Estado:</b> <code>{status_tag}</code>\n"
             f"• <b>Fecha:</b> <code>{date_created}</code>\n"
-            f"• <b>Asunto:</b> <i>{ticket.subject or 'Consulta general'}</i>\n\n"
+            f"• <b>Asunto:</b> <i>{safe_subject}</i>\n\n"
             f"💬 <b>HISTORIAL DE MENSAJES:</b>\n"
             f"━━━━━━━━━━━━━━━━━━━━━━\n"
         )
@@ -264,7 +266,7 @@ def register_support_handlers(app: Client):
         for m in messages[-8:]:
             author = "👨‍💻 <b>Soporte Oficial:</b>" if m.is_admin else "👤 <b>Tú:</b>"
             time_str = m.created_at.strftime("%H:%M") if m.created_at else ""
-            m_text = m.message_text or "[📸 Foto adjunta]"
+            m_text = html.escape(m.message_text) if m.message_text else "[📸 Foto adjunta]"
             msg_lines.append(f"{author} (<i>{time_str}</i>)\n{m_text}")
 
         conversation_body = "\n\n".join(msg_lines) if msg_lines else "<i>Sin mensajes registrados.</i>"
@@ -592,10 +594,11 @@ async def deliver_admin_ticket_reply(client: Client, admin_id: int, ticket_id: i
     )
 
     # Envío al Cliente por DM
+    safe_reply = html.escape(reply_text)
     dm_text = (
         f"💬 <b>RESPUESTA DE SOPORTE (Ticket #{ticket_id})</b>\n\n"
         f"👨‍💻 <b>Atención al Cliente:</b>\n"
-        f"«<i>{reply_text}</i>»\n\n"
+        f"«<i>{safe_reply}</i>»\n\n"
         f"━━━━━━━━━━━━━━━━━━━━━━\n"
         f"<i>Si tu duda fue aclarada, puedes marcar el ticket como resuelto. Si requieres más ayuda, pulsa responder:</i>"
     )
@@ -616,7 +619,7 @@ async def deliver_admin_ticket_reply(client: Client, admin_id: int, ticket_id: i
 async def notify_admins_new_ticket(client: Client, ticket_id: int, user_id: int, username: Optional[str], content_text: str, media_id: Optional[str], media_type: Optional[str]):
     """Envía notificación de nuevo ticket al canal/grupo de administración"""
     user_tag = f"@{username}" if username else f"ID: <code>{user_id}</code>"
-    preview = content_text if content_text else "[📸 Foto/Comprobante adjunto]"
+    preview = html.escape(content_text) if content_text else "[📸 Foto/Comprobante adjunto]"
 
     admin_text = (
         f"🆘 <b>NUEVO TICKET DE SOPORTE #T-{ticket_id}</b>\n\n"
@@ -648,10 +651,11 @@ async def notify_admins_new_ticket(client: Client, ticket_id: int, user_id: int,
 async def notify_admins_ticket_update(client: Client, ticket_id: int, user_id: int, username: Optional[str], content_text: str, media_id: Optional[str], media_type: Optional[str]):
     """Envía notificación al staff cuando el usuario añade un mensaje a su ticket"""
     user_tag = f"@{username}" if username else f"ID: <code>{user_id}</code>"
+    safe_update_text = html.escape(content_text) if content_text else "[📸 Foto/Adjunto]"
     admin_text = (
         f"🔔 <b>ACTUALIZACIÓN EN TICKET #T-{ticket_id}</b>\n\n"
         f"👤 <b>Usuario:</b> {user_tag}\n"
-        f"💬 <b>Nuevo Mensaje:</b>\n{content_text or '[📸 Foto/Adjunto]'}\n\n"
+        f"💬 <b>Nuevo Mensaje:</b>\n{safe_update_text}\n\n"
         f"<code>/reply {ticket_id} tu respuesta</code>"
     )
     keyboard = InlineKeyboardMarkup([

@@ -1,4 +1,7 @@
 import random
+import math
+import re
+import html
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 from typing import Dict, Any, Set, Optional
@@ -519,13 +522,10 @@ def register_wallet_handlers(app: Client):
             text_val = message.text.strip().replace(",", ".")
             try:
                 amount = float(text_val)
-            except ValueError:
-                err_text = f"❌ Error. {t('custom_amount_prompt', lang, min_dep=f'{settings.MIN_DEPOSIT_USDT:.2f}')}"
-                kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
-                await render_screen(client, user_id, err_text, kb)
-                return
+            except (ValueError, TypeError):
+                amount = None
 
-            if amount < settings.MIN_DEPOSIT_USDT:
+            if amount is None or math.isnan(amount) or math.isinf(amount) or amount < settings.MIN_DEPOSIT_USDT or amount > 10000.0:
                 err_text = f"⚠️ {t('custom_amount_prompt', lang, min_dep=f'{settings.MIN_DEPOSIT_USDT:.2f}')}"
                 kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="wallet:deposit_menu")]])
                 await render_screen(client, user_id, err_text, kb)
@@ -546,6 +546,14 @@ def register_wallet_handlers(app: Client):
         elif action == "waiting_hash":
             deposit_id = state.get("deposit_id")
             tx_hash = message.text.strip().lower()
+
+            if not re.match(r'^(0x)?[a-f0-9]{64}$', tx_hash):
+                retry_kb = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")],
+                    [InlineKeyboardButton(t("btn_cancel_request", lang), callback_data=f"deposit:cancel:{deposit_id}")]
+                ])
+                await render_screen(client, user_id, "❌ <b>Formato de Hash / TxID Inválido</b>\n\nEl Hash de transacción de BSC (BEP-20) debe tener 64 caracteres hexadecimales (ejemplo: <code>0xabc123...</code>). Verifica y vuelve a intentarlo.", retry_kb)
+                return
 
             if tx_hash in _ACTIVE_HASH_VERIFICATIONS:
                 await message.reply_text("⏳ Este hash ya está siendo verificado en este momento. Por favor espera.")
@@ -588,7 +596,7 @@ def register_wallet_handlers(app: Client):
                             [InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")],
                             [InlineKeyboardButton(t("btn_cancel_request", lang), callback_data=f"deposit:cancel:{deposit_id}")]
                         ])
-                        await render_screen(client, user_id, f"❌ <b>Error:</b>\n{err_msg}", retry_kb)
+                        await render_screen(client, user_id, f"❌ <b>Error:</b>\n{html.escape(str(err_msg))}", retry_kb)
                         return
 
                     credited_amount = Decimal(str(val_res["amount"]))
@@ -702,14 +710,14 @@ def register_wallet_handlers(app: Client):
 
             # Log a canal de auditoría
             username = message.from_user.username
-            first_name = message.from_user.first_name or "Usuario"
+            first_name = html.escape(message.from_user.first_name or "Usuario")
             user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
             audit_text = (
                 f"🎁 <b>TARJETA DE REGALO CANJEADA</b>\n\n"
                 f"👤 <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
                 f"💵 <b>Monto Acreditado:</b> <code>+${amount:.2f} USDT</code>\n"
                 f"💳 <b>Nuevo Saldo Total:</b> <code>${new_balance:.2f} USDT</code>\n"
-                f"🏷️ <b>Código:</b> <code>{code}</code>"
+                f"🏷️ <b>Código:</b> <code>{html.escape(code)}</code>"
             )
             try:
                 await audit_logger._send_log(client, audit_text)
@@ -876,8 +884,9 @@ def register_wallet_handlers(app: Client):
         for ev in page_events:
             d_str = ev["date"].strftime("%Y-%m-%d %H:%M") if ev["date"] else "N/A"
             icon = "🟢" if ev["is_credit"] else "🔴"
+            safe_title = html.escape(ev['title'])
             lines.append(
-                f"{icon} <b>{ev['title']}</b>\n"
+                f"{icon} <b>{safe_title}</b>\n"
                 f"   💵 <code>{ev['amount']}</code> | 🕒 <code>{d_str}</code>"
             )
 

@@ -1,4 +1,5 @@
 import logging
+import html
 from typing import Optional, Tuple
 from pyrogram import Client
 from pyrogram.enums import ParseMode
@@ -29,13 +30,13 @@ class VoucherService:
         if username:
             clean_u = username.strip().lstrip("@")
             if len(clean_u) <= 2:
-                return f"@{clean_u}***"
-            return f"@{clean_u[:2]}***"
+                return f"@{html.escape(clean_u)}***"
+            return f"@{html.escape(clean_u[:2])}***"
         if first_name:
             clean_fn = first_name.strip()
             if len(clean_fn) <= 2:
-                return f"{clean_fn}***"
-            return f"{clean_fn[:2]}*** (ID: ...{str(user_id)[-4:]})"
+                return f"{html.escape(clean_fn)}***"
+            return f"{html.escape(clean_fn[:2])}*** (ID: ...{str(user_id)[-4:]})"
         return f"Usuario ...{str(user_id)[-4:]}"
 
     def _mask_phone(self, phone: str) -> str:
@@ -60,7 +61,7 @@ class VoucherService:
         now_str: Optional[str] = None
     ) -> str:
         masked_user = self._mask_user(user_id, username, first_name)
-        clean_name = adjust_warranty_in_name(product_name)
+        clean_name = html.escape(adjust_warranty_in_name(product_name))
         now = now_str or get_now_str("%Y-%m-%d %H:%M:%S")
         stars_clamped = max(1, min(5, stars))
         stars_bar = "⭐" * stars_clamped
@@ -189,8 +190,9 @@ class VoucherService:
         masked_user = self._mask_user(user_id, username, first_name)
         masked_phone = self._mask_phone(phone)
         flag, country_name = get_country_display(country_code)
+        safe_country_name = html.escape(country_name)
         service_info = CURATED_SERVICES.get(service_name.lower(), {})
-        service_display = service_info.get("name", service_name.upper())
+        service_display = html.escape(service_info.get("name", service_name.upper()))
         icon_id = PLATFORM_EMOJIS.get(service_name.lower())
         plat_prefix = f"<emoji id={icon_id}>📲</emoji> " if icon_id else "🌐 "
         now = now_str or get_now_str("%Y-%m-%d %H:%M:%S")
@@ -201,7 +203,7 @@ class VoucherService:
             f"📲 <b>ACTIVACIÓN DE NÚMERO VIRTUAL</b>\n\n"
             f"👤 <b>Cliente:</b> {masked_user}\n"
             f"{plat_prefix}<b>Plataforma:</b> <b>{service_display}</b>\n"
-            f"📍 <b>País:</b> {flag} {country_name}\n"
+            f"📍 <b>País:</b> {flag} {safe_country_name}\n"
             f"📞 <b>Número:</b> <code>{masked_phone}</code>\n"
             f"💵 <b>Precio:</b> <code>${price_usdt:.2f} USDT</code>\n"
             f"🆔 <b>Comprobante #:</b> <code>#VNUM_{order_id}</code>\n"

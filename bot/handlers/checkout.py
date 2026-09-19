@@ -1,3 +1,4 @@
+import html
 from typing import Set
 from datetime import datetime, timezone
 from decimal import Decimal
@@ -338,26 +339,30 @@ def register_checkout_handlers(app: Client):
             currency_tag = "USD (API)" if pay_with_api else "USDT (Bot)"
             balance_tag = f"💳 <b>Saldo Restante API:</b> <code>${audit_rem_bal:.2f} USD</code>" if pay_with_api else f"💳 <b>Saldo Restante Bot:</b> <code>${audit_rem_bal:.2f} USDT</code>"
             footer_note = "<i>👑 Compra procesada a precio de costo con tu saldo directo de BunaiStore.</i>" if pay_with_api else "<i>👑 Compra procesada a precio de costo con tu saldo en el bot.</i>"
+            safe_pname = html.escape(product_name)
+            safe_items = html.escape(delivered_text)
             success_text = (
                 f"👑 <b>¡COMPRA OWNER REALIZADA CON ÉXITO!</b>\n\n"
-                f"📦 <b>Producto:</b> <code>{product_name}</code> (x{qty})\n"
+                f"📦 <b>Producto:</b> <code>{safe_pname}</code> (x{qty})\n"
                 f"💵 <b>Costo Pagado:</b> <code>${total_price:.2f} {currency_tag}</code>\n"
                 f"{balance_tag}\n"
                 f"🆔 <b>Orden #:</b> <code>ORD_{internal_order_id}</code>{warranty_text}\n"
-                f"🌐 <b>ID Proveedor:</b> <code>{provider_order_id or 'N/A'}</code>\n\n"
-                f"🔑 <b>DATOS DE TU SERVICIO:</b>\n<pre>{delivered_text}</pre>{after_note_block}\n\n"
+                f"🌐 <b>ID Proveedor:</b> <code>{html.escape(provider_order_id or 'N/A')}</code>\n\n"
+                f"🔑 <b>DATOS DE TU SERVICIO:</b>\n<pre>{safe_items}</pre>{after_note_block}\n\n"
                 f"{footer_note}"
             )
         else:
+            safe_pname = html.escape(product_name)
+            safe_items = html.escape(delivered_text)
             success_text = t(
                 "purchase_success_title",
                 lang,
-                product=product_name,
+                product=safe_pname,
                 qty=qty,
                 total=f"{total_price:.2f}",
                 order_id=internal_order_id,
                 warranty_text=warranty_text,
-                items=delivered_text,
+                items=safe_items,
                 after_note=after_note_block
             )
 

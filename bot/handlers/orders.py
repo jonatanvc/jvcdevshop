@@ -1,3 +1,4 @@
+import html
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy import select, desc
@@ -198,13 +199,13 @@ def register_orders_handlers(app: Client):
                 "order_detail_title",
                 lang,
                 order_id=order.id,
-                product=adjust_warranty_in_name(order.product_name),
+                product=html.escape(adjust_warranty_in_name(order.product_name)),
                 qty=order.quantity,
                 total=f"{float(order.total_price):.2f}",
                 warranty=warranty_str,
                 date=date_str,
-                prov_id=order.provider_order_id or "N/A",
-                items=format_delivered_credentials(order.delivered_items)
+                prov_id=html.escape(order.provider_order_id or "N/A"),
+                items=html.escape(format_delivered_credentials(order.delivered_items))
             )
 
             keyboard_buttons = []
