@@ -44,16 +44,18 @@ Bot de Telegram desarrollado en **Python (Pyrogram)** con arquitectura de **1 so
 En la pestaña **Environment** de tu servicio en Dokploy, copia y completa las siguientes variables (basadas en `.env.example`):
 
 ```env
-API_ID=tu_api_id_de_telegram
-API_HASH=tu_api_hash_de_telegram
-BOT_TOKEN=tu_token_de_botfather
-ADMIN_IDS=tu_telegram_id
+API_ID=
+API_HASH=
+BOT_TOKEN=
+ADMIN_IDS=
 LOG_GROUP_ID=-1001234567890
 
-BUNAI_API_KEY=Shop::_3a2klpvDK9_SH2FY46suaM5pb8
+BUNAI_API_KEY=
 BUNAI_BASE_URL=https://api.bunaistore.shop/v1
+FIVESIM_API_KEY=
+FIVESIM_BASE_URL=https://5sim.net
 
-ADMIN_WALLET_BSC=0xTuBilleteraPersonalBSC
+ADMIN_WALLET_BSC=
 BSC_RPC_URL=https://bsc-dataseed.binance.org/
 USDT_CONTRACT_ADDRESS=0x55d398326f99059fF775485246999027B3197955
 
@@ -62,9 +64,11 @@ MIN_DEPOSIT_USDT=2.0
 REFERRAL_COMMISSION_PERCENT=5.0
 
 POSTGRES_USER=postgres
-POSTGRES_PASSWORD=un_password_seguro_aqui
+POSTGRES_PASSWORD=REEMPLAZAR_POR_32_CARACTERES_ALEATORIOS
 POSTGRES_DB=services_bot
 ```
+
+Completa los valores requeridos antes de desplegar. Genera una contraseña de PostgreSQL de al menos 32 caracteres alfanuméricos; se usa dentro de `DATABASE_URL`. `FIVESIM_API_KEY` puede quedar vacío si no se utiliza ese proveedor. No publiques el archivo `.env`; si una credencial real estuvo expuesta, revócala y genera una nueva.
 
 ### Paso 3: Desplegar con Docker Compose
 Pega el contenido de `docker-compose.yml` en la pestaña **Compose** de Dokploy y pulsa **Deploy**.

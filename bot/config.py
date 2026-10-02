@@ -1,27 +1,28 @@
 from typing import List
+from pydantic import AliasChoices, Field, field_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 class Settings(BaseSettings):
     # Telegram API
-    API_ID: int = 12345678
-    API_HASH: str = "your_api_hash"
-    BOT_TOKEN: str = "your_bot_token"
+    API_ID: int = Field(gt=0)
+    API_HASH: str = Field(min_length=1)
+    BOT_TOKEN: str = Field(min_length=1)
     
     # Administradores y Grupo de Auditoría / Canal de Vouchers
-    ADMIN_IDS_RAW: str = "8670239783"
+    ADMIN_IDS_RAW: str = Field(validation_alias=AliasChoices("ADMIN_IDS", "ADMIN_IDS_RAW"))
     LOG_GROUP_ID: int = 0
     VOUCHERS_CHANNEL_ID: int = 0
     
     # BunaiStore API
-    BUNAI_API_KEY: str = "Shop::_3a2klpvDK9_SH2FY46suaM5pb8"
+    BUNAI_API_KEY: str = Field(min_length=1)
     BUNAI_BASE_URL: str = "https://api.bunaistore.shop/v1"
     
     # 5SIM.net API (Números Virtuales SMS)
-    FIVESIM_API_KEY: str = "eyJhbGciOiJSUzUxMiIsInR5cCI6IkpXVCJ9.eyJleHAiOjE4MTY4NDk3NjEsImlhdCI6MTc4NTMxMzc2MSwicmF5IjoiNjllMGI2ZjQ2OGJmMjdhYzIyYTQzYzI4ZmRlYTVjMzgiLCJzdWIiOjM4ODg1Mjl9.gu54FGHVRKWfCXkQc8UWy8raq6w4rR4tsHLnrzOe4kyb4pOX2dxNc5EuCQDy0Xe1Luixgnh_Wl8Fadu-fshwT-GuHxSGqEJWZkbmgJLKPiscrtXW3lbpMUlWjgbomkQVArP2PqP-pXGJ-jvAeeeqKP2r-C6qK8NxrdhGuKo90oDt-1KVXlecabFKXlYT9RwxZCAPyTD63QCO3oVZ_Ae4GKpbxxWxUmwl-WTtf1h23fdQpzIkAgIgMJXd9o0Zf_Nr7Uo3Kk78U-bNXZLqsmY8lxDwRmCG98khxJFkyFUNZrj3mK90nL7WE1MhdIlHx9JarIPQ77olY6yGgS1_I6WIaA"
+    FIVESIM_API_KEY: str = ""
     FIVESIM_BASE_URL: str = "https://5sim.net"
     
     # Blockchain BSC / USDT BEP-20
-    ADMIN_WALLET_BSC: str = "0x540532E72e08fdaAB525f5D692ea97C40CCE5d24"
+    ADMIN_WALLET_BSC: str = Field(min_length=1)
     BSC_RPC_URL: str = "https://bsc-dataseed.binance.org/"
     BSC_RPC_FALLBACKS_RAW: str = "https://1rpc.io/bnb,https://rpc.ankr.com/bsc,https://bsc.publicnode.com,https://bsc-dataseed1.defibit.io"
     USDT_CONTRACT_ADDRESS: str = "0x55d398326f99059fF775485246999027B3197955"
@@ -42,13 +43,21 @@ class Settings(BaseSettings):
     VIP_DURATION_DAYS: int = 30
     
     # Base de Datos
-    DATABASE_URL: str = "postgresql+asyncpg://postgres:postgres_secure_pass@localhost:5432/services_bot"
+    DATABASE_URL: str = Field(min_length=1)
     
     model_config = SettingsConfigDict(
         env_file=".env",
         env_file_encoding="utf-8",
         extra="ignore"
     )
+
+    @field_validator("ADMIN_IDS_RAW")
+    @classmethod
+    def validate_admin_ids(cls, value: str) -> str:
+        admin_ids = [admin_id.strip() for admin_id in value.split(",")]
+        if not admin_ids or any(not admin_id.isdigit() for admin_id in admin_ids):
+            raise ValueError("ADMIN_IDS debe contener uno o mas IDs numericos")
+        return ",".join(admin_ids)
 
     @property
     def admin_ids(self) -> List[int]:
@@ -58,12 +67,10 @@ class Settings(BaseSettings):
 
     @property
     def owner_id(self) -> int:
-        if self.admin_ids:
-            return self.admin_ids[0]
-        return 8670239783
+        return self.admin_ids[0]
 
     def is_owner(self, user_id: int) -> bool:
-        return bool(user_id == 8670239783 or (self.admin_ids and user_id in self.admin_ids))
+        return user_id in self.admin_ids
 
     @property
     def rpc_endpoints(self) -> List[str]:

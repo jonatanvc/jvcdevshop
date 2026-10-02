@@ -1,4 +1,6 @@
 import asyncio
+from pathlib import Path
+from tempfile import gettempdir
 from datetime import datetime, timezone
 from pyrogram import Client, idle
 from sqlalchemy import update
@@ -134,6 +136,15 @@ async def virtual_numbers_worker(app: Client):
             print(f"[VirtualNumbersWorker Error] {e}")
             await asyncio.sleep(5)
 
+async def bot_health_worker(app: Client):
+    health_file = Path(gettempdir()) / "bot-health"
+    while True:
+        if app.is_connected:
+            health_file.touch()
+        else:
+            health_file.unlink(missing_ok=True)
+        await asyncio.sleep(20)
+
 async def main():
     print("==================================================")
     print("🚀 INICIANDO BOT DE REVENTA DE SERVICIOS DIGITALES")
@@ -145,7 +156,8 @@ async def main():
         await init_db()
         print("✅ Base de datos conectada e inicializada correctamente.")
     except Exception as e:
-        print(f"❌ Error al conectar con la base de datos PostgreSQL: {e}")
+        print(f"❌ Error al conectar con PostgreSQL: {type(e).__name__}")
+        raise RuntimeError("No se pudo inicializar PostgreSQL; se cancela el inicio") from None
 
     # 2. Inicializar Cliente Pyrogram
     import os
@@ -192,20 +204,26 @@ async def main():
     )
 
     # 6. Lanzar monitores y workers en segundo plano
-    asyncio.create_task(provider_balance_monitor(app))
-    asyncio.create_task(fivesim_balance_monitor(app))
-    asyncio.create_task(deposit_expiry_worker())
-    asyncio.create_task(deposit_reminder_worker(app))
-    asyncio.create_task(virtual_numbers_worker(app))
-    asyncio.create_task(stock_restock_monitor(app))
-    asyncio.create_task(vip_maintenance_monitor(app))
-    asyncio.create_task(daily_backup_worker(app))
+    background_tasks = [
+        asyncio.create_task(provider_balance_monitor(app), name="provider-balance"),
+        asyncio.create_task(fivesim_balance_monitor(app), name="fivesim-balance"),
+        asyncio.create_task(deposit_expiry_worker(), name="deposit-expiry"),
+        asyncio.create_task(deposit_reminder_worker(app), name="deposit-reminders"),
+        asyncio.create_task(virtual_numbers_worker(app), name="virtual-numbers"),
+        asyncio.create_task(stock_restock_monitor(app), name="stock-restock"),
+        asyncio.create_task(vip_maintenance_monitor(app), name="vip-maintenance"),
+        asyncio.create_task(daily_backup_worker(app), name="daily-backup"),
+        asyncio.create_task(bot_health_worker(app), name="bot-health"),
+    ]
 
     # Mantener en ejecución con cierre controlado de recursos
     try:
         await idle()
     finally:
         print("\n🛑 Deteniendo bot y liberando recursos de red y base de datos...")
+        for task in background_tasks:
+            task.cancel()
+        await asyncio.gather(*background_tasks, return_exceptions=True)
         try:
             await app.stop()
         except Exception:

@@ -638,7 +638,7 @@ async def notify_admins_new_ticket(client: Client, ticket_id: int, user_id: int,
         ]
     ])
 
-    target_chat = settings.LOG_GROUP_ID if settings.LOG_GROUP_ID != 0 else (settings.admin_ids[0] if settings.admin_ids else 8670239783)
+    target_chat = settings.LOG_GROUP_ID if settings.LOG_GROUP_ID != 0 else settings.owner_id
 
     try:
         if media_id and media_type == "photo":
@@ -664,7 +664,7 @@ async def notify_admins_ticket_update(client: Client, ticket_id: int, user_id: i
             InlineKeyboardButton("✅ Cerrar Ticket", callback_data=f"admin:ticket:close:{ticket_id}")
         ]
     ])
-    target_chat = settings.LOG_GROUP_ID if settings.LOG_GROUP_ID != 0 else (settings.admin_ids[0] if settings.admin_ids else 8670239783)
+    target_chat = settings.LOG_GROUP_ID if settings.LOG_GROUP_ID != 0 else settings.owner_id
     try:
         await client.send_message(chat_id=target_chat, text=parse_emojis(admin_text), reply_markup=parse_keyboard(keyboard))
     except Exception as e:

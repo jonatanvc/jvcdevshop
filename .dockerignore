@@ -1,0 +1,11 @@
+.env
+.env.*
+!.env.example
+.git
+.vscode
+scratch
+__pycache__
+*.py[cod]
+*.session
+*.session-journal
+postgres_data
