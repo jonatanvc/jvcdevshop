@@ -55,9 +55,25 @@ def register_checkout_handlers(app: Client):
         pay_with_api = is_owner and (pay_method == "api")
 
         async with async_session() as session:
-            user_res = await session.execute(select(User).where(User.telegram_id == user_id))
+            user_res = await session.execute(
+                select(User).where(User.telegram_id == user_id).with_for_update()
+            )
             user = user_res.scalar_one_or_none()
             lang = user.language if user else "es"
+
+            unresolved_res = await session.execute(
+                select(Order.id)
+                .where(Order.user_id == user_id)
+                .where(Order.status.in_(["PROCESSING", "REVIEW"]))
+                .limit(1)
+            )
+            unresolved_order_id = unresolved_res.scalar_one_or_none()
+            if unresolved_order_id:
+                await callback.answer(
+                    f"Ya tienes una orden #{unresolved_order_id} en revisión. No vuelvas a comprar hasta resolverla.",
+                    show_alert=True
+                )
+                return
 
             if getattr(user, "is_banned", False):
                 await callback.answer("🚫 Tu cuenta ha sido suspendida por administración. Contacta a soporte.", show_alert=True)
@@ -175,7 +191,37 @@ def register_checkout_handlers(app: Client):
                     await callback.answer("❌ Saldo insuficiente en el bot", show_alert=True)
                     return
 
-                await session.commit()
+            new_order = Order(
+                user_id=user_id,
+                product_id=product_id,
+                product_name=product_name,
+                quantity=qty,
+                unit_price=Decimal(str(unit_price)),
+                total_price=total_price_dec,
+                delivered_items="Pendiente de confirmación del proveedor",
+                provider_note="",
+                status="PROCESSING",
+                payment_method="api" if pay_with_api else "bot",
+                warranty_hours=warranty_hours
+            )
+            session.add(new_order)
+            await session.flush()
+            internal_order_id = new_order.id
+
+            if used_coupon_id:
+                reserved = await promo_service.reserve_coupon(
+                    session=session,
+                    coupon_id=used_coupon_id,
+                    user_id=user_id,
+                    order_id=internal_order_id,
+                    discount_amount=coupon_discount
+                )
+                if not reserved:
+                    await session.rollback()
+                    await callback.answer("El cupón alcanzó su límite de uso. Actualiza el catálogo e intenta otra vez.", show_alert=True)
+                    return
+
+            await session.commit()
 
         # 4. Mensaje temporal de procesamiento traducido
         proc_text = t("processing_order", lang, qty=qty, product=product_name)
@@ -186,33 +232,62 @@ def register_checkout_handlers(app: Client):
 
         if not order_res.get("success"):
             error_msg = order_res.get("error", "Error desconocido")
-            if not pay_with_api:
-                # Rollback automático de saldo del bot
-                async with async_session() as session:
-                    rollback_stmt = (
-                        update(User)
-                        .where(User.telegram_id == user_id)
-                        .values(
-                            balance=User.balance + total_price_dec,
-                            total_spent=User.total_spent - total_price_dec
+            status_code = order_res.get("status_code")
+            definitively_rejected = (
+                isinstance(status_code, int)
+                and 400 <= status_code < 500
+                and status_code not in (408, 409, 425, 429)
+            )
+            async with async_session() as session:
+                if definitively_rejected:
+                    await session.execute(
+                        update(Order)
+                        .where(Order.id == internal_order_id, Order.status == "PROCESSING")
+                        .values(status="FAILED", delivered_items="El proveedor rechazó la orden")
+                    )
+                    if not pay_with_api:
+                        # Revertir el débito solo tras un rechazo definitivo del proveedor.
+                        rollback_stmt = (
+                            update(User)
+                            .where(User.telegram_id == user_id)
+                            .values(
+                                balance=User.balance + total_price_dec,
+                                total_spent=User.total_spent - total_price_dec
+                            )
                         )
+                        await session.execute(rollback_stmt)
+                    if used_coupon_id:
+                        await promo_service.release_reserved_coupon(
+                            session=session,
+                            coupon_id=used_coupon_id,
+                            user_id=user_id,
+                            order_id=internal_order_id
+                        )
+                else:
+                    rollback_stmt = (
+                        update(Order)
+                        .where(Order.id == internal_order_id, Order.status == "PROCESSING")
+                        .values(status="REVIEW")
                     )
                     await session.execute(rollback_stmt)
-                    await session.commit()
+                await session.commit()
 
             await audit_logger.log_system_alert(
                 client,
-                "FALLO DE COMPRA OWNER (API)" if is_owner else "FALLO DE COMPRA & ROLLBACK APLICADO",
+                "ORDEN RECHAZADA POR PROVEEDOR" if definitively_rejected else "ORDEN EN REVISIÓN: RESULTADO DE PROVEEDOR AMBIGUO",
                 f"👤 <b>Usuario:</b> <code>{user_id}</code> {'👑 (Owner)' if is_owner else ''}\n"
                 f"📦 <b>Producto:</b> <code>{product_name}</code> (Cant: {qty})\n"
                 f"💰 <b>Monto:</b> <code>${total_price:.2f} {'USD (API)' if is_owner else 'USDT'}</code>\n"
-                f"❌ <b>Razón:</b> <code>{error_msg}</code>"
+                f"🆔 <b>Orden:</b> <code>ORD_{internal_order_id}</code>\n"
+                f"❌ <b>Razón:</b> <code>{html.escape(str(error_msg)[:500])}</code>"
             )
 
-            if is_owner:
+            if not definitively_rejected:
+                fail_text = t("purchase_review_title", lang, order_id=internal_order_id)
+            elif is_owner:
                 fail_text = (
                     f"❌ <b>NO SE PUDO COMPLETAR LA COMPRA OWNER</b>\n\n"
-                    f"El proveedor rechazó la orden:\n<code>{error_msg}</code>\n\n"
+                    f"El proveedor rechazó la orden:\n<code>{html.escape(str(error_msg)[:500])}</code>\n\n"
                     f"<i>Tu saldo del bot no fue afectado. Verifica tu cuenta en BunaiStore.</i>"
                 )
             else:
@@ -238,45 +313,43 @@ def register_checkout_handlers(app: Client):
             raw_items = []
 
         raw_after_note = order_data.get("after_note", "")
-        if raw_after_note and raw_after_note.strip():
-            after_note = await translate_text(raw_after_note, lang)
+        provider_notes = []
+        for candidate in (p_data.get("note"), raw_after_note):
+            note_text = str(candidate or "").strip()
+            if note_text and note_text not in provider_notes:
+                provider_notes.append(note_text)
+        provider_note = "\n\n".join(provider_notes)
+        if provider_note:
+            after_note = await translate_text(provider_note, lang, fallback_to_source=False)
+            if not after_note:
+                after_note = t("provider_note_unavailable", lang)
         else:
             after_note = ""
 
         delivered_text = ""
         if raw_items:
             delivered_text = format_delivered_credentials(raw_items)
-        elif raw_after_note:
-            delivered_text = format_delivered_credentials(raw_after_note)
         else:
             delivered_text = "OK"
 
-        # Guardar en Base de Datos
+        # Completar la orden persistida antes de la llamada al proveedor.
         async with async_session() as session:
-            new_order = Order(
-                user_id=user_id,
-                product_id=product_id,
-                product_name=product_name,
-                quantity=qty,
-                unit_price=Decimal(str(unit_price)),
-                total_price=total_price_dec,
-                provider_order_id=provider_order_id,
-                delivered_items=delivered_text,
-                warranty_hours=warranty_hours
+            order_res_db = await session.execute(
+                select(Order).where(
+                    Order.id == internal_order_id,
+                    Order.user_id == user_id,
+                    Order.status == "PROCESSING"
+                ).with_for_update()
             )
-            session.add(new_order)
+            new_order = order_res_db.scalar_one_or_none()
+            if not new_order:
+                raise RuntimeError(f"No se encontró la orden en proceso {internal_order_id}")
+            new_order.provider_order_id = provider_order_id
+            new_order.delivered_items = delivered_text
+            new_order.provider_note = provider_note
+            new_order.status = "COMPLETED"
+            new_order.warranty_hours = warranty_hours
             await session.commit()
-            internal_order_id = new_order.id
-
-            if used_coupon_id:
-                await promo_service.consume_coupon(
-                    session=session,
-                    coupon_id=used_coupon_id,
-                    user_id=user_id,
-                    order_id=internal_order_id,
-                    discount_amount=coupon_discount
-                )
-                await session.commit()
 
         # Notificar en el canal de auditoría del Owner
         if pay_with_api:
@@ -333,7 +406,8 @@ def register_checkout_handlers(app: Client):
         else:
             w_str = t("warranty_hours", lang, hours=warranty_hours)
             warranty_text = f"\n{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> <code>{w_str}</code>"
-        after_note_block = f"\n\n{EMOJI_PIN} <b>Info:</b>\n<i>{after_note}</i>" if after_note else ""
+        safe_after_note = html.escape(after_note)
+        after_note_block = f"\n\n{EMOJI_PIN} <b>Info:</b>\n<i>{safe_after_note}</i>" if safe_after_note else ""
 
         if is_owner:
             currency_tag = "USD (API)" if pay_with_api else "USDT (Bot)"

@@ -128,24 +128,88 @@ class PromoService:
         order_id: Optional[int],
         discount_amount: float
     ):
-        """Registra el uso efectivo de un cupón tras la compra"""
-        stmt = select(Coupon).where(Coupon.id == coupon_id)
-        res = await session.execute(stmt)
+        """Atomically reserves a coupon; the caller commits it with the purchase."""
+        reserved = await self.reserve_coupon(
+            session=session,
+            coupon_id=coupon_id,
+            user_id=user_id,
+            order_id=order_id,
+            discount_amount=discount_amount
+        )
+        if not reserved:
+            raise ValueError("El cupón ya no está disponible.")
+
+    async def reserve_coupon(
+        self,
+        session,
+        coupon_id: int,
+        user_id: int,
+        order_id: int,
+        discount_amount: float
+    ) -> bool:
+        """Reserve a coupon inside the purchase transaction before calling the provider."""
+        res = await session.execute(
+            select(Coupon).where(Coupon.id == coupon_id).with_for_update()
+        )
         coupon = res.scalar_one_or_none()
-        if coupon:
-            coupon.current_uses += 1
-            usage = CouponUsage(
-                coupon_id=coupon.id,
-                user_id=user_id,
-                order_id=order_id,
-                discount_amount=Decimal(str(round(discount_amount, 2))),
-                used_at=utc_now()
+        if not coupon or not coupon.is_active:
+            return False
+
+        now = utc_now()
+        if coupon.expires_at and coupon.expires_at <= now:
+            return False
+        if coupon.max_uses > 0 and coupon.current_uses >= coupon.max_uses:
+            return False
+
+        usage_res = await session.execute(
+            select(func.count(CouponUsage.id)).where(
+                CouponUsage.coupon_id == coupon.id,
+                CouponUsage.user_id == user_id
             )
-            session.add(usage)
-            # Limpiar cupón activo del usuario
+        )
+        if coupon.user_limit > 0 and (usage_res.scalar() or 0) >= coupon.user_limit:
+            return False
+
+        coupon.current_uses += 1
+        session.add(CouponUsage(
+            coupon_id=coupon.id,
+            user_id=user_id,
+            order_id=order_id,
+            discount_amount=Decimal(str(round(discount_amount, 2))),
+            used_at=now
+        ))
+        await session.execute(
+            update(User)
+            .where(User.telegram_id == user_id, User.active_coupon_code == coupon.code)
+            .values(active_coupon_code=None)
+        )
+        return True
+
+    async def release_reserved_coupon(self, session, coupon_id: int, user_id: int, order_id: int) -> None:
+        """Release a coupon only when its provider order is definitively rejected."""
+        res = await session.execute(
+            select(CouponUsage).where(
+                CouponUsage.coupon_id == coupon_id,
+                CouponUsage.user_id == user_id,
+                CouponUsage.order_id == order_id
+            ).with_for_update()
+        )
+        usage = res.scalar_one_or_none()
+        if not usage:
+            return
+
+        coupon_res = await session.execute(
+            select(Coupon).where(Coupon.id == coupon_id).with_for_update()
+        )
+        coupon = coupon_res.scalar_one_or_none()
+        if coupon and coupon.current_uses > 0:
+            coupon.current_uses -= 1
             await session.execute(
-                update(User).where(User.telegram_id == user_id).values(active_coupon_code=None)
+                update(User)
+                .where(User.telegram_id == user_id, User.active_coupon_code.is_(None))
+                .values(active_coupon_code=coupon.code)
             )
+        await session.delete(usage)
 
     async def create_gift_cards(
         self,

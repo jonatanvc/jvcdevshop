@@ -62,6 +62,7 @@ class Deposit(Base):
     created_at = Column(DateTime, default=utc_now, nullable=False)
     confirmed_at = Column(DateTime, nullable=True)
     log_message_id = Column(BigInteger, nullable=True)
+    referral_commission_amount = Column(Numeric(12, 4), default=0.0000, nullable=False)
 
     user = relationship("User", back_populates="deposits")
 
@@ -81,6 +82,9 @@ class Order(Base):
     total_price = Column(Numeric(12, 4), nullable=False)
     provider_order_id = Column(String(128), nullable=True)
     delivered_items = Column(Text, nullable=False)
+    provider_note = Column(Text, nullable=False, default="")
+    status = Column(String(20), nullable=False, default="COMPLETED", index=True)
+    payment_method = Column(String(16), nullable=False, default="bot")
     warranty_hours = Column(Integer, default=0, nullable=False)
     rating = Column(Integer, nullable=True)
     voucher_message_id = Column(BigInteger, nullable=True)
@@ -170,8 +174,8 @@ class VirtualNumberOrder(Base):
 
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True)
-    fivesim_order_id = Column(BigInteger, unique=True, nullable=False, index=True)
-    phone = Column(String(32), nullable=False)
+    fivesim_order_id = Column(BigInteger, unique=True, nullable=True, index=True)
+    phone = Column(String(32), nullable=True)
     service_name = Column(String(64), nullable=False, index=True)
     country = Column(String(64), nullable=False)
     operator = Column(String(64), nullable=False, default="any")
@@ -179,7 +183,7 @@ class VirtualNumberOrder(Base):
     price_usdt = Column(Numeric(10, 4), nullable=False)
     sms_code = Column(String(32), nullable=True)
     sms_full_text = Column(Text, nullable=True)
-    status = Column(String(20), default="PENDING", nullable=False, index=True)  # PENDING, RECEIVED, FINISHED, CANCELLED, TIMEOUT
+    status = Column(String(20), default="PROCESSING", nullable=False, index=True)  # PROCESSING, REVIEW, PENDING, RECEIVED, FINISHED, FAILED, CANCELLED, TIMEOUT
     is_refunded = Column(Boolean, default=False, nullable=False)
     voucher_message_id = Column(BigInteger, nullable=True)
     rating = Column(Integer, nullable=True)

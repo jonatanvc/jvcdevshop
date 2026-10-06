@@ -154,7 +154,10 @@ def register_start_handlers(app: Client):
                     await render_screen(client, user_id, ban_text, ban_kb)
                     return
 
-                order_count_stmt = select(func.count(Order.id)).where(Order.user_id == user_id)
+                order_count_stmt = select(func.count(Order.id)).where(
+                    Order.user_id == user_id,
+                    Order.status == "COMPLETED"
+                )
                 order_count_res = await session.execute(order_count_stmt)
                 digital_orders = order_count_res.scalar() or 0
 
@@ -228,7 +231,10 @@ def register_start_handlers(app: Client):
                     await render_screen(client, callback, ban_text, ban_kb)
                     return
 
-                order_count_stmt = select(func.count(Order.id)).where(Order.user_id == user_id)
+                order_count_stmt = select(func.count(Order.id)).where(
+                    Order.user_id == user_id,
+                    Order.status == "COMPLETED"
+                )
                 order_count_res = await session.execute(order_count_stmt)
                 digital_orders = order_count_res.scalar() or 0
 

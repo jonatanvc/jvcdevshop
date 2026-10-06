@@ -6,7 +6,7 @@ from pyrogram import Client, idle
 from sqlalchemy import update
 from bot.config import settings
 from bot.database.session import init_db, async_session
-from bot.database.models import Deposit, DepositStatus
+from bot.database.models import Deposit, DepositStatus, Order, VirtualNumberOrder
 from bot.handlers import register_all_handlers
 from bot.services.bunai_client import bunai_api
 from bot.services.audit_logger import audit_logger
@@ -86,6 +86,52 @@ async def deposit_expiry_worker():
         except Exception as e:
             print(f"[ExpiryWorker Error] {e}")
             await asyncio.sleep(300)
+
+async def stale_orders_worker(app: Client):
+    """Moves provider requests left in flight by a process crash into manual review."""
+    while True:
+        try:
+            await asyncio.sleep(60)
+            cutoff = datetime.now(timezone.utc).replace(tzinfo=None) - timedelta(minutes=5)
+            async with async_session() as session:
+                bunai_rows = (await session.execute(
+                    update(Order)
+                    .where(Order.status == "PROCESSING", Order.created_at < cutoff)
+                    .values(status="REVIEW")
+                    .returning(Order.id, Order.user_id)
+                )).all()
+                vnum_rows = (await session.execute(
+                    update(VirtualNumberOrder)
+                    .where(VirtualNumberOrder.status == "PROCESSING", VirtualNumberOrder.created_at < cutoff)
+                    .values(status="REVIEW")
+                    .returning(VirtualNumberOrder.id, VirtualNumberOrder.user_id)
+                )).all()
+                await session.commit()
+
+            for order_id, user_id in bunai_rows:
+                await audit_logger.log_system_alert(
+                    client,
+                    "ORDEN BUNAI REQUIERE REVISIÓN",
+                    f"La orden <code>ORD_{order_id}</code> quedó en proceso por más de 5 minutos; no se reembolsó automáticamente."
+                )
+                try:
+                    await app.send_message(user_id, f"⏳ Tu orden #{order_id} está en revisión. No la vuelvas a solicitar; soporte confirmará el resultado.")
+                except Exception:
+                    pass
+
+            for order_id, user_id in vnum_rows:
+                await audit_logger.log_system_alert(
+                    client,
+                    "ORDEN 5SIM REQUIERE REVISIÓN",
+                    f"La orden virtual local <code>VNUM_{order_id}</code> quedó en proceso por más de 5 minutos; conserva su reserva."
+                )
+                try:
+                    await app.send_message(user_id, f"⏳ Tu orden de número #{order_id} está en revisión. No vuelvas a solicitar otro número hasta recibir respuesta de soporte.")
+                except Exception:
+                    pass
+        except Exception as e:
+            print(f"[StaleOrdersWorker Error] {type(e).__name__}")
+            await asyncio.sleep(60)
 
 async def stock_restock_monitor(app: Client):
     """Monitorea periódicamente el catálogo para alertar por DM a usuarios suscritos a productos reabastecidos"""
@@ -208,6 +254,7 @@ async def main():
         asyncio.create_task(provider_balance_monitor(app), name="provider-balance"),
         asyncio.create_task(fivesim_balance_monitor(app), name="fivesim-balance"),
         asyncio.create_task(deposit_expiry_worker(), name="deposit-expiry"),
+        asyncio.create_task(stale_orders_worker(app), name="stale-orders-review"),
         asyncio.create_task(deposit_reminder_worker(app), name="deposit-reminders"),
         asyncio.create_task(virtual_numbers_worker(app), name="virtual-numbers"),
         asyncio.create_task(stock_restock_monitor(app), name="stock-restock"),

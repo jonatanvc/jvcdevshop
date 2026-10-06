@@ -40,18 +40,22 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS vip_warned_2h BOOLEAN DEFAULT FALSE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_coupon_code VARCHAR(32);",
             "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS referral_commission_amount NUMERIC(12, 4) DEFAULT 0.0000 NOT NULL;",
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS provider_note TEXT DEFAULT '' NOT NULL;",
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'COMPLETED' NOT NULL;",
+            "ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(16) DEFAULT 'bot' NOT NULL;",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS rating INTEGER DEFAULT NULL;",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS voucher_message_id BIGINT DEFAULT NULL;",
             "ALTER TABLE virtual_number_orders ADD COLUMN IF NOT EXISTS voucher_message_id BIGINT DEFAULT NULL;",
             "ALTER TABLE virtual_number_orders ADD COLUMN IF NOT EXISTS rating INTEGER DEFAULT NULL;",
             "ALTER TABLE virtual_number_orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(16) DEFAULT 'bot';",
+            "ALTER TABLE virtual_number_orders ALTER COLUMN fivesim_order_id DROP NOT NULL;",
+            "ALTER TABLE virtual_number_orders ALTER COLUMN phone DROP NOT NULL;",
+            "ALTER TABLE virtual_number_orders ALTER COLUMN status SET DEFAULT 'PROCESSING';",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE;"
         ]
         for sql in migrations:
-            try:
-                await conn.execute(text(sql))
-            except Exception as e:
-                print(f"[Database Migration Warning] {sql}: {e}")
+            await conn.execute(text(sql))
 
 async def get_db() -> AsyncGenerator[AsyncSession, None]:
     """Generador de sesiones de base de datos para transacciones seguras"""

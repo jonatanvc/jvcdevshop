@@ -395,7 +395,7 @@ def register_virtual_numbers_handlers(app: Client):
         service_code, query = cached
         await execute_vnum_search(client, user_id, service_code, query, page=page, callback=callback)
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=5)
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "orderresolve", "vnumresolve", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=5)
     async def handle_vnum_search_text(client: Client, message: Message):
         user_id = message.from_user.id
         if user_id in VNUM_SEARCH_STATES:
@@ -514,7 +514,15 @@ def register_virtual_numbers_handlers(app: Client):
         )
 
         if "error" in result:
-            err_text = result["error"]
+            err_text = html.escape(str(result["error"]))
+            if result.get("review"):
+                await render_screen(
+                    client,
+                    callback,
+                    f"⏳ <b>ORDEN EN REVISIÓN</b>\n\n{err_text}",
+                    InlineKeyboardMarkup([[InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]])
+                )
+                return
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton("🔄 Intentar con Otro País", callback_data=f"vnum:select_service:{service_code}:1")],
                 [InlineKeyboardButton("🔙 Menú Principal", callback_data="menu_main")]
@@ -549,7 +557,7 @@ def register_virtual_numbers_handlers(app: Client):
 
         await callback.answer("🔄 Verificando buzón de SMS...")
 
-        check_res = await virtual_numbers_service.check_single_order(order_id)
+        check_res = await virtual_numbers_service.check_single_order(order_id, user_id)
 
         if check_res.get("status") == "RECEIVED":
             # Código recibido con éxito - Publicar comprobante en canal público si no se ha publicado
@@ -731,7 +739,11 @@ def register_virtual_numbers_handlers(app: Client):
     @app.on_callback_query(filters.regex(r"^vnum:finish:(\d+)$"))
     async def cb_vnum_finish(client: Client, callback: CallbackQuery):
         order_id = int(callback.matches[0].group(1))
-        await virtual_numbers_service.finish_and_close_order(order_id)
+        user_id = callback.from_user.id
+        result = await virtual_numbers_service.finish_and_close_order(order_id, user_id)
+        if "error" in result:
+            await callback.answer(result["error"], show_alert=True)
+            return
         await callback.answer("✅ Número finalizado correctamente. ¡Gracias por tu compra!", show_alert=True)
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("📱 Comprar Otro Número", callback_data="vnum:catalog")],
@@ -927,7 +939,7 @@ async def show_live_order_screen(client: Client, target: Any, order_id: int, use
 
     # Si el temporizador llegó a 0 o menos, consultar estado real en 5SIM antes de darlo por vencido
     if remaining_seconds <= 0:
-        check_res = await virtual_numbers_service.check_single_order(order_id)
+        check_res = await virtual_numbers_service.check_single_order(order_id, user_id)
         if check_res.get("status") == "RECEIVED":
             await show_success_screen(client, target, check_res, order_id)
             return

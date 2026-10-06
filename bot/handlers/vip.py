@@ -12,6 +12,7 @@ from bot.services.audit_logger import audit_logger
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
+from bot.utils.translator import translate_text
 from bot.utils.emojis import parse_emojis, parse_keyboard
 from bot.utils.formatters import adjust_warranty_in_name, format_delivered_credentials
 from bot.handlers.admin import is_admin, find_user_by_identifier
@@ -208,7 +209,11 @@ def register_vip_handlers(app: Client):
         order_id = int(callback.matches[0].group(1))
 
         async with async_session() as session:
-            stmt = select(Order).where(Order.id == order_id, Order.user_id == user_id)
+            stmt = select(Order).where(
+                Order.id == order_id,
+                Order.user_id == user_id,
+                Order.status == "COMPLETED"
+            )
             res = await session.execute(stmt)
             order = res.scalar_one_or_none()
 
@@ -227,13 +232,21 @@ def register_vip_handlers(app: Client):
         else:
             warranty_line = f"\n🛡️ <b>Garantía:</b> <code>{order.warranty_hours} horas</code>"
 
+        translated_note = (
+            await translate_text(order.provider_note, lang, fallback_to_source=False)
+            if order.provider_note else ""
+        )
+        if order.provider_note and not translated_note:
+            translated_note = t("provider_note_unavailable", lang)
+        safe_note = html.escape(translated_note)
+        after_note = f"\n\n📝 <b>Info:</b>\n<i>{safe_note}</i>" if safe_note else ""
         template_text = t(
             "vip_client_template",
             lang,
             product=adjust_warranty_in_name(order.product_name),
             items=format_delivered_credentials(order.delivered_items),
             warranty_text=warranty_line,
-            after_note=""
+            after_note=after_note
         )
 
         try:

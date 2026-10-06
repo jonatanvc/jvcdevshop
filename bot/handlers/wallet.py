@@ -497,7 +497,7 @@ def register_wallet_handlers(app: Client):
         text = t("wallet_title", lang, balance=f"{balance:.4f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}") + coupon_info
         await render_screen(client, user_id, text, get_deposit_menu_keyboard(lang, active_coupon))
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=2)
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "orderresolve", "vnumresolve", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=2)
     async def handle_text_inputs(client: Client, message: Message):
         user_id = message.from_user.id
         state = USER_STATES.get(user_id)
@@ -576,9 +576,13 @@ def register_wallet_handlers(app: Client):
                     res = await session.execute(stmt)
                     deposit = res.scalar_one_or_none()
 
-                    if not deposit or deposit.status == DepositStatus.CONFIRMED:
+                    now = datetime.now(timezone.utc).replace(tzinfo=None)
+                    if not deposit or deposit.status != DepositStatus.PENDING or deposit.expires_at <= now:
+                        if deposit and deposit.status == DepositStatus.PENDING:
+                            deposit.status = DepositStatus.EXPIRED
+                            await session.commit()
                         kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
-                        await render_screen(client, user_id, "❌ Solicitud no disponible o ya confirmada.", kb)
+                        await render_screen(client, user_id, "❌ La solicitud de depósito ya venció, fue cancelada o no está disponible.", kb)
                         return
 
                     dup_stmt = select(Deposit).where(Deposit.tx_hash == tx_hash).with_for_update()
@@ -622,6 +626,7 @@ def register_wallet_handlers(app: Client):
                             comm_rate = Decimal(str(comm_pct)) / Decimal("100")
                             commission = credited_amount * comm_rate
                             referrer.balance += commission
+                            deposit.referral_commission_amount = commission
 
                             ref_uid = referrer.telegram_id
                             ref_lang = referrer.language or "es"
@@ -814,7 +819,10 @@ def register_wallet_handlers(app: Client):
             deposits = dep_res.scalars().all()
 
             # 2. Obtener órdenes de productos
-            ord_stmt = select(Order).where(Order.user_id == user_id)
+            ord_stmt = select(Order).where(
+                Order.user_id == user_id,
+                Order.status == "COMPLETED"
+            )
             ord_res = await session.execute(ord_stmt)
             orders = ord_res.scalars().all()
 

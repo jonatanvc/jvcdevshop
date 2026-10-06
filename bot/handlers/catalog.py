@@ -341,7 +341,7 @@ def register_catalog_handlers(app: Client):
         query = " ".join(message.command[1:]).lower()
         await execute_search(client, user_id, query, lang)
 
-    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=1)
+    @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "orderresolve", "vnumresolve", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=1)
     async def handle_catalog_text_inputs(client: Client, message: Message):
         user_id = message.from_user.id
 
@@ -600,8 +600,11 @@ def register_catalog_handlers(app: Client):
             note_section = ""
             if has_note:
                 clean_raw_note = str(raw_note).strip()
-                translated_note = await translate_text(clean_raw_note, lang)
-                note_section = f"\n\n📝 <b>{t('product_note_label', lang)}:</b>\n<blockquote>{translated_note}</blockquote>"
+                translated_note = await translate_text(clean_raw_note, lang, fallback_to_source=False)
+                if not translated_note:
+                    translated_note = t("provider_note_unavailable", lang)
+                safe_note = html.escape(translated_note)
+                note_section = f"\n\n📝 <b>{t('product_note_label', lang)}:</b>\n<blockquote>{safe_note}</blockquote>"
 
             if not has_stock:
                 text = (
@@ -804,7 +807,8 @@ def register_catalog_handlers(app: Client):
         p_data = await bunai_api.get_product(product_id)
         raw_note = p_data.get("note") if p_data else ""
         if raw_note and raw_note.strip():
-            note = await translate_text(raw_note, lang)
+            translated_note = await translate_text(str(raw_note), lang, fallback_to_source=False)
+            note = html.escape(translated_note or t("provider_note_unavailable", lang))
         else:
             note = t("no_admin_note", lang)
 

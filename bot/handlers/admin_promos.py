@@ -505,7 +505,7 @@ def register_admin_promos_handlers(app: Client):
     # 💬 MANEJO DE ENTRADAS DE TEXTO ADMIN
     # ==========================================
 
-    @app.on_message(filters.private & ~filters.command(["start", "admin", "menu", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep", "vip"]), group=4)
+    @app.on_message(filters.private & ~filters.command(["start", "admin", "menu", "orderresolve", "vnumresolve", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep", "vip"]), group=4)
     async def on_admin_promo_text(client: Client, message: Message):
         user_id = message.from_user.id
         if user_id not in ADMIN_PROMO_STATES:

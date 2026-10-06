@@ -244,24 +244,35 @@ class FiveSimClient:
 
             if resp.status_code == 200:
                 try:
-                    return resp.json()
+                    data = resp.json()
+                    if isinstance(data, dict):
+                        data.setdefault("status_code", resp.status_code)
+                        data.setdefault("definitive_rejection", False)
+                        return data
+                    return {"error": text_body, "status_code": resp.status_code, "definitive_rejection": False}
                 except Exception:
                     # En algunos casos 5sim responde con texto plano de error
-                    return {"error": text_body}
+                    return {"error": text_body, "status_code": resp.status_code, "definitive_rejection": False}
+
+            definitive_rejection = 400 <= resp.status_code < 500 and resp.status_code not in (408, 409, 425, 429)
+            common_result = {
+                "status_code": resp.status_code,
+                "definitive_rejection": definitive_rejection
+            }
 
             if "no free phones" in text_body.lower():
-                return {"error": "Sin números disponibles en este momento para este país y operador. Intenta con otro país."}
+                return {**common_result, "definitive_rejection": True, "error": "Sin números disponibles en este momento para este país y operador. Intenta con otro país."}
             elif "not enough user balance" in text_body.lower():
-                return {"error": "Saldo insuficiente en el proveedor 5SIM. Contacta al administrador."}
+                return {**common_result, "definitive_rejection": True, "error": "Saldo insuficiente en el proveedor 5SIM. Contacta al administrador."}
             elif "bad country" in text_body.lower() or "bad service" in text_body.lower():
-                return {"error": f"Servicio o país inválido: {text_body}"}
+                return {**common_result, "definitive_rejection": True, "error": f"Servicio o país inválido: {text_body}"}
             else:
-                return {"error": f"Error del proveedor 5SIM: {text_body or resp.status_code}"}
+                return {**common_result, "error": f"Error del proveedor 5SIM: {text_body or resp.status_code}"}
 
         except httpx.TimeoutException:
-            return {"error": "El servidor de 5SIM tardó demasiado en responder. Intenta de nuevo."}
+            return {"error": "El servidor de 5SIM tardó demasiado en responder; el resultado se debe revisar antes de reintentar.", "definitive_rejection": False}
         except Exception as e:
-            return {"error": f"Error de conexión con 5SIM: {str(e)}"}
+            return {"error": f"Error de conexión con 5SIM: {str(e)}", "definitive_rejection": False}
 
     async def check_order(self, order_id: int) -> Dict[str, Any]:
         """

@@ -1,101 +1,61 @@
 import io
 import json
 import gzip
-from datetime import datetime, timezone
-from typing import Optional
+from datetime import date, datetime, timezone
+from decimal import Decimal
+from enum import Enum
+from typing import Dict, Optional
+from cryptography.fernet import Fernet
 from pyrogram import Client
-from sqlalchemy import select
+from sqlalchemy import DateTime, Enum as SqlEnum, Numeric, func, insert, select, text
 from bot.config import settings
 from bot.database.session import async_session
-from bot.database.models import User, Deposit, Order, Setting, CustomPricing
+from bot.database.models import Base
 from bot.utils.time_utils import get_now_str
 from bot.utils.emojis import EMOJI_CALENDAR, EMOJI_LOCK, EMOJI_DISK, parse_emojis
 
 class BackupService:
+    @staticmethod
+    def _serialize_value(value):
+        if isinstance(value, Enum):
+            return value.value
+        if isinstance(value, (datetime, date)):
+            return value.isoformat()
+        if isinstance(value, Decimal):
+            return str(value)
+        if value is None or isinstance(value, (str, int, float, bool)):
+            return value
+        return str(value)
+
     async def generate_backup_file(self) -> io.BytesIO:
-        """Exporta toda la base de datos a un archivo comprimido JSON.GZ"""
+        """Exporta todas las tablas del modelo, comprime y cifra el resultado."""
+        if not settings.BACKUP_ENCRYPTION_KEY:
+            raise RuntimeError("BACKUP_ENCRYPTION_KEY es necesaria para generar backups")
+
+        try:
+            cipher = Fernet(settings.BACKUP_ENCRYPTION_KEY.encode("ascii"))
+        except (ValueError, UnicodeEncodeError) as exc:
+            raise RuntimeError("BACKUP_ENCRYPTION_KEY no es una clave Fernet válida") from exc
+
+        tables = {}
         async with async_session() as session:
-            # 1. Obtener usuarios
-            users_res = await session.execute(select(User))
-            users = [
-                {
-                    "telegram_id": u.telegram_id,
-                    "username": u.username,
-                    "first_name": u.first_name,
-                    "balance": float(u.balance),
-                    "total_spent": float(u.total_spent),
-                    "language": u.language,
-                    "referred_by": u.referred_by,
-                    "is_vip": bool(u.is_vip),
-                    "vip_expires_at": u.vip_expires_at.isoformat() if u.vip_expires_at else None,
-                    "created_at": u.created_at.isoformat() if u.created_at else None
-                }
-                for u in users_res.scalars().all()
-            ]
-
-            # 2. Obtener depósitos
-            dep_res = await session.execute(select(Deposit))
-            deposits = [
-                {
-                    "id": d.id,
-                    "user_id": d.user_id,
-                    "base_amount": float(d.base_amount),
-                    "exact_amount": float(d.exact_amount),
-                    "tx_hash": d.tx_hash,
-                    "status": str(d.status),
-                    "expires_at": d.expires_at.isoformat() if d.expires_at else None,
-                    "created_at": d.created_at.isoformat() if d.created_at else None,
-                    "confirmed_at": d.confirmed_at.isoformat() if d.confirmed_at else None
-                }
-                for d in dep_res.scalars().all()
-            ]
-
-            # 3. Obtener órdenes
-            ord_res = await session.execute(select(Order))
-            orders = [
-                {
-                    "id": o.id,
-                    "user_id": o.user_id,
-                    "product_id": o.product_id,
-                    "product_name": o.product_name,
-                    "quantity": o.quantity,
-                    "unit_price": float(o.unit_price),
-                    "total_price": float(o.total_price),
-                    "provider_order_id": o.provider_order_id,
-                    "delivered_items": o.delivered_items,
-                    "warranty_hours": o.warranty_hours,
-                    "created_at": o.created_at.isoformat() if o.created_at else None
-                }
-                for o in ord_res.scalars().all()
-            ]
-
-            # 4. Obtener settings y custom pricing
-            set_res = await session.execute(select(Setting))
-            settings_data = {s.key: s.value for s in set_res.scalars().all()}
-
-            cp_res = await session.execute(select(CustomPricing))
-            custom_pricing = [
-                {
-                    "product_id": cp.product_id,
-                    "custom_price": float(cp.custom_price) if cp.custom_price else None,
-                    "custom_margin": float(cp.custom_margin) if cp.custom_margin else None,
-                    "is_hidden": cp.is_hidden
-                }
-                for cp in cp_res.scalars().all()
-            ]
+            for mapper in sorted(Base.registry.mappers, key=lambda item: item.local_table.name):
+                model = mapper.class_
+                result = await session.execute(select(model))
+                rows = result.scalars().all()
+                tables[model.__tablename__] = [
+                    {
+                        attribute.key: self._serialize_value(getattr(row, attribute.key))
+                        for attribute in mapper.column_attrs
+                    }
+                    for row in rows
+                ]
 
         data = {
+            "format_version": 1,
             "timestamp": datetime.now(timezone.utc).isoformat(),
-            "counts": {
-                "users": len(users),
-                "deposits": len(deposits),
-                "orders": len(orders)
-            },
-            "users": users,
-            "deposits": deposits,
-            "orders": orders,
-            "settings": settings_data,
-            "custom_pricing": custom_pricing
+            "counts": {table: len(rows) for table, rows in tables.items()},
+            "tables": tables
         }
 
         # Serializar y comprimir con gzip
@@ -103,31 +63,131 @@ class BackupService:
         compressed_io = io.BytesIO()
         with gzip.GzipFile(fileobj=compressed_io, mode="wb") as gz:
             gz.write(json_bytes)
-        
-        now_str = get_now_str("%Y%m%d_%H%M%S")
-        compressed_io.name = f"database_backup_{now_str}.json.gz"
-        compressed_io.seek(0)
-        return compressed_io
 
-    async def send_automated_backup(self, client: Client, chat_id: Optional[int] = None):
+        encrypted_bytes = cipher.encrypt(compressed_io.getvalue())
+        now_str = get_now_str("%Y%m%d_%H%M%S")
+        backup_file = io.BytesIO(encrypted_bytes)
+        backup_file.name = f"database_backup_{now_str}.json.gz.enc"
+        backup_file.seek(0)
+        return backup_file
+
+    @staticmethod
+    def _deserialize_value(column, value):
+        if value is None:
+            return None
+        if isinstance(column.type, DateTime):
+            return datetime.fromisoformat(value)
+        if isinstance(column.type, Numeric):
+            return Decimal(value)
+        if isinstance(column.type, SqlEnum):
+            return column.type.enum_class(value)
+        return value
+
+    async def restore_backup_file(self, encrypted_backup) -> Dict[str, int]:
+        """Restore a versioned encrypted backup into an empty database only."""
+        if not settings.BACKUP_ENCRYPTION_KEY:
+            raise RuntimeError("BACKUP_ENCRYPTION_KEY es necesaria para restaurar backups")
+
+        cipher = Fernet(settings.BACKUP_ENCRYPTION_KEY.encode("ascii"))
+        encrypted_bytes = encrypted_backup.read() if hasattr(encrypted_backup, "read") else encrypted_backup
+        try:
+            compressed_bytes = cipher.decrypt(encrypted_bytes)
+            data = json.loads(gzip.decompress(compressed_bytes))
+        except Exception as exc:
+            raise ValueError("El backup no es válido o no coincide con BACKUP_ENCRYPTION_KEY") from exc
+
+        if data.get("format_version") != 1 or not isinstance(data.get("tables"), dict):
+            raise ValueError("Versión o estructura de backup no compatible")
+
+        model_by_table = {
+            mapper.local_table.name: mapper.class_
+            for mapper in Base.registry.mappers
+        }
+        if set(data["tables"]) != set(model_by_table):
+            raise ValueError("El backup no contiene exactamente las tablas de este modelo")
+
+        dependencies = {}
+        for table_name, model in model_by_table.items():
+            dependencies[table_name] = {
+                foreign_key.column.table.name
+                for column in model.__table__.columns
+                for foreign_key in column.foreign_keys
+                if foreign_key.column.table.name != table_name
+            }
+
+        restore_order = []
+        remaining = set(model_by_table)
+        while remaining:
+            ready = sorted(
+                table for table in remaining
+                if dependencies[table].isdisjoint(remaining)
+            )
+            if not ready:
+                raise ValueError("No se pudo resolver el orden de restauración por claves foráneas")
+            restore_order.extend(ready)
+            remaining.difference_update(ready)
+
+        counts = {}
+        async with async_session() as session:
+            async with session.begin():
+                for table_name in restore_order:
+                    model = model_by_table[table_name]
+                    existing_count = await session.scalar(
+                        select(func.count()).select_from(model)
+                    )
+                    if existing_count:
+                        raise RuntimeError("La restauración requiere una base de datos vacía")
+
+                for table_name in restore_order:
+                    model = model_by_table[table_name]
+                    columns = {column.key: column for column in model.__table__.columns}
+                    rows = data["tables"][table_name]
+                    restored_rows = []
+                    for row in rows:
+                        if not isinstance(row, dict) or set(row) != set(columns):
+                            raise ValueError(f"Estructura de fila inválida en {table_name}")
+                        restored_rows.append({
+                            name: self._deserialize_value(columns[name], value)
+                            for name, value in row.items()
+                        })
+                    if restored_rows:
+                        await session.execute(insert(model), restored_rows)
+                    counts[table_name] = len(restored_rows)
+
+                for table_name, model in model_by_table.items():
+                    for column in model.__table__.primary_key.columns:
+                        if column.autoincrement is not True:
+                            continue
+                        max_id = await session.scalar(select(func.max(column)))
+                        if max_id is not None:
+                            await session.execute(
+                                text("SELECT setval(pg_get_serial_sequence(:table_name, :column_name), :max_id, true)"),
+                                {"table_name": table_name, "column_name": column.name, "max_id": max_id}
+                            )
+
+        return counts
+
+    async def send_automated_backup(self, client: Client, chat_id: Optional[int] = None) -> bool:
         """Genera y envía el backup al grupo de logs o al admin especificado"""
         target_chat = chat_id or settings.LOG_GROUP_ID
         if not target_chat or target_chat == 0:
-            return
+            return False
 
         try:
             backup_file = await self.generate_backup_file()
             caption = (
                 f"{EMOJI_DISK} <b>COPIA DE SEGURIDAD AUTOMÁTICA DE BASE DE DATOS</b>\n\n"
                 f"{EMOJI_CALENDAR} <b>Fecha:</b> <code>{get_now_str('%Y-%m-%d %H:%M:%S')}</code>\n"
-                f"{EMOJI_LOCK} <i>Guarda este archivo. Contiene todos los usuarios, órdenes, compras y balances.</i>"
+                f"{EMOJI_LOCK} <i>Backup cifrado. Se necesita BACKUP_ENCRYPTION_KEY para restaurarlo.</i>"
             )
             await client.send_document(
                 chat_id=target_chat,
                 document=backup_file,
                 caption=parse_emojis(caption)
             )
+            return True
         except Exception as e:
             print(f"[BackupService Error] {e}")
+            return False
 
 backup_service = BackupService()

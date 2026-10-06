@@ -111,15 +111,21 @@ class BSCValidator:
                     # 3. Validar confirmaciones de bloque
                     raw_block = receipt.get("blockNumber")
                     tx_block = int(clean_hex(raw_block), 16) if raw_block else 0
-                    if tx_block > 0:
-                        current_block = await self._get_current_block_httpx(rpc, client)
-                        if current_block > 0:
-                            confirmations = current_block - tx_block
-                            if confirmations < self.min_confirmations:
-                                return {
-                                    "success": False,
-                                    "error": f"La transacción tiene solo {confirmations} confirmaciones. Se requieren al menos {self.min_confirmations} confirmaciones de seguridad (~10 segundos). Intenta de nuevo en un instante."
-                                }
+                    if tx_block <= 0:
+                        last_error = "El recibo no contiene un bloque válido."
+                        continue
+
+                    current_block = await self._get_current_block_httpx(rpc, client)
+                    if current_block <= 0 or current_block < tx_block:
+                        last_error = "No se pudo verificar el bloque actual en este nodo RPC."
+                        continue
+
+                    confirmations = current_block - tx_block + 1
+                    if confirmations < self.min_confirmations:
+                        return {
+                            "success": False,
+                            "error": f"La transacción tiene solo {confirmations} confirmaciones. Se requieren al menos {self.min_confirmations}. Intenta de nuevo en un instante."
+                        }
 
                     # 4. Buscar el evento Transfer en los logs de la transacción
                     found_usdt_transfer = False

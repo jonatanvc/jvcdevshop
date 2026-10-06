@@ -39,7 +39,11 @@ _BROWSER_HEADERS = {
     "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8"
 }
 
-async def translate_text(text: str, target_lang: str = "es") -> str:
+async def translate_text(
+    text: str,
+    target_lang: str = "es",
+    fallback_to_source: bool = True
+) -> str:
     """
     Traduce un texto dinámico (notas del admin, términos o descripciones de productos)
     al idioma configurado de forma asíncrona, con caché y protección estricta contra errores 500 de Google.
@@ -52,10 +56,6 @@ async def translate_text(text: str, target_lang: str = "es") -> str:
         target_lang = "es"
 
     cleaned_text = text.strip()
-
-    # Si el idioma destino es inglés y el texto original ya está en inglés, retornar directo
-    if target_lang == "en":
-        return cleaned_text
 
     cache_key = (cleaned_text, target_lang)
     if cache_key in _TRANSLATION_CACHE:
@@ -91,4 +91,4 @@ async def translate_text(text: str, target_lang: str = "es") -> str:
         logger.warning(f"Aviso: Fallo en fallback deep_translator ({target_lang}): {e}")
 
     # 3. Fallback de seguridad: Si no se pudo traducir o devolvió error, retornar texto original limpio
-    return cleaned_text
+    return cleaned_text if fallback_to_source else ""

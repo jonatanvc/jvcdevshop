@@ -10,6 +10,7 @@ from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.time_utils import format_dt
 from bot.utils.formatters import adjust_warranty_in_name, format_delivered_credentials
+from bot.utils.translator import translate_text
 
 ORDERS_PER_PAGE = 6
 
@@ -28,7 +29,10 @@ def register_orders_handlers(app: Client):
             user = user_res.scalar_one_or_none()
             lang = user.language if user else "es"
 
-            stmt = select(Order).where(Order.user_id == user_id).order_by(desc(Order.created_at))
+            stmt = select(Order).where(
+                Order.user_id == user_id,
+                Order.status == "COMPLETED"
+            ).order_by(desc(Order.created_at))
             result = await session.execute(stmt)
             all_orders = result.scalars().all()
 
@@ -100,7 +104,10 @@ def register_orders_handlers(app: Client):
             user = user_res.scalar_one_or_none()
             lang = user.language if user else "es"
 
-            stmt = select(Order).where(Order.user_id == user_id).order_by(desc(Order.created_at))
+            stmt = select(Order).where(
+                Order.user_id == user_id,
+                Order.status == "COMPLETED"
+            ).order_by(desc(Order.created_at))
             result = await session.execute(stmt)
             all_orders = result.scalars().all()
 
@@ -178,7 +185,11 @@ def register_orders_handlers(app: Client):
             user = user_res.scalar_one_or_none()
             lang = user.language if user else "es"
 
-            stmt = select(Order).where(Order.id == order_id, Order.user_id == user_id)
+            stmt = select(Order).where(
+                Order.id == order_id,
+                Order.user_id == user_id,
+                Order.status == "COMPLETED"
+            )
             res = await session.execute(stmt)
             order = res.scalar_one_or_none()
 
@@ -207,6 +218,11 @@ def register_orders_handlers(app: Client):
                 prov_id=html.escape(order.provider_order_id or "N/A"),
                 items=html.escape(format_delivered_credentials(order.delivered_items))
             )
+            if order.provider_note:
+                translated_note = await translate_text(order.provider_note, lang, fallback_to_source=False)
+                if not translated_note:
+                    translated_note = t("provider_note_unavailable", lang)
+                text += f"\n\n📝 <b>{t('product_note_label', lang)}:</b>\n<i>{html.escape(translated_note)}</i>"
 
             keyboard_buttons = []
             if order.rating:

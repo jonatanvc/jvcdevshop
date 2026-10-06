@@ -429,7 +429,7 @@ def register_support_handlers(app: Client):
     # 📨 7. CAPTURADOR GLOBAL DE MENSAJES PARA TICKETS
     # ========================================================
 
-    @app.on_message(filters.private & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep", "user", "reply", "vip"]), group=4)
+    @app.on_message(filters.private & ~filters.command(["start", "admin", "orderresolve", "vnumresolve", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep", "user", "reply", "vip"]), group=4)
     async def handle_ticket_message(client: Client, message: Message):
         user_id = message.from_user.id
 

@@ -8,12 +8,13 @@ from bot.utils.emojis import InlineKeyboardButton
 from sqlalchemy import select, func
 from bot.config import settings
 from bot.database.session import async_session
-from bot.database.models import User, Order, VirtualNumberOrder, Deposit, DepositStatus, Setting
+from bot.database.models import User, Order, VirtualNumberOrder, Deposit, DepositStatus, Setting, CouponUsage
 from bot.services.bunai_client import bunai_api
 from bot.services.fivesim_client import fivesim_api
 from bot.services.pricing import pricing_service
 from bot.services.backup_service import backup_service
 from bot.services.audit_logger import audit_logger
+from bot.services.promos import promo_service
 from bot.utils.navigation import render_screen
 from bot.utils.emojis import (
     EMOJI_ADMIN, EMOJI_USERS, EMOJI_CARD, EMOJI_SHOPPING, EMOJI_PROVIDER,
@@ -51,7 +52,10 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
         users_res = await session.execute(select(func.count(User.telegram_id)))
         total_users = users_res.scalar() or 0
 
-        orders_res = await session.execute(select(func.count(Order.id), func.sum(Order.total_price)))
+        orders_res = await session.execute(
+            select(func.count(Order.id), func.sum(Order.total_price))
+            .where(Order.status == "COMPLETED")
+        )
         total_orders, total_sales = orders_res.first()
         total_orders = total_orders or 0
         total_sales = float(total_sales or 0.0)
@@ -168,7 +172,10 @@ def get_segment_query(seg_key: str):
         return select(User.telegram_id).where(User.is_vip == True, User.vip_expires_at > now)
     elif seg_key == "inactive":
         cutoff = now - timedelta(days=7)
-        recent_orders = select(Order.user_id).where(Order.created_at >= cutoff)
+        recent_orders = select(Order.user_id).where(
+            Order.created_at >= cutoff,
+            Order.status == "COMPLETED"
+        )
         recent_vnums = select(VirtualNumberOrder.user_id).where(VirtualNumberOrder.created_at >= cutoff)
         return select(User.telegram_id).where(
             ~User.telegram_id.in_(recent_orders),
@@ -376,6 +383,201 @@ def register_admin_handlers(app: Client):
             return
         await show_admin_panel(client, user_id, user_id)
 
+    @app.on_message(filters.command("orderresolve") & filters.private)
+    async def cmd_order_resolve(client: Client, message: Message):
+        admin_id = message.from_user.id
+        if not is_admin(admin_id):
+            return
+
+        parts = (message.text or "").split(maxsplit=3)
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        if len(parts) < 3 or not parts[1].isdigit() or parts[2] not in {"complete", "refund"}:
+            await client.send_message(
+                admin_id,
+                "Uso: <code>/orderresolve ID complete PROVIDER_ID ENTREGA</code> o <code>/orderresolve ID refund</code>"
+            )
+            return
+
+        order_id = int(parts[1])
+        action = parts[2]
+        provider_order_id = None
+        delivered_items = None
+        if action == "complete":
+            if len(parts) < 4:
+                await client.send_message(admin_id, "Para completar, incluye el ID del proveedor y los datos entregados.")
+                return
+            provider_order_id, separator, delivered_items = parts[3].partition(" ")
+            if not separator or not delivered_items.strip():
+                await client.send_message(admin_id, "Formato: <code>/orderresolve ID complete PROVIDER_ID ENTREGA</code>")
+                return
+
+        async with async_session() as session:
+            result = await session.execute(
+                select(Order).where(
+                    Order.id == order_id,
+                    Order.status == "REVIEW"
+                ).with_for_update()
+            )
+            order = result.scalar_one_or_none()
+            if not order:
+                await client.send_message(admin_id, "No existe una orden en revisión con ese ID.")
+                return
+
+            if action == "complete":
+                order.provider_order_id = provider_order_id
+                order.delivered_items = delivered_items.strip()
+                order.status = "COMPLETED"
+                user_id = order.user_id
+                response = f"Orden #{order_id} marcada como completada."
+            else:
+                if order.payment_method == "api":
+                    await client.send_message(admin_id, "Confirma primero el resultado/cargo en BunaiStore; no se reembolsa una compra pagada desde la API automáticamente.")
+                    return
+
+                user_result = await session.execute(
+                    select(User).where(User.telegram_id == order.user_id).with_for_update()
+                )
+                user = user_result.scalar_one_or_none()
+                if not user:
+                    await client.send_message(admin_id, "No se encontró el usuario de la orden; no se aplicó el reembolso.")
+                    return
+
+                user.balance += order.total_price
+                user.total_spent = max(Decimal("0"), user.total_spent - order.total_price)
+                order.status = "FAILED"
+                usage_result = await session.execute(
+                    select(CouponUsage).where(CouponUsage.order_id == order.id)
+                )
+                coupon_usage = usage_result.scalar_one_or_none()
+                if coupon_usage:
+                    await promo_service.release_reserved_coupon(
+                        session,
+                        coupon_usage.coupon_id,
+                        order.user_id,
+                        order.id
+                    )
+                user_id = order.user_id
+                response = f"Orden #{order_id} marcada como rechazada y saldo reembolsado."
+
+            await session.commit()
+
+        await client.send_message(admin_id, response)
+        try:
+            await client.send_message(user_id, response)
+        except Exception:
+            pass
+        await audit_logger.log_system_alert(
+            client,
+            "ORDEN EN REVISIÓN RESUELTA",
+            f"Admin <code>{admin_id}</code> resolvió la orden <code>ORD_{order_id}</code> como <code>{action}</code>."
+        )
+
+    @app.on_message(filters.command("vnumresolve") & filters.private)
+    async def cmd_virtual_order_resolve(client: Client, message: Message):
+        admin_id = message.from_user.id
+        if not is_admin(admin_id):
+            return
+
+        parts = (message.text or "").split()
+        try:
+            await message.delete()
+        except Exception:
+            pass
+
+        if len(parts) != 3 or not parts[1].isdigit() or parts[2] not in {"check", "refund"}:
+            await client.send_message(
+                admin_id,
+                "Uso: <code>/vnumresolve ID check</code> para reanudar el monitor o <code>/vnumresolve ID refund</code> para cancelar y reembolsar."
+            )
+            return
+
+        order_id = int(parts[1])
+        action = parts[2]
+        async with async_session() as session:
+            result = await session.execute(
+                select(VirtualNumberOrder).where(
+                    VirtualNumberOrder.id == order_id,
+                    VirtualNumberOrder.status.in_(["PROCESSING", "REVIEW"])
+                )
+            )
+            order = result.scalar_one_or_none()
+            if not order:
+                await client.send_message(admin_id, "No existe una orden virtual en revisión con ese ID.")
+                return
+            provider_order_id = order.fivesim_order_id
+
+        if not provider_order_id:
+            await client.send_message(admin_id, "La orden no tiene ID 5SIM. No se modificó ni reembolsó; revisa la cuenta del proveedor antes de resolverla.")
+            return
+
+        if action == "check":
+            provider_result = await fivesim_api.check_order(provider_order_id)
+            if provider_result.get("error") or not provider_result.get("status"):
+                await client.send_message(admin_id, "5SIM no confirmó el estado; la orden sigue en revisión y conserva la reserva.")
+                return
+            async with async_session() as session:
+                result = await session.execute(
+                    select(VirtualNumberOrder).where(
+                        VirtualNumberOrder.id == order_id,
+                        VirtualNumberOrder.status.in_(["PROCESSING", "REVIEW"])
+                    ).with_for_update()
+                )
+                order = result.scalar_one_or_none()
+                if not order:
+                    await client.send_message(admin_id, "La orden ya fue resuelta por otro proceso.")
+                    return
+                order.status = "PENDING"
+                await session.commit()
+            response = f"Orden virtual #{order_id} reanudada; 5SIM reporta <code>{html.escape(str(provider_result['status']))}</code>."
+        else:
+            provider_result = await fivesim_api.cancel_order(provider_order_id)
+            cancel_status = str(provider_result.get("status", "")).upper()
+            if provider_result.get("error") or cancel_status not in {"CANCELED", "CANCELLED"}:
+                await client.send_message(admin_id, "5SIM no confirmó la cancelación. La orden conserva su estado y saldo reservado.")
+                return
+
+            async with async_session() as session:
+                result = await session.execute(
+                    select(VirtualNumberOrder).where(
+                        VirtualNumberOrder.id == order_id,
+                        VirtualNumberOrder.status.in_(["PROCESSING", "REVIEW"])
+                    ).with_for_update()
+                )
+                order = result.scalar_one_or_none()
+                if not order:
+                    await client.send_message(admin_id, "La orden ya fue resuelta por otro proceso.")
+                    return
+                if not order.is_refunded and order.payment_method != "api":
+                    user_result = await session.execute(
+                        select(User).where(User.telegram_id == order.user_id).with_for_update()
+                    )
+                    user = user_result.scalar_one_or_none()
+                    if not user:
+                        await client.send_message(admin_id, "No se encontró el usuario; no se realizó el reembolso local.")
+                        return
+                    user.balance += order.price_usdt
+                    user.total_spent = max(Decimal("0"), user.total_spent - order.price_usdt)
+                order.status = "FAILED"
+                order.is_refunded = True
+                target_user_id = order.user_id
+                await session.commit()
+            response = f"Orden virtual #{order_id} cancelada y conciliada; reembolso aplicado según su método de pago."
+            try:
+                await client.send_message(target_user_id, response)
+            except Exception:
+                pass
+
+        await client.send_message(admin_id, response)
+        await audit_logger.log_system_alert(
+            client,
+            "ORDEN VIRTUAL EN REVISIÓN RESUELTA",
+            f"Admin <code>{admin_id}</code> resolvió la orden local <code>VNUM_{order_id}</code> con acción <code>{action}</code>."
+        )
+
     @app.on_callback_query(filters.regex(r"^(admin:menu|menu_admin)$"))
     async def cb_admin_menu(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
@@ -391,8 +593,11 @@ def register_admin_handlers(app: Client):
             return
 
         await callback.answer("⏳ Generando backup...")
-        await backup_service.send_automated_backup(client, chat_id=user_id)
-        await callback.answer("✅ Backup enviado a tu chat privado.", show_alert=True)
+        sent = await backup_service.send_automated_backup(client, chat_id=user_id)
+        if not sent:
+            await callback.answer("❌ No se generó el backup. Configura BACKUP_ENCRYPTION_KEY y revisa los logs.", show_alert=True)
+            return
+        await callback.answer("✅ Backup cifrado enviado a tu chat privado.", show_alert=True)
 
     @app.on_callback_query(filters.regex("^admin:toggle_maintenance$"))
     async def cb_toggle_maintenance(client: Client, callback: CallbackQuery):
@@ -671,7 +876,7 @@ def register_admin_handlers(app: Client):
         except Exception as e:
             await callback.answer(f"Error: {e}", show_alert=True)
 
-    @app.on_message(filters.private & ~filters.command(["start", "admin", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep", "user", "reply", "vip"]), group=3)
+    @app.on_message(filters.private & ~filters.command(["start", "admin", "orderresolve", "vnumresolve", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep", "user", "reply", "vip"]), group=3)
     async def handle_admin_text(client: Client, message: Message):
         user_id = message.from_user.id
         if not is_admin(user_id):

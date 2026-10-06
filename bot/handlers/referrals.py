@@ -35,21 +35,14 @@ def register_referrals_handlers(app: Client):
             count_res = await session.execute(count_stmt)
             total_referred = count_res.scalar() or 0
 
-            # 2. Ganancias reales por comisiones de depósitos confirmados
-            total_earnings = 0.0
-            ref_users_stmt = select(User.telegram_id).where(User.referred_by == user_id)
-            ref_users_res = await session.execute(ref_users_stmt)
-            ref_user_ids = [uid for uid in ref_users_res.scalars().all()]
-
-            if ref_user_ids:
-                earnings_stmt = select(func.sum(Deposit.base_amount)).where(
-                    Deposit.user_id.in_(ref_user_ids),
+            # Sum the commissions actually credited, not current rates applied retroactively.
+            referred_users = select(User.telegram_id).where(User.referred_by == user_id)
+            earnings_stmt = select(func.sum(Deposit.referral_commission_amount)).where(
+                    Deposit.user_id.in_(referred_users),
                     Deposit.status == DepositStatus.CONFIRMED
                 )
-                earnings_res = await session.execute(earnings_stmt)
-                total_dep_base = float(earnings_res.scalar() or 0.0)
-                comm_rate = float(settings.REFERRAL_COMMISSION_PERCENT) / 100.0
-                total_earnings = total_dep_base * comm_rate
+            earnings_res = await session.execute(earnings_stmt)
+            total_earnings = float(earnings_res.scalar() or 0.0)
 
         now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
         is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
