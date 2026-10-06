@@ -12,6 +12,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     build-essential \
     libpq-dev \
     curl \
+    gosu \
     && rm -rf /var/lib/apt/lists/*
 
 RUN groupadd --system bot && \
@@ -27,7 +28,11 @@ RUN pip install --no-cache-dir --upgrade pip && \
 # Copiar el código fuente del proyecto
 COPY --chown=bot:bot . .
 
-USER bot
+COPY docker-entrypoint.sh /usr/local/bin/docker-entrypoint.sh
+RUN chmod 0755 /usr/local/bin/docker-entrypoint.sh
+
+USER root
+ENTRYPOINT ["/usr/local/bin/docker-entrypoint.sh"]
 
 HEALTHCHECK --interval=30s --timeout=5s --start-period=60s --retries=3 \
     CMD python -c "import os,time,sys; p='/tmp/bot-health'; sys.exit(0 if os.path.exists(p) and time.time()-os.path.getmtime(p)<60 else 1)"
