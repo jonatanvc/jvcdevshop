@@ -224,6 +224,12 @@ EMOJI_TICKET = pe("5890883384057533697", "🎟️")
 
 # --- SERVICIOS DIGITALES DEL CATÁLOGO (39 MARCAS) ---
 SERVICE_EMOJIS = [
+    # Marcas y servicios OTP añadidos al catálogo
+    (["antigravity"], "6178962311072456422", "🚀"),
+    (["peacock"], "5068817735840957230", "🦚"),
+    (["whatsapp portugal"], "5334998226636390258", "📱"),
+    (["telegram portugal"], "5330237710655306682", "✈️"),
+    (["manus pro", "manus"], "6271341379662650038", "🧠"),
     # 1- Google / Gemini AI — 🤖 - (5310176773114197087)
     (["gemini", "google ai"], "5310176773114197087", "🤖"),
     # 2- Gmail / Cuentas Google 2FA — 🐁 - (5796209712009581332)
