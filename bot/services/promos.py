@@ -1,9 +1,9 @@
 import secrets
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
-from typing import Tuple, Optional, List, Dict, Any
+from typing import Tuple, Optional, List
 from sqlalchemy import select, func, update
-from bot.database.models import User, Coupon, CouponUsage, GiftCard, Order
+from bot.database.models import User, Coupon, CouponUsage, GiftCard
 
 def utc_now() -> datetime:
     return datetime.now(timezone.utc).replace(tzinfo=None)

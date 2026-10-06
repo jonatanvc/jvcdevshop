@@ -1,4 +1,5 @@
 import asyncio
+import html
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
 from typing import Dict, Any, Optional
@@ -763,9 +764,9 @@ def register_admin_handlers(app: Client):
         ADMIN_STATES[user_id] = {"action": "waiting_user_search"}
         await callback.answer()
         text = (
-            f"🔍 <b>BUSCADOR DE USUARIOS</b>\n\n"
-            f"Envía el <b>@username</b> o el <b>ID numérico de Telegram</b> del usuario que deseas consultar.\n\n"
-            f"<i>Ejemplo: <code>@usuario</code> o <code>123456789</code></i>"
+            "🔍 <b>BUSCADOR DE USUARIOS</b>\n\n"
+            "Envía el <b>@username</b> o el <b>ID numérico de Telegram</b> del usuario que deseas consultar.\n\n"
+            "<i>Ejemplo: <code>@usuario</code> o <code>123456789</code></i>"
         )
         keyboard = InlineKeyboardMarkup([[InlineKeyboardButton("🔙 Cancelar", callback_data="admin:menu")]])
         await render_screen(client, callback, text, keyboard)

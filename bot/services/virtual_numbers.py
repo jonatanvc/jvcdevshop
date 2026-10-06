@@ -1,8 +1,8 @@
-import asyncio
+import html
 import logging
 from datetime import datetime, timezone, timedelta
 from decimal import Decimal
-from typing import Dict, Any, Optional, List, Tuple
+from typing import Dict, Any, Optional, Tuple
 from pyrogram import Client
 from pyrogram.types import InlineKeyboardMarkup
 from pyrogram.enums import ParseMode
@@ -876,12 +876,12 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                 try:
                     success_text = (
                         f"🎉 <b>¡CÓDIGO DE VERIFICACIÓN RECIBIDO!</b>\n\n"
-                        f"• <b>Plataforma:</b> {order.service_name.upper()}\n"
-                        f"• <b>Número:</b> <code>{order.phone}</code>\n\n"
+                        f"• <b>Plataforma:</b> {html.escape(order.service_name.upper())}\n"
+                        f"• <b>Número:</b> <code>{html.escape(order.phone or '')}</code>\n\n"
                         f"🔑 <b>Tu Código OTP (Toca para copiar):</b>\n"
-                        f"<code>{code}</code>\n\n"
+                        f"<code>{html.escape(code)}</code>\n\n"
                         f"💬 <b>SMS Completo:</b>\n"
-                        f"<i>\"{text_msg}\"</i>\n\n"
+                        f"<i>\"{html.escape(text_msg)}\"</i>\n\n"
                         f"✅ <i>¡Activación completada con éxito!</i>"
                     )
                     kb = InlineKeyboardMarkup([

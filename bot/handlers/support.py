@@ -1,10 +1,9 @@
-import asyncio
 import html
 from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from sqlalchemy import select, func, update
+from sqlalchemy import select, func
 from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, SupportTicket, TicketMessage
@@ -126,10 +125,10 @@ def register_support_handlers(app: Client):
         SUPPORT_USER_STATES[user_id] = {"action": "waiting_ticket_content"}
 
         text = (
-            f"✍️ <b>NUEVO TICKET DE SOPORTE</b>\n\n"
-            f"Por favor describe detalladamente tu consulta, inconveniente o duda.\n\n"
-            f"📸 <i>También puedes enviar una <b>foto o captura de pantalla</b> con subtítulo.</i>\n\n"
-            f"<i>Pulsa Cancelar si deseas regresar.</i>"
+            "✍️ <b>NUEVO TICKET DE SOPORTE</b>\n\n"
+            "Por favor describe detalladamente tu consulta, inconveniente o duda.\n\n"
+            "📸 <i>También puedes enviar una <b>foto o captura de pantalla</b> con subtítulo.</i>\n\n"
+            "<i>Pulsa Cancelar si deseas regresar.</i>"
         )
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton("❌ Cancelar", callback_data="support:view")]
@@ -160,9 +159,9 @@ def register_support_handlers(app: Client):
 
             if total_tickets == 0:
                 empty_text = (
-                    f"📋 <b>HISTORIAL DE TICKETS</b>\n\n"
-                    f"Aún no has creado ningún ticket de soporte.\n\n"
-                    f"<i>Si tienes dudas o necesitas asistencia con un pedido, pulsa el botón a continuación para abrir uno.</i>"
+                    "📋 <b>HISTORIAL DE TICKETS</b>\n\n"
+                    "Aún no has creado ningún ticket de soporte.\n\n"
+                    "<i>Si tienes dudas o necesitas asistencia con un pedido, pulsa el botón a continuación para abrir uno.</i>"
                 )
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton("💬 Abrir Nuevo Ticket", callback_data="support:new")],

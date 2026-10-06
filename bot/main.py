@@ -1,7 +1,7 @@
 import asyncio
 from pathlib import Path
 from tempfile import gettempdir
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from pyrogram import Client, idle
 from sqlalchemy import update
 from bot.config import settings
@@ -16,7 +16,6 @@ from bot.services.vip_service import vip_service
 from bot.services.deposit_reminder import check_and_send_deposit_reminders
 from bot.services.virtual_numbers import check_and_notify_pending_virtual_orders
 from bot.services.fivesim_client import fivesim_api
-from bot.utils.emojis import parse_emojis
 
 async def provider_balance_monitor(app: Client):
     """Monitorea periódicamente el saldo en BunaiStore para alertar al canal de auditoría si está bajo"""
@@ -76,12 +75,39 @@ async def deposit_expiry_worker():
             await asyncio.sleep(300)  # Cada 5 minutos
             async with async_session() as session:
                 now = datetime.now(timezone.utc).replace(tzinfo=None)
+                verification_cutoff = now - timedelta(minutes=15)
                 stmt = (
                     update(Deposit)
                     .where(Deposit.status == DepositStatus.PENDING, Deposit.expires_at < now)
                     .values(status=DepositStatus.EXPIRED)
                 )
                 await session.execute(stmt)
+                await session.execute(
+                    update(Deposit)
+                    .where(
+                        Deposit.status == DepositStatus.VERIFYING,
+                        Deposit.verification_started_at < verification_cutoff,
+                        Deposit.expires_at <= now
+                    )
+                    .values(
+                        status=DepositStatus.EXPIRED,
+                        tx_hash=None,
+                        verification_started_at=None
+                    )
+                )
+                await session.execute(
+                    update(Deposit)
+                    .where(
+                        Deposit.status == DepositStatus.VERIFYING,
+                        Deposit.verification_started_at < verification_cutoff,
+                        Deposit.expires_at > now
+                    )
+                    .values(
+                        status=DepositStatus.PENDING,
+                        tx_hash=None,
+                        verification_started_at=None
+                    )
+                )
                 await session.commit()
         except Exception as e:
             print(f"[ExpiryWorker Error] {e}")
@@ -110,7 +136,7 @@ async def stale_orders_worker(app: Client):
 
             for order_id, user_id in bunai_rows:
                 await audit_logger.log_system_alert(
-                    client,
+                    app,
                     "ORDEN BUNAI REQUIERE REVISIÓN",
                     f"La orden <code>ORD_{order_id}</code> quedó en proceso por más de 5 minutos; no se reembolsó automáticamente."
                 )
@@ -121,7 +147,7 @@ async def stale_orders_worker(app: Client):
 
             for order_id, user_id in vnum_rows:
                 await audit_logger.log_system_alert(
-                    client,
+                    app,
                     "ORDEN 5SIM REQUIERE REVISIÓN",
                     f"La orden virtual local <code>VNUM_{order_id}</code> quedó en proceso por más de 5 minutos; conserva su reserva."
                 )

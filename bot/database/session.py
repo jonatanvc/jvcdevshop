@@ -25,6 +25,7 @@ async def init_db():
     """Crea todas las tablas si no existen y aplica migraciones de columnas automáticas"""
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
+        await conn.execute(text("ALTER TYPE depositstatus ADD VALUE IF NOT EXISTS 'VERIFYING';"))
 
         # Migraciones automáticas idempotentes para bases de datos existentes
         migrations = [
@@ -40,6 +41,7 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS vip_warned_2h BOOLEAN DEFAULT FALSE;",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_coupon_code VARCHAR(32);",
             "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN DEFAULT FALSE;",
+            "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS verification_started_at TIMESTAMP;",
             "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS referral_commission_amount NUMERIC(12, 4) DEFAULT 0.0000 NOT NULL;",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS provider_note TEXT DEFAULT '' NOT NULL;",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'COMPLETED' NOT NULL;",

@@ -1,3 +1,4 @@
+import asyncio
 import random
 import math
 import re
@@ -9,6 +10,7 @@ from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
 from sqlalchemy import select, update
+from sqlalchemy.exc import IntegrityError
 from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, Deposit, DepositStatus, Order, VirtualNumberOrder
@@ -75,6 +77,13 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
     async with async_session() as session:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         expires_at = now + timedelta(minutes=30)
+        verifying_stmt = select(Deposit.id).where(
+            Deposit.user_id == user_id,
+            Deposit.status == DepositStatus.VERIFYING
+        )
+        if await session.scalar(verifying_stmt):
+            await render_screen(client, target, t("verifying_tx", lang), None)
+            return
 
         # Si ya existe una solicitud PENDING activa previa, la marcamos como expirada
         cancel_old_stmt = (
@@ -83,12 +92,10 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
             .values(status=DepositStatus.EXPIRED)
         )
         await session.execute(cancel_old_stmt)
-
         for _ in range(50):
             rand_suffix = random.randint(100, 999) / 10000.0
             exact_val = round(base_amount + rand_suffix, 4)
             exact_dec = Decimal(str(exact_val))
-
             dup_stmt = select(Deposit).where(
                 Deposit.exact_amount == exact_dec,
                 Deposit.status == DepositStatus.PENDING,
@@ -98,16 +105,6 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
             if not dup_res.scalar_one_or_none():
                 break
 
-        # Notificar solicitud en canal de auditoría y capturar el ID del mensaje
-        log_msg_id = await audit_logger.log_deposit_request(
-            client=client,
-            user_id=user_id,
-            username=username,
-            first_name=first_name,
-            base_amount=base_amount,
-            exact_amount=float(exact_dec)
-        )
-
         new_deposit = Deposit(
             user_id=user_id,
             base_amount=Decimal(str(base_amount)),
@@ -115,12 +112,29 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
             status=DepositStatus.PENDING,
             expires_at=expires_at,
             created_at=now,
-            log_message_id=log_msg_id
+            log_message_id=None
         )
         session.add(new_deposit)
         await session.commit()
         await session.refresh(new_deposit)
         deposit_id = new_deposit.id
+
+    log_msg_id = await audit_logger.log_deposit_request(
+        client=client,
+        user_id=user_id,
+        username=username,
+        first_name=first_name,
+        base_amount=base_amount,
+        exact_amount=float(exact_dec)
+    )
+    if log_msg_id:
+        async with async_session() as session:
+            await session.execute(
+                update(Deposit)
+                .where(Deposit.id == deposit_id)
+                .values(log_message_id=log_msg_id)
+            )
+            await session.commit()
 
     invoice_text = t(
         "invoice_title",
@@ -128,11 +142,9 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
         exact_val=f"{exact_val:.4f}",
         wallet=settings.ADMIN_WALLET_BSC
     )
-
     await render_screen(client, target, invoice_text, get_invoice_keyboard(deposit_id, lang))
 
 def register_wallet_handlers(app: Client):
-
     @app.on_callback_query(filters.regex(r"^(wallet:(deposit_menu|topup)|wallet_main|account:wallet)$"))
     async def cb_deposit_menu(client: Client, callback: CallbackQuery):
         try:
@@ -145,14 +157,18 @@ def register_wallet_handlers(app: Client):
             return
 
         async with async_session() as session:
-            stmt = select(User).where(User.telegram_id == user_id)
-            res = await session.execute(stmt)
+            res = await session.execute(select(User).where(User.telegram_id == user_id))
             user = res.scalar_one_or_none()
             balance = float(user.balance) if user else 0.0
             active_coupon = getattr(user, "active_coupon_code", None) if user else None
             lang = getattr(user, "language", "es") or "es"
-
-            # Comprobar si el usuario tiene una solicitud de depósito activa pendiente
+            verifying_stmt = select(Deposit.id).where(
+                Deposit.user_id == user_id,
+                Deposit.status == DepositStatus.VERIFYING
+            )
+            if await session.scalar(verifying_stmt):
+                await render_screen(client, callback, t("verifying_tx", lang), None)
+                return
             now = datetime.now(timezone.utc).replace(tzinfo=None)
             active_stmt = select(Deposit).where(
                 Deposit.user_id == user_id,
@@ -162,13 +178,11 @@ def register_wallet_handlers(app: Client):
             active_res = await session.execute(active_stmt)
             active_dep = active_res.scalar_one_or_none()
 
-            # Si tiene una solicitud activa, mostrarle la factura para que pague o cancele antes de continuar
             if active_dep:
-                exact_val = float(active_dep.exact_amount)
                 invoice_text = t(
                     "invoice_title",
                     lang,
-                    exact_val=f"{exact_val:.4f}",
+                    exact_val=f"{float(active_dep.exact_amount):.4f}",
                     wallet=settings.ADMIN_WALLET_BSC
                 )
                 await render_screen(client, callback, invoice_text, get_invoice_keyboard(active_dep.id, lang))
@@ -177,11 +191,16 @@ def register_wallet_handlers(app: Client):
         coupon_info = ""
         if active_coupon:
             coupon_info = (
-                f"\n\n🎟️ <b>Cupón Activo:</b> <code>{active_coupon}</code>\n"
-                f"<i>(Se aplicará automáticamente un descuento en tu próxima compra del catálogo)</i>"
+                f"\n\n🎟 <b>Cupón Activo:</b> <code>{active_coupon}</code>\n"
+                "<i>(Se aplicará automáticamente un descuento en tu próxima compra del catálogo)</i>"
             )
 
-        text = t("wallet_title", lang, balance=f"{balance:.4f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}") + coupon_info
+        text = t(
+            "wallet_title",
+            lang,
+            balance=f"{balance:.4f}",
+            min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}"
+        ) + coupon_info
         await render_screen(client, callback, text, get_deposit_menu_keyboard(lang, active_coupon))
 
     @app.on_callback_query(filters.regex(r"^deposit:amount:(\d+)$"))
@@ -346,6 +365,7 @@ def register_wallet_handlers(app: Client):
 
         amount_cancelled = 0.0
         log_msg_id = None
+        is_verifying = False
         async with async_session() as session:
             stmt = select(Deposit).where(Deposit.id == deposit_id, Deposit.user_id == user_id)
             res = await session.execute(stmt)
@@ -360,6 +380,12 @@ def register_wallet_handlers(app: Client):
                 amount_cancelled = float(dep.exact_amount)
                 log_msg_id = dep.log_message_id
                 await session.commit()
+            elif dep and dep.status == DepositStatus.VERIFYING:
+                is_verifying = True
+
+        if is_verifying:
+            await callback.answer("El pago ya se está verificando y no se puede cancelar.", show_alert=True)
+            return
 
         # EDITAR el mismo mensaje en el canal de logs
         await audit_logger.log_deposit_cancelled(
@@ -467,6 +493,14 @@ def register_wallet_handlers(app: Client):
             active_coupon = getattr(user, "active_coupon_code", None) if user else None
             lang = getattr(user, "language", "es") or "es"
 
+            verifying_stmt = select(Deposit.id).where(
+                Deposit.user_id == user_id,
+                Deposit.status == DepositStatus.VERIFYING
+            )
+            if await session.scalar(verifying_stmt):
+                await render_screen(client, user_id, t("verifying_tx", lang), None)
+                return
+
             now = datetime.now(timezone.utc).replace(tzinfo=None)
             active_stmt = select(Deposit).where(
                 Deposit.user_id == user_id,
@@ -554,6 +588,8 @@ def register_wallet_handlers(app: Client):
                 ])
                 await render_screen(client, user_id, "❌ <b>Formato de Hash / TxID Inválido</b>\n\nEl Hash de transacción de BSC (BEP-20) debe tener 64 caracteres hexadecimales (ejemplo: <code>0xabc123...</code>). Verifica y vuelve a intentarlo.", retry_kb)
                 return
+            if not tx_hash.startswith("0x"):
+                tx_hash = f"0x{tx_hash}"
 
             if tx_hash in _ACTIVE_HASH_VERIFICATIONS:
                 await message.reply_text("⏳ Este hash ya está siendo verificado en este momento. Por favor espera.")
@@ -570,43 +606,87 @@ def register_wallet_handlers(app: Client):
                     None
                 )
 
+                try:
+                    async with async_session() as session:
+                        stmt = select(Deposit).where(
+                            Deposit.id == deposit_id,
+                            Deposit.user_id == user_id
+                        ).with_for_update()
+                        res = await session.execute(stmt)
+                        deposit = res.scalar_one_or_none()
+                        now = datetime.now(timezone.utc).replace(tzinfo=None)
+                        if not deposit or deposit.status != DepositStatus.PENDING or deposit.expires_at <= now:
+                            if deposit and deposit.status == DepositStatus.PENDING:
+                                deposit.status = DepositStatus.EXPIRED
+                                await session.commit()
+                            kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
+                            await render_screen(client, user_id, "❌ La solicitud de depósito ya venció, fue cancelada o no está disponible.", kb)
+                            return
+
+                        duplicate = await session.scalar(
+                            select(Deposit.id).where(
+                                Deposit.tx_hash == tx_hash,
+                                Deposit.id != deposit_id
+                            )
+                        )
+                        if duplicate:
+                            kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
+                            await render_screen(client, user_id, "❌ Este Hash / TxID ya fue utilizado o está siendo verificado.", kb)
+                            return
+
+                        deposit.status = DepositStatus.VERIFYING
+                        deposit.tx_hash = tx_hash
+                        deposit.verification_started_at = now
+                        expected_amount = float(deposit.exact_amount)
+                        await session.commit()
+                except IntegrityError:
+                    kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
+                    await render_screen(client, user_id, "❌ Este Hash / TxID ya fue utilizado o está siendo verificado.", kb)
+                    return
+
+                try:
+                    val_res = await bsc_validator.verify_deposit(tx_hash, expected_amount)
+                except Exception as exc:
+                    val_res = {"success": False, "error": str(exc)}
+
+                if not val_res.get("success"):
+                    async with async_session() as session:
+                        stmt = select(Deposit).where(
+                            Deposit.id == deposit_id,
+                            Deposit.user_id == user_id
+                        ).with_for_update()
+                        res = await session.execute(stmt)
+                        deposit = res.scalar_one_or_none()
+                        if deposit and deposit.status == DepositStatus.VERIFYING and deposit.tx_hash == tx_hash:
+                            now = datetime.now(timezone.utc).replace(tzinfo=None)
+                            deposit.status = DepositStatus.PENDING if deposit.expires_at > now else DepositStatus.EXPIRED
+                            deposit.tx_hash = None
+                            deposit.verification_started_at = None
+                            await session.commit()
+
+                    err_msg = val_res.get("error", "Invalid Tx")
+                    retry_kb = InlineKeyboardMarkup([
+                        [InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")],
+                        [InlineKeyboardButton(t("btn_cancel_request", lang), callback_data=f"deposit:cancel:{deposit_id}")]
+                    ])
+                    await render_screen(client, user_id, f"❌ <b>Error:</b>\n{html.escape(str(err_msg))}", retry_kb)
+                    return
+
                 log_msg_id = None
                 async with async_session() as session:
                     stmt = select(Deposit).where(Deposit.id == deposit_id, Deposit.user_id == user_id).with_for_update()
                     res = await session.execute(stmt)
                     deposit = res.scalar_one_or_none()
 
-                    now = datetime.now(timezone.utc).replace(tzinfo=None)
-                    if not deposit or deposit.status != DepositStatus.PENDING or deposit.expires_at <= now:
-                        if deposit and deposit.status == DepositStatus.PENDING:
-                            deposit.status = DepositStatus.EXPIRED
-                            await session.commit()
+                    if not deposit or deposit.status != DepositStatus.VERIFYING or deposit.tx_hash != tx_hash:
                         kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
-                        await render_screen(client, user_id, "❌ La solicitud de depósito ya venció, fue cancelada o no está disponible.", kb)
-                        return
-
-                    dup_stmt = select(Deposit).where(Deposit.tx_hash == tx_hash).with_for_update()
-                    dup_res = await session.execute(dup_stmt)
-                    if dup_res.scalar_one_or_none():
-                        kb = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]])
-                        await render_screen(client, user_id, "❌ Este Hash / TxID ya fue utilizado y acreditado anteriormente.", kb)
-                        return
-
-                    val_res = await bsc_validator.verify_deposit(tx_hash, float(deposit.exact_amount))
-
-                    if not val_res.get("success"):
-                        err_msg = val_res.get("error", "Invalid Tx")
-                        retry_kb = InlineKeyboardMarkup([
-                            [InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")],
-                            [InlineKeyboardButton(t("btn_cancel_request", lang), callback_data=f"deposit:cancel:{deposit_id}")]
-                        ])
-                        await render_screen(client, user_id, f"❌ <b>Error:</b>\n{html.escape(str(err_msg))}", retry_kb)
+                        await render_screen(client, user_id, "❌ La verificación del depósito dejó de estar disponible. Inténtalo de nuevo.", kb)
                         return
 
                     credited_amount = Decimal(str(val_res["amount"]))
                     deposit.status = DepositStatus.CONFIRMED
-                    deposit.tx_hash = tx_hash
                     deposit.confirmed_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                    deposit.verification_started_at = None
                     log_msg_id = deposit.log_message_id
 
                     user_stmt = select(User).where(User.telegram_id == user_id).with_for_update()

@@ -1,12 +1,10 @@
-import asyncio
 from datetime import datetime, timezone, timedelta
 from pyrogram import Client
 from pyrogram.enums import ParseMode
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
-from sqlalchemy import select, update
+from sqlalchemy import select
 from bot.database.session import async_session
 from bot.database.models import Deposit, DepositStatus, User
-from bot.utils.i18n import t
 from bot.utils.emojis import parse_emojis, parse_keyboard
 
 async def check_and_send_deposit_reminders(app: Client):

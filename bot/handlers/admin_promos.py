@@ -1,20 +1,14 @@
 import math
-from datetime import datetime, timezone
-from decimal import Decimal
-from typing import Dict, Any, Optional
+from typing import Dict, Any
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
-from sqlalchemy import select, func, desc, update
-from bot.config import settings
+from sqlalchemy import select, func, desc
 from bot.database.session import async_session
 from bot.database.models import User, Coupon, CouponUsage, GiftCard
 from bot.services.promos import promo_service
-from bot.services.audit_logger import audit_logger
 from bot.handlers.admin import is_admin
 from bot.utils.navigation import render_screen
-from bot.utils.rate_limit import rate_limiter
-from bot.utils.i18n import t
 from bot.utils.time_utils import format_dt
 from bot.utils.emojis import parse_emojis, parse_keyboard
 

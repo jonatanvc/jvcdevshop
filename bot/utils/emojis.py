@@ -310,54 +310,42 @@ SERVICE_EMOJIS = [
     (["xbox"], "6116431787720712232", "😙"),
 ]
 
-def get_service_icon(name: str, for_html: bool = False) -> str:
-    """
-    Retorna el icono de marca correspondiente al producto.
-    Si for_html es True, devuelve la etiqueta <tg-emoji> animada.
-    Si for_html es False (para botones), devuelve el carácter de emoji limpio.
-    """
-    name_lower = name.lower()
-    
-    # Coincidencias específicas prioritarias
-    if "onedrive" in name_lower:
-        eid, fb = "5370857634440170316", "📱"
-        return pe(eid, fb) if for_html else fb
-    if "2fa gmail" in name_lower or "gmail" in name_lower:
-        eid, fb = "5796209712009581332", "🐁"
-        return pe(eid, fb) if for_html else fb
-    if "outlook" in name_lower or "hotmail" in name_lower:
-        eid, fb = "5796683820564484775", "🛻"
-        return pe(eid, fb) if for_html else fb
-    if "windows" in name_lower:
-        eid, fb = "5798553402648565182", "💊"
-        return pe(eid, fb) if for_html else fb
+def _get_service_emoji(name: str) -> Tuple[str, str]:
+    name_lower = name.casefold()
+    name_words = set(re.findall(r"[a-z0-9]+", name_lower))
 
-    for keywords, eid, fb in SERVICE_EMOJIS:
-        if any(k in name_lower for k in keywords):
-            return pe(eid, fb) if for_html else fb
-            
-    return pe("5890883384057533697", "🏷️") if for_html else "🏷️"
+    # Product names may separate the platform and country with punctuation or labels.
+    if {"whatsapp", "portugal"}.issubset(name_words):
+        return "5334998226636390258", "📱"
+    if {"telegram", "portugal"}.issubset(name_words):
+        return "5330237710655306682", "✈️"
+    if "onedrive" in name_lower:
+        return "5370857634440170316", "📱"
+    if "gmail" in name_lower:
+        return "5796209712009581332", "🐁"
+    if "outlook" in name_lower or "hotmail" in name_lower:
+        return "5796683820564484775", "🛻"
+    if "windows" in name_lower:
+        return "5798553402648565182", "💊"
+
+    for keywords, emoji_id, fallback in SERVICE_EMOJIS:
+        if any(keyword in name_lower for keyword in keywords):
+            return emoji_id, fallback
+
+    return "5890883384057533697", "🏷️"
+
+
+def get_service_icon(name: str, for_html: bool = False) -> str:
+    """Retorna el icono de marca correspondiente al producto."""
+    emoji_id, fallback = _get_service_emoji(name)
+    return pe(emoji_id, fallback) if for_html else fallback
 
 def get_service_custom_emoji_id(name: str) -> str:
     """
     Retorna directamente el ID numérico del emoji animado correspondiente al servicio.
     Garantiza que cada marca (Spotify, Netflix, YouTube, Figma, etc.) obtenga su icono único.
     """
-    name_lower = name.lower()
-    if "onedrive" in name_lower:
-        return "5370857634440170316"
-    if "2fa gmail" in name_lower or "gmail" in name_lower:
-        return "5796209712009581332"
-    if "outlook" in name_lower or "hotmail" in name_lower:
-        return "5796683820564484775"
-    if "windows" in name_lower:
-        return "5798553402648565182"
-
-    for keywords, eid, fb in SERVICE_EMOJIS:
-        if any(k in name_lower for k in keywords):
-            return eid
-
-    return "5890883384057533697"
+    return _get_service_emoji(name)[0]
 
 # ==============================================================================
 # SISTEMA DINÁMICO DE PARSEO DE EMOJIS (Compatible con Pyrogram)
@@ -455,7 +443,6 @@ EMOJI_MAP_CORE = {
     "🗣": "5370765563226236970",
     "🇪🇸": "4916120627582076238",
     "🇺🇸": "4916136269852968195",
-    "🇧🇷": "5224688610183228070",
     "🔣": "5778208881301787450",
     "🌟": "5769248574499983619",
     "👆": "5769248574499983619",
@@ -818,6 +805,12 @@ def parse_keyboard(reply_markup: Any) -> Any:
         for btn in row:
             if btn and hasattr(btn, "text") and btn.text:
                 if getattr(btn, "url", None) is not None:
+                    continue
+                if getattr(btn, "_catalog_service_emoji", False):
+                    final_text, _, full_text = format_button_info(btn.text)
+                    btn._fallback_text = full_text
+                    if final_text != full_text:
+                        btn.text = final_text
                     continue
                 final_text, icon_id, full_text = format_button_info(btn.text)
                 btn._fallback_text = full_text

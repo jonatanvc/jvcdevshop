@@ -1,6 +1,6 @@
 import logging
 import html
-from typing import Optional, Tuple
+from typing import Optional
 from pyrogram import Client
 from pyrogram.enums import ParseMode
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton

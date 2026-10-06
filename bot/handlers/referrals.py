@@ -95,21 +95,21 @@ def register_referrals_handlers(app: Client):
 
             if total_refs == 0:
                 empty_text = (
-                    f"👥 <b>MIS REFERIDOS</b>\n\n"
-                    f"Aún no tienes usuarios registrados con tu enlace de invitación.\n\n"
-                    f"<i>¡Comparte tu enlace personal para comenzar a ganar comisiones automáticas de cada recarga!</i>"
+                    "👥 <b>MIS REFERIDOS</b>\n\n"
+                    "Aún no tienes usuarios registrados con tu enlace de invitación.\n\n"
+                    "<i>¡Comparte tu enlace personal para comenzar a ganar comisiones automáticas de cada recarga!</i>"
                 )
                 if lang == "en":
                     empty_text = (
-                        f"👥 <b>MY REFERRALS</b>\n\n"
-                        f"You don't have any referred users registered yet.\n\n"
-                        f"<i>Share your personal link to start earning automatic commissions on every deposit!</i>"
+                        "👥 <b>MY REFERRALS</b>\n\n"
+                        "You don't have any referred users registered yet.\n\n"
+                        "<i>Share your personal link to start earning automatic commissions on every deposit!</i>"
                     )
                 elif lang == "pt":
                     empty_text = (
-                        f"👥 <b>MEUS INDICADOS</b>\n\n"
-                        f"Você ainda não tem usuários cadastrados com seu link de convite.\n\n"
-                        f"<i>Compartilhe seu link pessoal para começar a ganhar comissões automáticas em cada recarga!</i>"
+                        "👥 <b>MEUS INDICADOS</b>\n\n"
+                        "Você ainda não tem usuários cadastrados com seu link de convite.\n\n"
+                        "<i>Compartilhe seu link pessoal para começar a ganhar comissões automáticas em cada recarga!</i>"
                     )
                 keyboard = InlineKeyboardMarkup([
                     [InlineKeyboardButton(t("btn_back", lang), callback_data="referrals:view")]

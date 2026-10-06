@@ -2,7 +2,7 @@ import math
 import html
 import unicodedata
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, Tuple, List
+from typing import Dict, Any, Optional, Tuple
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, Message, InlineKeyboardMarkup
 from sqlalchemy import select
@@ -18,12 +18,7 @@ from bot.services.vouchers import voucher_service
 from bot.services.audit_logger import audit_logger
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
-from bot.utils.i18n import t
-from bot.utils.emojis import (
-    InlineKeyboardButton, parse_emojis, parse_keyboard,
-    EMOJI_PHONE, EMOJI_REFRESH, EMOJI_CROSS, EMOJI_CHECK, EMOJI_PARTY,
-    EMOJI_KEY, EMOJI_HOURGLASS, EMOJI_WALLET, EMOJI_WARN, EMOJI_CROWN
-)
+from bot.utils.emojis import InlineKeyboardButton
 
 COUNTRIES_PER_PAGE = 6
 VNUM_SEARCH_STATES: Dict[int, str] = {}
@@ -85,7 +80,6 @@ async def render_countries_screen(client: Client, target: Any, user_id: int, ser
     sort_title, sort_desc = VNUM_SORT_CONFIG[sort_by]
     offers = await fivesim_api.get_service_offers(service_code, sort_by=sort_by)
 
-    is_owner = settings.is_owner(user_id)
     async with async_session() as session:
         u_stmt = select(User).where(User.telegram_id == user_id)
         u_res = await session.execute(u_stmt)
@@ -205,7 +199,6 @@ async def execute_vnum_search(client: Client, user_id: int, service_code: str, q
         if norm_query in c_code or norm_query in norm_name:
             matched_offers.append(off)
 
-    is_owner = settings.is_owner(user_id)
     async with async_session() as session:
         u_stmt = select(User).where(User.telegram_id == user_id)
         u_res = await session.execute(u_stmt)
@@ -303,7 +296,7 @@ def register_virtual_numbers_handlers(app: Client):
             now = datetime.now(timezone.utc).replace(tzinfo=None)
             is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
 
-        vip_badge = f"\n👑 <b>Beneficio VIP Activo:</b> <code>20% OFF aplicado en todos los números</code>\n" if is_vip else ""
+        vip_badge = "\n👑 <b>Beneficio VIP Activo:</b> <code>20% OFF aplicado en todos los números</code>\n" if is_vip else ""
 
         text = (
             f"📲 <b>NÚMEROS VIRTUALES (SMS OTP)</b>\n\n"

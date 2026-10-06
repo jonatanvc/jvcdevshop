@@ -4,7 +4,7 @@ from datetime import datetime, timezone
 from typing import Union, Optional
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from sqlalchemy import select, update
+from sqlalchemy import select
 from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, StockAlert
@@ -18,7 +18,7 @@ from bot.utils.translator import translate_text
 from bot.utils.formatters import adjust_warranty_in_name
 from bot.utils.emojis import (
     get_service_icon, get_service_custom_emoji_id, EMOJI_TAG, EMOJI_DICE, EMOJI_MONEY,
-    EMOJI_WALLET, EMOJI_CALC, EMOJI_STAR, EMOJI_PROVIDER, EMOJI_WARN, EMOJI_BELL
+    EMOJI_WALLET, EMOJI_CALC, EMOJI_STAR, EMOJI_WARN, EMOJI_BELL
 )
 
 SEARCH_STATES = {}
@@ -42,6 +42,7 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
             btn_title = p_name
         btn = InlineKeyboardButton(btn_title, callback_data=f"product:view:{p['product_id']}:{filter_mode}:{page}:1")
         btn.icon_custom_emoji_id = get_service_custom_emoji_id(p_name)
+        btn._catalog_service_emoji = True
         buttons.append([btn])
 
     # 2. Fila de paginación (si hay más de 1 página)

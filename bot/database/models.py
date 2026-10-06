@@ -22,6 +22,7 @@ def utc_now() -> datetime:
 
 class DepositStatus(str, enum.Enum):
     PENDING = "PENDING"
+    VERIFYING = "VERIFYING"
     CONFIRMED = "CONFIRMED"
     EXPIRED = "EXPIRED"
 
@@ -57,6 +58,7 @@ class Deposit(Base):
     exact_amount = Column(Numeric(12, 4), nullable=False, index=True)
     tx_hash = Column(String(128), unique=True, nullable=True, index=True)
     status = Column(Enum(DepositStatus), default=DepositStatus.PENDING, nullable=False, index=True)
+    verification_started_at = Column(DateTime, nullable=True)
     reminder_sent = Column(Boolean, default=False, nullable=False)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=utc_now, nullable=False)

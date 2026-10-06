@@ -1,3 +1,4 @@
+import html
 from decimal import Decimal
 from datetime import datetime, timedelta, timezone
 from typing import Set
