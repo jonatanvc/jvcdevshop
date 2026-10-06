@@ -519,6 +519,7 @@ def register_admin_handlers(app: Client):
             if provider_result.get("error") or not provider_result.get("status"):
                 await client.send_message(admin_id, "5SIM no confirmó el estado; la orden sigue en revisión y conserva la reserva.")
                 return
+            provider_status = str(provider_result["status"]).upper()
             async with async_session() as session:
                 result = await session.execute(
                     select(VirtualNumberOrder).where(
@@ -530,9 +531,44 @@ def register_admin_handlers(app: Client):
                 if not order:
                     await client.send_message(admin_id, "La orden ya fue resuelta por otro proceso.")
                     return
-                order.status = "PENDING"
+                if provider_status in {"CANCELED", "CANCELLED", "TIMEOUT", "BANNED"}:
+                    if not order.is_refunded and order.payment_method != "api":
+                        user_result = await session.execute(
+                            select(User).where(User.telegram_id == order.user_id).with_for_update()
+                        )
+                        user = user_result.scalar_one_or_none()
+                        if not user:
+                            await client.send_message(admin_id, "No se encontró el usuario; la orden sigue en revisión.")
+                            return
+                        user.balance += order.price_usdt
+                        user.total_spent = max(Decimal("0"), user.total_spent - order.price_usdt)
+                    order.status = "FAILED"
+                    order.is_refunded = True
+                    response = f"5SIM reporta <code>{html.escape(provider_status)}</code>; orden #{order_id} cerrada y reserva conciliada."
+                    target_user_id = order.user_id
+                elif provider_status == "RECEIVED":
+                    sms_list = provider_result.get("sms") or []
+                    if not sms_list:
+                        await client.send_message(admin_id, "5SIM marca el número como recibido, pero no devolvió SMS; la orden sigue en revisión.")
+                        return
+                    latest_sms = sms_list[-1]
+                    order.sms_code = str(latest_sms.get("code") or "")
+                    order.sms_full_text = str(latest_sms.get("text") or "")
+                    order.status = "RECEIVED"
+                    response = f"5SIM reporta SMS recibido; orden #{order_id} actualizada."
+                    target_user_id = order.user_id
+                elif provider_status in {"PENDING", "WAITING"}:
+                    order.status = "PENDING"
+                    response = f"Orden virtual #{order_id} reanudada; 5SIM reporta <code>{html.escape(provider_status)}</code>."
+                    target_user_id = order.user_id
+                else:
+                    await client.send_message(admin_id, "Estado 5SIM desconocido; la orden sigue en revisión sin cambios.")
+                    return
                 await session.commit()
-            response = f"Orden virtual #{order_id} reanudada; 5SIM reporta <code>{html.escape(str(provider_result['status']))}</code>."
+            try:
+                await client.send_message(target_user_id, response)
+            except Exception:
+                pass
         else:
             provider_result = await fivesim_api.cancel_order(provider_order_id)
             cancel_status = str(provider_result.get("status", "")).upper()

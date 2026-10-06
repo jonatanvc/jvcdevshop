@@ -3,9 +3,11 @@ import asyncio
 from pathlib import Path
 
 from bot.services.backup_service import backup_service
+from bot.database.session import init_db
 
 
 async def restore(path: Path) -> None:
+    await init_db()
     with path.open("rb") as backup_file:
         counts = await backup_service.restore_backup_file(backup_file)
     total = sum(counts.values())
