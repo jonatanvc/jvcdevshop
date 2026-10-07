@@ -547,23 +547,37 @@ class VirtualNumbersService:
             if order.is_refunded:
                 return {"error": "Esta orden ya fue reembolsada previamente."}
 
-            # Do not refund unless 5SIM confirms that the activation was canceled.
-            cancel_result = await fivesim_api.cancel_order(order.fivesim_order_id)
-            cancel_status = str(cancel_result.get("status", "")).upper()
-            if cancel_result.get("error") or cancel_status not in {"CANCELED", "CANCELLED"}:
-                return {"error": "5SIM no confirmó la cancelación. El saldo permanece reservado; inténtalo más tarde."}
-
-            # 2. Reembolsar en el bot solo si pagó con saldo del bot
             is_api_pay = (getattr(order, "payment_method", "bot") == "api")
             refund_amt = order.price_usdt
+            provider_order_id = order.fivesim_order_id
+            order_phone = order.phone
+            service_name = order.service_name
+            country = order.country
+
+        # Do not hold database locks while waiting for 5SIM.
+        cancel_result = await fivesim_api.cancel_order(provider_order_id)
+        cancel_status = str(cancel_result.get("status", "")).upper()
+        if cancel_result.get("error") or cancel_status not in {"CANCELED", "CANCELLED"}:
+            return {"error": "5SIM no confirmó la cancelación. El saldo permanece reservado; inténtalo más tarde."}
+
+        async with async_session() as session:
+            stmt = select(VirtualNumberOrder).where(
+                VirtualNumberOrder.id == order_id,
+                VirtualNumberOrder.user_id == user_id
+            ).with_for_update()
+            res = await session.execute(stmt)
+            order = res.scalar_one_or_none()
+            if not order or order.status not in ["PENDING", "TIMEOUT"] or order.is_refunded:
+                return {"error": "La orden cambió durante la cancelación; revisa su estado antes de reintentar."}
 
             if not is_api_pay:
                 u_stmt = select(User).where(User.telegram_id == user_id).with_for_update()
                 u_res = await session.execute(u_stmt)
                 user = u_res.scalar_one_or_none()
-                if user:
-                    user.balance += refund_amt
-                    user.total_spent = max(Decimal("0"), user.total_spent - refund_amt)
+                if not user:
+                    return {"error": "No se encontró el usuario; la reserva permanece sin reembolso."}
+                user.balance += refund_amt
+                user.total_spent = max(Decimal("0"), user.total_spent - refund_amt)
 
             order.status = "CANCELLED"
             order.is_refunded = True
@@ -579,10 +593,10 @@ class VirtualNumbersService:
                     title="NÚMERO VIRTUAL CANCELADO Y REEMBOLSADO",
                     details=(
                         f"👤 <b>Usuario:</b> <code>{user_id}</code>\n"
-                        f"📱 <b>Teléfono:</b> <code>{order.phone}</code>\n"
-                        f"📲 <b>Servicio:</b> {order.service_name.upper()} ({order.country.upper()})\n"
+                        f"📱 <b>Teléfono:</b> <code>{html.escape(order_phone or '')}</code>\n"
+                        f"📲 <b>Servicio:</b> {html.escape(service_name.upper())} ({html.escape(country.upper())})\n"
                         f"💵 <b>Reembolso:</b> <code>{pay_desc}</code>\n"
-                        f"🆔 <b>5SIM Order:</b> <code>{order.fivesim_order_id}</code>"
+                        f"🆔 <b>5SIM Order:</b> <code>{provider_order_id}</code>"
                     )
                 )
             except Exception:
@@ -592,8 +606,8 @@ class VirtualNumbersService:
             "success": True,
             "refunded_amount": float(refund_amt),
             "payment_method": "api" if is_api_pay else "bot",
-            "service_name": order.service_name,
-            "country": order.country
+            "service_name": service_name,
+            "country": country
         }
 
     async def ban_and_refund_order(self, order_id: int, user_id: int, client: Optional[Client] = None) -> Dict[str, Any]:
@@ -619,23 +633,37 @@ class VirtualNumbersService:
             if order.is_refunded:
                 return {"error": "Esta orden ya fue reembolsada previamente."}
 
-            # Do not refund unless 5SIM confirms that the number was banned.
-            ban_result = await fivesim_api.ban_order(order.fivesim_order_id)
-            ban_status = str(ban_result.get("status", "")).upper()
-            if ban_result.get("error") or ban_status not in {"BANNED", "CANCELED", "CANCELLED"}:
-                return {"error": "5SIM no confirmó el bloqueo/cancelación. El saldo permanece reservado."}
-
-            # 2. Reembolsar en el bot
             is_api_pay = (getattr(order, "payment_method", "bot") == "api")
             refund_amt = order.price_usdt
+            provider_order_id = order.fivesim_order_id
+            order_phone = order.phone
+            service_name = order.service_name
+            country = order.country
+
+        # Do not hold database locks while waiting for 5SIM.
+        ban_result = await fivesim_api.ban_order(provider_order_id)
+        ban_status = str(ban_result.get("status", "")).upper()
+        if ban_result.get("error") or ban_status not in {"BANNED", "CANCELED", "CANCELLED"}:
+            return {"error": "5SIM no confirmó el bloqueo/cancelación. El saldo permanece reservado."}
+
+        async with async_session() as session:
+            stmt = select(VirtualNumberOrder).where(
+                VirtualNumberOrder.id == order_id,
+                VirtualNumberOrder.user_id == user_id
+            ).with_for_update()
+            res = await session.execute(stmt)
+            order = res.scalar_one_or_none()
+            if not order or order.status not in ["PENDING", "RECEIVED"] or order.is_refunded:
+                return {"error": "La orden cambió durante el reporte; revisa su estado antes de reintentar."}
 
             if not is_api_pay:
                 u_stmt = select(User).where(User.telegram_id == user_id).with_for_update()
                 u_res = await session.execute(u_stmt)
                 user = u_res.scalar_one_or_none()
-                if user:
-                    user.balance += refund_amt
-                    user.total_spent = max(Decimal("0"), user.total_spent - refund_amt)
+                if not user:
+                    return {"error": "No se encontró el usuario; la reserva permanece sin reembolso."}
+                user.balance += refund_amt
+                user.total_spent = max(Decimal("0"), user.total_spent - refund_amt)
 
             order.status = "CANCELLED"
             order.is_refunded = True
@@ -651,10 +679,10 @@ class VirtualNumbersService:
                     title="NÚMERO VIRTUAL REPORTADO (BLOQUEADO / EN USO)",
                     details=(
                         f"👤 <b>Usuario:</b> <code>{user_id}</code>\n"
-                        f"📱 <b>Teléfono:</b> <code>{order.phone}</code>\n"
-                        f"📲 <b>Servicio:</b> {order.service_name.upper()} ({order.country.upper()})\n"
+                        f"📱 <b>Teléfono:</b> <code>{html.escape(order_phone or '')}</code>\n"
+                        f"📲 <b>Servicio:</b> {html.escape(service_name.upper())} ({html.escape(country.upper())})\n"
                         f"💵 <b>Reembolso:</b> <code>{pay_desc}</code>\n"
-                        f"🆔 <b>5SIM Order:</b> <code>{order.fivesim_order_id}</code>"
+                        f"🆔 <b>5SIM Order:</b> <code>{provider_order_id}</code>"
                     )
                 )
             except Exception:
@@ -664,8 +692,8 @@ class VirtualNumbersService:
             "success": True,
             "refunded_amount": float(refund_amt),
             "payment_method": "api" if is_api_pay else "bot",
-            "service_name": order.service_name,
-            "country": order.country
+            "service_name": service_name,
+            "country": country
         }
 
     async def finish_and_close_order(self, order_id: int, user_id: int) -> Dict[str, Any]:
@@ -681,25 +709,13 @@ class VirtualNumbersService:
                 return {"error": "Orden no encontrada."}
             if order.status != "RECEIVED":
                 return {"error": "La orden solo puede finalizarse después de recibir un SMS."}
+            provider_order_id = order.fivesim_order_id
 
-            result = await fivesim_api.finish_order(order.fivesim_order_id)
-            provider_status = str(result.get("status", "")).upper()
-            if result.get("error") or (provider_status and provider_status != "FINISHED"):
-                return {"error": result.get("error", "5SIM no confirmó la finalización.")}
+        result = await fivesim_api.finish_order(provider_order_id)
+        provider_status = str(result.get("status", "")).upper()
+        if result.get("error") or (provider_status and provider_status != "FINISHED"):
+            return {"error": result.get("error", "5SIM no confirmó la finalización.")}
 
-            order.status = "FINISHED"
-            await session.commit()
-            return {"success": True}
-
-    async def check_single_order(self, order_id: int, user_id: int) -> Dict[str, Any]:
-        """
-        Consulta si ya entró el SMS (o nuevos SMS) para una orden específica:
-        - Sincroniza el tiempo real de expiración según el reloj oficial de 5SIM.
-        - Si el SMS llegó o hay uno nuevo, marca RECEIVED y retorna el código OTP más reciente.
-        - Permite recibir múltiples SMS (Re-SMS) durante el tiempo que dure la orden.
-        - Si 5SIM marca TIMEOUT o CANCELED, procesa el reembolso correspondiente.
-        """
-        now = datetime.now(timezone.utc).replace(tzinfo=None)
         async with async_session() as session:
             stmt = select(VirtualNumberOrder).where(
                 VirtualNumberOrder.id == order_id,
@@ -707,38 +723,78 @@ class VirtualNumbersService:
             ).with_for_update()
             res = await session.execute(stmt)
             order = res.scalar_one_or_none()
+            if not order or order.status != "RECEIVED":
+                return {"error": "La orden cambió mientras 5SIM confirmaba la finalización."}
+            order.status = "FINISHED"
+            await session.commit()
+        return {"success": True}
 
+    async def _refund_order_in_session(self, session, order) -> bool:
+        if order.is_refunded:
+            return True
+        if getattr(order, "payment_method", "bot") != "api":
+            user_res = await session.execute(
+                select(User).where(User.telegram_id == order.user_id).with_for_update()
+            )
+            user = user_res.scalar_one_or_none()
+            if not user:
+                return False
+            user.balance += order.price_usdt
+            user.total_spent = max(Decimal("0"), user.total_spent - order.price_usdt)
+        order.is_refunded = True
+        return True
+
+    async def check_single_order(self, order_id: int, user_id: int) -> Dict[str, Any]:
+        """Consulta 5SIM sin retener locks y aplica su respuesta con revalidación transaccional."""
+        async with async_session() as session:
+            res = await session.execute(
+                select(VirtualNumberOrder).where(
+                    VirtualNumberOrder.id == order_id,
+                    VirtualNumberOrder.user_id == user_id
+                ).with_for_update()
+            )
+            order = res.scalar_one_or_none()
             if not order:
                 return {"status": "NOT_FOUND"}
-
             if order.status in ["FINISHED", "CANCELLED", "TIMEOUT"]:
                 return {"status": order.status, "is_refunded": order.is_refunded}
+            provider_order_id = order.fivesim_order_id
 
-            # Consultar estado oficial en 5SIM
-            res_5sim = await fivesim_api.check_order(order.fivesim_order_id)
-            if res_5sim.get("error"):
-                return {"status": "CHECK_FAILED", "error": res_5sim["error"]}
-            status_5sim = str(res_5sim.get("status") or "").upper()
-            sms_list = res_5sim.get("sms", [])
+        if not provider_order_id:
+            return {"status": "CHECK_FAILED", "error": "La orden local no tiene ID de 5SIM."}
 
-            # Sincronizar expires_at con la fecha oficial del proveedor 5SIM
-            fivesim_expires = parse_5sim_datetime(res_5sim.get("expires"))
-            if fivesim_expires and fivesim_expires != order.expires_at:
-                order.expires_at = fivesim_expires
-                await session.commit()
+        res_5sim = await fivesim_api.check_order(provider_order_id)
+        if res_5sim.get("error"):
+            return {"status": "CHECK_FAILED", "error": res_5sim["error"]}
 
-            # 1. SMS OTP Recibido (último código recibido)
-            if sms_list and len(sms_list) > 0:
-                latest_sms = sms_list[-1]
-                sms_code = str(latest_sms.get("code") or "").strip()
-                sms_text = str(latest_sms.get("text") or "").strip()
+        status_5sim = str(res_5sim.get("status") or "").upper()
+        sms_list = res_5sim.get("sms") or []
+        fivesim_expires = parse_5sim_datetime(res_5sim.get("expires"))
 
+        if sms_list:
+            latest_sms = sms_list[-1]
+            sms_code = str(latest_sms.get("code") or "").strip()
+            sms_text = str(latest_sms.get("text") or "").strip()
+            async with async_session() as session:
+                res = await session.execute(
+                    select(VirtualNumberOrder).where(
+                        VirtualNumberOrder.id == order_id,
+                        VirtualNumberOrder.user_id == user_id
+                    ).with_for_update()
+                )
+                order = res.scalar_one_or_none()
+                if not order or order.fivesim_order_id != provider_order_id:
+                    return {"status": "NOT_FOUND"}
+                if order.status in ["FINISHED", "CANCELLED", "TIMEOUT"]:
+                    return {"status": order.status, "is_refunded": order.is_refunded}
+                if order.status not in ["PENDING", "RECEIVED", "REVIEW"]:
+                    return {"status": order.status}
+                if fivesim_expires:
+                    order.expires_at = fivesim_expires
                 order.status = "RECEIVED"
                 order.sms_code = sms_code
                 order.sms_full_text = sms_text
-                await session.commit()
-
-                return {
+                response = {
                     "status": "RECEIVED",
                     "code": sms_code,
                     "text": sms_text,
@@ -748,51 +804,101 @@ class VirtualNumbersService:
                     "price_usdt": float(order.price_usdt),
                     "sms_count": len(sms_list)
                 }
+                await session.commit()
+                return response
 
-            # 2. Expiración o cancelación detectada directamente por 5SIM
-            if status_5sim in ["CANCELED", "TIMEOUT", "BANNED"]:
-                if not order.is_refunded:
-                    if getattr(order, "payment_method", "bot") != "api":
-                        u_stmt = select(User).where(User.telegram_id == order.user_id).with_for_update()
-                        u_res = await session.execute(u_stmt)
-                        user = u_res.scalar_one_or_none()
-                        if user:
-                            user.balance += order.price_usdt
-                            user.total_spent = max(Decimal("0"), user.total_spent - order.price_usdt)
-                    order.is_refunded = True
+        if status_5sim in ["CANCELED", "CANCELLED", "TIMEOUT", "BANNED"]:
+            async with async_session() as session:
+                res = await session.execute(
+                    select(VirtualNumberOrder).where(
+                        VirtualNumberOrder.id == order_id,
+                        VirtualNumberOrder.user_id == user_id
+                    ).with_for_update()
+                )
+                order = res.scalar_one_or_none()
+                if not order or order.fivesim_order_id != provider_order_id:
+                    return {"status": "NOT_FOUND"}
+                if order.status in ["FINISHED", "CANCELLED", "TIMEOUT"]:
+                    return {"status": order.status, "is_refunded": order.is_refunded}
+                if order.status not in ["PENDING", "RECEIVED", "REVIEW"]:
+                    return {"status": order.status}
+                if not await self._refund_order_in_session(session, order):
+                    order.status = "REVIEW"
+                    await session.commit()
+                    return {"status": "REVIEW", "error": "No se encontró el usuario para aplicar el reembolso."}
                 order.status = "TIMEOUT" if status_5sim == "TIMEOUT" else "CANCELLED"
                 await session.commit()
                 return {"status": order.status, "is_refunded": True}
 
-            # 3. Si 5SIM sigue PENDING: verificar si ya pasó el tiempo total de expiración + ventana de gracia
-            grace_period = timedelta(seconds=60)
-            if now >= (order.expires_at + grace_period):
-                cancel_result = await fivesim_api.cancel_order(order.fivesim_order_id)
-                cancel_status = str(cancel_result.get("status", "")).upper()
+        expires_at = fivesim_expires
+        if not expires_at:
+            async with async_session() as session:
+                expires_at = await session.scalar(
+                    select(VirtualNumberOrder.expires_at).where(
+                        VirtualNumberOrder.id == order_id,
+                        VirtualNumberOrder.user_id == user_id
+                    )
+                )
+
+        now = datetime.now(timezone.utc).replace(tzinfo=None)
+        if expires_at and now >= expires_at + timedelta(seconds=60):
+            cancel_result = await fivesim_api.cancel_order(provider_order_id)
+            cancel_status = str(cancel_result.get("status", "")).upper()
+            async with async_session() as session:
+                res = await session.execute(
+                    select(VirtualNumberOrder).where(
+                        VirtualNumberOrder.id == order_id,
+                        VirtualNumberOrder.user_id == user_id
+                    ).with_for_update()
+                )
+                order = res.scalar_one_or_none()
+                if not order or order.fivesim_order_id != provider_order_id:
+                    return {"status": "NOT_FOUND"}
+                if order.status in ["FINISHED", "CANCELLED", "TIMEOUT"]:
+                    return {"status": order.status, "is_refunded": order.is_refunded}
+                if order.status not in ["PENDING", "REVIEW"]:
+                    return {"status": order.status}
                 if cancel_result.get("error") or cancel_status not in {"CANCELED", "CANCELLED"}:
                     order.status = "REVIEW"
                     await session.commit()
                     return {"status": "REVIEW", "error": "5SIM no confirmó la cancelación."}
-
-                # Reembolsar solo después de que 5SIM confirme la cancelación.
-                if not order.is_refunded:
-                    if getattr(order, "payment_method", "bot") != "api":
-                        u_stmt = select(User).where(User.telegram_id == order.user_id).with_for_update()
-                        u_res = await session.execute(u_stmt)
-                        user = u_res.scalar_one_or_none()
-                        if user:
-                            user.balance += order.price_usdt
-                            user.total_spent = max(Decimal("0"), user.total_spent - order.price_usdt)
-                    order.is_refunded = True
+                if not await self._refund_order_in_session(session, order):
+                    order.status = "REVIEW"
+                    await session.commit()
+                    return {"status": "REVIEW", "error": "No se encontró el usuario para aplicar el reembolso."}
                 order.status = "TIMEOUT"
                 await session.commit()
                 return {"status": "TIMEOUT", "is_refunded": True}
 
-            return {
-                "status": "PENDING",
-                "phone": order.phone,
-                "expires_at": order.expires_at
-            }
+        async with async_session() as session:
+            res = await session.execute(
+                select(VirtualNumberOrder).where(
+                    VirtualNumberOrder.id == order_id,
+                    VirtualNumberOrder.user_id == user_id
+                ).with_for_update()
+            )
+            order = res.scalar_one_or_none()
+            if not order or order.fivesim_order_id != provider_order_id:
+                return {"status": "NOT_FOUND"}
+            if order.status in ["FINISHED", "CANCELLED", "TIMEOUT"]:
+                return {"status": order.status, "is_refunded": order.is_refunded}
+            if order.status == "RECEIVED":
+                return {
+                    "status": "RECEIVED",
+                    "code": order.sms_code or "",
+                    "text": order.sms_full_text or "",
+                    "phone": order.phone,
+                    "service_name": order.service_name,
+                    "country": order.country,
+                    "price_usdt": float(order.price_usdt),
+                }
+            if order.status != "PENDING":
+                return {"status": order.status}
+            if fivesim_expires:
+                order.expires_at = fivesim_expires
+            response = {"status": "PENDING", "phone": order.phone, "expires_at": order.expires_at}
+            await session.commit()
+            return response
 
 virtual_numbers_service = VirtualNumbersService()
 

@@ -1,3 +1,4 @@
+import html
 from typing import Optional
 from pyrogram import Client
 from pyrogram.enums import ParseMode
@@ -14,6 +15,12 @@ from bot.utils.emojis import (
 class AuditLogger:
     def __init__(self):
         self.log_group_id = settings.LOG_GROUP_ID
+
+    @staticmethod
+    def _user_mention(username: Optional[str], user_id: int, first_name: str) -> str:
+        if username:
+            return f"@{html.escape(username)}"
+        return f"<a href='tg://user?id={user_id}'>{html.escape(first_name)}</a>"
 
     async def _send_log(self, client: Client, text: str) -> Optional[int]:
         """Envía un mensaje de auditoría al grupo privado configurado y devuelve su ID"""
@@ -48,24 +55,24 @@ class AuditLogger:
         is_owner: bool = False
     ):
         """Registra una compra exitosa en el canal de auditoría con la hora local exacta"""
-        user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
+        user_mention = self._user_mention(username, user_id, first_name)
         now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         title = f"👑 <b>COMPRA OWNER (PROVEEDOR API) #ORD_{order_id}</b>" if is_owner else f"{EMOJI_SHOPPING} <b>NUEVA COMPRA REALIZADA #ORD_{order_id}</b>"
         paid_label = f"{EMOJI_MONEY} <b>Costo Pagado:</b> <code>${paid_price:.2f} USD (API BunaiStore)</code>" if is_owner else f"{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${paid_price:.2f} USDT</code>"
         bal_label = f"{EMOJI_BAR_CHART} <b>Saldo Restante API:</b> <code>${remaining_balance:.2f} USD</code>" if is_owner else f"{EMOJI_BAR_CHART} <b>Saldo Restante Usuario:</b> <code>${remaining_balance:.2f} USDT</code>"
 
-        clean_product_name = adjust_warranty_in_name(product_name)
-        clean_delivered_items = format_delivered_credentials(delivered_items)
+        clean_product_name = html.escape(adjust_warranty_in_name(product_name))
+        clean_delivered_items = html.escape(format_delivered_credentials(delivered_items))
 
         msg = (
             f"{title}\n\n"
             f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>){' 👑 (Owner)' if is_owner else ''}\n"
-            f"{EMOJI_NAME_TAG} <b>Nombre:</b> {first_name}\n"
+            f"{EMOJI_NAME_TAG} <b>Nombre:</b> {html.escape(first_name)}\n"
             f"{EMOJI_BOX} <b>Producto:</b> <code>{clean_product_name}</code>\n"
             f"{paid_label}\n"
             f"{bal_label}\n"
-            f"🆔 <b>ID Orden Proveedor:</b> <code>{provider_order_id or 'N/A'}</code>\n"
+            f"🆔 <b>ID Orden Proveedor:</b> <code>{html.escape(str(provider_order_id or 'N/A'))}</code>\n"
             f"{EMOJI_CLOCK} <b>Fecha:</b> <code>{now}</code>\n\n"
             f"{EMOJI_KEY} <b>DATOS / CUENTAS ENTREGADAS:</b>\n"
             f"<pre>{clean_delivered_items}</pre>"
@@ -82,7 +89,7 @@ class AuditLogger:
         exact_amount: float
     ) -> Optional[int]:
         """Registra una nueva solicitud de depósito y retorna el ID del mensaje para editarlo si cambia de estado"""
-        user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
+        user_mention = self._user_mention(username, user_id, first_name)
         now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
@@ -106,7 +113,7 @@ class AuditLogger:
         log_message_id: Optional[int] = None
     ):
         """Edita el mismo mensaje original de la solicitud de depósito en el canal de logs indicando que fue cancelada"""
-        user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
+        user_mention = self._user_mention(username, user_id, first_name)
         now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
@@ -149,8 +156,9 @@ class AuditLogger:
         log_message_id: Optional[int] = None
     ):
         """Edita el mismo mensaje original de la solicitud en el canal de logs indicando confirmación en blockchain"""
-        user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
-        bsc_link = f"https://bscscan.com/tx/{tx_hash}"
+        user_mention = self._user_mention(username, user_id, first_name)
+        safe_tx_hash = html.escape(tx_hash, quote=True)
+        bsc_link = f"https://bscscan.com/tx/{safe_tx_hash}"
         now = get_now_str("%Y-%m-%d %H:%M:%S")
 
         msg = (
@@ -158,7 +166,7 @@ class AuditLogger:
             f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
             f"{EMOJI_MONEY} <b>Monto Acreditado:</b> <code>+${amount:.4f} USDT</code>\n"
             f"{EMOJI_CARD} <b>Nuevo Saldo Usuario:</b> <code>${new_balance:.4f} USDT</code>\n"
-            f"{EMOJI_LINK} <b>Hash / TxID:</b> <a href='{bsc_link}'>{tx_hash[:10]}...{tx_hash[-8:]}</a>\n"
+            f"{EMOJI_LINK} <b>Hash / TxID:</b> <a href='{bsc_link}'>{safe_tx_hash[:10]}...{safe_tx_hash[-8:]}</a>\n"
             f"🆔 <b>ID Depósito:</b> <code>DEP_{deposit_id or 'N/A'}</code>\n"
             f"{EMOJI_CLOCK} <b>Confirmado:</b> <code>{now}</code>"
         )
@@ -193,9 +201,11 @@ class AuditLogger:
         user_price: float
     ):
         """Envía alerta al canal de logs cuando el proveedor añade stock"""
+        safe_product_name = html.escape(product_name)
+        safe_icon = html.escape(icon)
         msg = (
-            f"{EMOJI_BROADCAST} <b>¡{added_stock} stock añadido a {product_name}!</b>\n\n"
-            f"{icon} <b>{product_name}</b> - <code>{user_price:.2f} USDT</code> (Stock: {total_stock})\n"
+            f"{EMOJI_BROADCAST} <b>¡{added_stock} stock añadido a {safe_product_name}!</b>\n\n"
+            f"{safe_icon} <b>{safe_product_name}</b> - <code>{user_price:.2f} USDT</code> (Stock: {total_stock})\n"
             f"{EMOJI_MONEY} <b>Costo Proveedor:</b> <code>${cost_price:.2f} USD</code>"
         )
         await self._send_log(client, msg)
@@ -211,11 +221,13 @@ class AuditLogger:
         product_id: str
     ):
         """Envía alerta al canal de logs cuando el proveedor agrega un producto nuevo"""
+        safe_product_name = html.escape(product_name)
+        safe_icon = html.escape(icon)
         msg = (
             f"{EMOJI_SPARKLES} <b>¡NUEVO PRODUCTO AÑADIDO POR PROVEEDOR!</b>\n\n"
-            f"{icon} <b>{product_name}</b> - <code>{user_price:.2f} USDT</code> (Stock: {initial_stock})\n"
+            f"{safe_icon} <b>{safe_product_name}</b> - <code>{user_price:.2f} USDT</code> (Stock: {html.escape(str(initial_stock))})\n"
             f"{EMOJI_MONEY} <b>Costo en Bunai:</b> <code>${cost_price:.2f} USD</code>\n"
-            f"🆔 <b>ID:</b> <code>{product_id}</code>"
+            f"🆔 <b>ID:</b> <code>{html.escape(product_id)}</code>"
         )
         await self._send_log(client, msg)
 
@@ -248,7 +260,7 @@ class AuditLogger:
         from bot.services.virtual_numbers import CURATED_SERVICES, get_country_display
         from bot.utils.emojis import PLATFORM_EMOJIS
 
-        user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
+        user_mention = self._user_mention(username, user_id, first_name)
         now = get_now_str("%Y-%m-%d %H:%M:%S")
         flag, country_name = get_country_display(country_code)
         service_info = CURATED_SERVICES.get(service_name.lower(), {})
@@ -262,11 +274,11 @@ class AuditLogger:
         msg = (
             f"{title}\n\n"
             f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>){' 👑 (Owner)' if is_owner else ''}\n"
-            f"{EMOJI_NAME_TAG} <b>Nombre:</b> {first_name}\n"
-            f"{plat_prefix}<b>Plataforma:</b> <b>{service_display}</b>\n"
-            f"📍 <b>País:</b> {flag} {country_name}\n"
-            f"📞 <b>Número:</b> <code>{phone}</code>\n"
-            f"🔑 <b>Código OTP Recibido:</b> <code>{code}</code>\n"
+            f"{EMOJI_NAME_TAG} <b>Nombre:</b> {html.escape(first_name)}\n"
+            f"{plat_prefix}<b>Plataforma:</b> <b>{html.escape(service_display)}</b>\n"
+            f"📍 <b>País:</b> {flag} {html.escape(country_name)}\n"
+            f"📞 <b>Número:</b> <code>{html.escape(phone)}</code>\n"
+            f"🔑 <b>Código OTP Recibido:</b> <code>{html.escape(code)}</code>\n"
             f"{paid_label}\n"
             f"🆔 <b>ID Orden 5SIM:</b> <code>{fivesim_order_id or 'N/A'}</code>\n"
             f"{EMOJI_CHECK} <b>Estado:</b> <code>Activación Completada Exitosamente</code>\n"
@@ -276,12 +288,12 @@ class AuditLogger:
 
     async def log_new_user(self, client: Client, user_id: int, username: Optional[str], first_name: str):
         """Registra un nuevo usuario en el bot con fecha y hora local"""
-        user_mention = f"@{username}" if username else f"<a href='tg://user?id={user_id}'>{first_name}</a>"
+        user_mention = self._user_mention(username, user_id, first_name)
         now = get_now_str("%Y-%m-%d %H:%M:%S")
         msg = (
             f"{EMOJI_USER} <b>NUEVO USUARIO REGISTRADO</b>\n\n"
             f"• <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
-            f"{EMOJI_NAME_TAG} <b>Nombre:</b> {first_name}\n"
+            f"{EMOJI_NAME_TAG} <b>Nombre:</b> {html.escape(first_name)}\n"
             f"• <b>Fecha:</b> <code>{now}</code>"
         )
         await self._send_log(client, msg)

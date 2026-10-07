@@ -30,6 +30,23 @@ class BSCValidator:
         # Transfer(address,address,uint256) topic sin 0x
         self.transfer_topic = "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef"
 
+    def _sum_admin_usdt_transfers(self, logs: list) -> tuple[bool, Decimal]:
+        found_transfer = False
+        total_amount = Decimal("0")
+        for log in logs:
+            if clean_hex(log.get("address", "")) != self.usdt_contract:
+                continue
+            topics = log.get("topics", [])
+            if len(topics) < 3 or clean_hex(topics[0]) != self.transfer_topic:
+                continue
+            recipient_topic = clean_hex(topics[2])
+            if len(recipient_topic) != 64 or recipient_topic[-40:] != self.admin_wallet:
+                continue
+            data_hex = clean_hex(log.get("data", "0"))
+            total_amount += Decimal(int(data_hex, 16) if data_hex else 0) / Decimal(10**18)
+            found_transfer = True
+        return found_transfer, total_amount
+
     async def _query_rpc_httpx(self, rpc_url: str, client: httpx.AsyncClient, tx_hash: str) -> Optional[Dict[str, Any]]:
         """Consulta el recibo de la transacción mediante JSON-RPC HTTP asíncrono directo."""
         try:
@@ -128,32 +145,9 @@ class BSCValidator:
                         }
 
                     # 4. Buscar el evento Transfer en los logs de la transacción
-                    found_usdt_transfer = False
-                    transferred_amount = Decimal("0")
-
-                    logs = receipt.get("logs", [])
-                    for log in logs:
-                        contract_address = clean_hex(log.get("address", ""))
-                        topics = log.get("topics", [])
-                        if not topics:
-                            continue
-
-                        topic_0 = clean_hex(topics[0])
-
-                        # Validar si corresponde al contrato oficial de USDT y evento Transfer
-                        if contract_address == self.usdt_contract and topic_0 == self.transfer_topic:
-                            if len(topics) >= 3:
-                                # topic_2 contiene la dirección de destino con padding de 32 bytes (64 hex chars)
-                                to_hex = clean_hex(topics[2])
-                                recipient = to_hex[-40:]  # Extraer los últimos 20 bytes (40 hex chars)
-
-                                if recipient == self.admin_wallet:
-                                    data_hex = clean_hex(log.get("data", "0"))
-                                    raw_value = int(data_hex, 16) if data_hex else 0
-                                    # USDT en BSC (BEP-20) tiene 18 decimales
-                                    transferred_amount = Decimal(raw_value) / Decimal(10**18)
-                                    found_usdt_transfer = True
-                                    break
+                    found_usdt_transfer, transferred_amount = self._sum_admin_usdt_transfers(
+                        receipt.get("logs", [])
+                    )
 
                     if not found_usdt_transfer:
                         return {

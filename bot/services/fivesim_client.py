@@ -12,8 +12,7 @@ class FiveSimClient:
 
     def __init__(self):
         self._client: Optional[httpx.AsyncClient] = None
-        self._prices_cache: Dict[str, Any] = {}
-        self._prices_cache_ts: float = 0.0
+        self._prices_cache: Dict[str, Tuple[Any, float]] = {}
         self._cache_ttl: float = 30.0  # 30 segundos de caché para precios y stock
 
     def _get_client(self) -> httpx.AsyncClient:
@@ -64,8 +63,11 @@ class FiveSimClient:
         """
         now = time.time()
         cache_key = f"{country or 'all'}:{product or 'all'}"
-        if cache_key in self._prices_cache and (now - self._prices_cache_ts) < self._cache_ttl:
-            return self._prices_cache[cache_key]
+        cached_entry = self._prices_cache.get(cache_key)
+        if cached_entry:
+            cached_data, expires_at = cached_entry
+            if now < expires_at:
+                return cached_data
 
         client = self._get_client()
         params = {}
@@ -78,13 +80,13 @@ class FiveSimClient:
             resp = await client.get("/v1/guest/prices", params=params)
             if resp.status_code == 200:
                 data = resp.json()
-                self._prices_cache[cache_key] = data
-                self._prices_cache_ts = now
+                self._prices_cache[cache_key] = (data, now + self._cache_ttl)
                 return data
             return {}
         except Exception as e:
             print(f"[FiveSimClient.get_raw_prices Error]: {e}")
-            return self._prices_cache.get(cache_key, {})
+            cached_entry = self._prices_cache.get(cache_key)
+            return cached_entry[0] if cached_entry else {}
 
     async def get_service_offers(self, product: str, sort_by: str = "pop") -> List[Dict[str, Any]]:
         """

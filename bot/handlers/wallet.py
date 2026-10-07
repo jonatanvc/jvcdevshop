@@ -9,7 +9,7 @@ from typing import Dict, Any, Set, Optional
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
-from sqlalchemy import select, update
+from sqlalchemy import func, or_, select, update
 from sqlalchemy.exc import IntegrityError
 from bot.config import settings
 from bot.database.session import async_session
@@ -25,6 +25,15 @@ from bot.utils.emojis import parse_emojis, parse_keyboard
 
 USER_STATES: Dict[int, Dict[str, Any]] = {}
 _ACTIVE_HASH_VERIFICATIONS: Set[str] = set()
+
+def choose_deposit_exact_amount(base_amount: float, reserved_amounts: Set[Decimal]) -> Optional[Decimal]:
+    suffixes = list(range(100, 1000))
+    random.shuffle(suffixes)
+    for suffix in suffixes:
+        exact_amount = Decimal(str(round(base_amount + suffix / 10000.0, 4)))
+        if exact_amount not in reserved_amounts:
+            return exact_amount
+    return None
 
 def get_deposit_menu_keyboard(lang: str = "es", active_coupon: Optional[str] = None) -> InlineKeyboardMarkup:
     """Botonera con montos rápidos de recarga y opciones de tarjetas de regalo y cupones"""
@@ -77,6 +86,8 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
     async with async_session() as session:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
         expires_at = now + timedelta(minutes=30)
+        await session.execute(select(func.pg_advisory_xact_lock(75103001, 1)))
+
         verifying_stmt = select(Deposit.id).where(
             Deposit.user_id == user_id,
             Deposit.status == DepositStatus.VERIFYING
@@ -92,18 +103,26 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
             .values(status=DepositStatus.EXPIRED)
         )
         await session.execute(cancel_old_stmt)
-        for _ in range(50):
-            rand_suffix = random.randint(100, 999) / 10000.0
-            exact_val = round(base_amount + rand_suffix, 4)
-            exact_dec = Decimal(str(exact_val))
-            dup_stmt = select(Deposit).where(
-                Deposit.exact_amount == exact_dec,
-                Deposit.status == DepositStatus.PENDING,
-                Deposit.expires_at > now
+        reserved_res = await session.execute(
+            select(Deposit.exact_amount).where(
+                or_(
+                    Deposit.status == DepositStatus.VERIFYING,
+                    (Deposit.status == DepositStatus.PENDING) & (Deposit.expires_at > now)
+                )
             )
-            dup_res = await session.execute(dup_stmt)
-            if not dup_res.scalar_one_or_none():
-                break
+        )
+        reserved_amounts = set(reserved_res.scalars())
+        exact_dec = choose_deposit_exact_amount(base_amount, reserved_amounts)
+        if exact_dec is None:
+            await session.rollback()
+            await render_screen(
+                client,
+                target,
+                "No hay importes de depósito disponibles en este momento. Inténtalo de nuevo más tarde.",
+                None
+            )
+            return
+        exact_val = float(exact_dec)
 
         new_deposit = Deposit(
             user_id=user_id,
