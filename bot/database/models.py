@@ -218,6 +218,8 @@ class TicketMessage(Base):
     message_text = Column(Text, nullable=True)
     media_file_id = Column(String(255), nullable=True)
     media_type = Column(String(32), nullable=True)  # "photo", "document", etc.
+    admin_notification_pending = Column(Boolean, default=False, nullable=False)
+    admin_notification_kind = Column(String(16), nullable=True)
     created_at = Column(DateTime, default=utc_now, nullable=False)
 
     ticket = relationship("SupportTicket", back_populates="messages")

@@ -3,7 +3,7 @@ from datetime import datetime, timezone
 from typing import Dict, Any, Optional
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
-from sqlalchemy import select, func
+from sqlalchemy import select, func, update
 from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, SupportTicket, TicketMessage
@@ -490,9 +490,13 @@ def register_support_handlers(app: Client):
                     is_admin=False,
                     message_text=content_text,
                     media_file_id=media_id,
-                    media_type=media_type
+                    media_type=media_type,
+                    admin_notification_pending=True,
+                    admin_notification_kind="new"
                 )
                 session.add(t_msg)
+                await session.flush()
+                ticket_message_id = t_msg.id
                 await session.commit()
 
                 ticket_id = new_ticket.id
@@ -512,7 +516,7 @@ def register_support_handlers(app: Client):
             await render_screen(client, user_id, conf_text, keyboard)
 
             # Notificar al grupo de auditoría / canal admin
-            await notify_admins_new_ticket(client, ticket_id, user_id, message.from_user.username, content_text, media_id, media_type)
+            await notify_admins_new_ticket(client, ticket_id, user_id, message.from_user.username, content_text, media_id, media_type, ticket_message_id)
             return
 
         elif action == "waiting_ticket_reply":
@@ -537,9 +541,13 @@ def register_support_handlers(app: Client):
                     is_admin=False,
                     message_text=content_text,
                     media_file_id=media_id,
-                    media_type=media_type
+                    media_type=media_type,
+                    admin_notification_pending=True,
+                    admin_notification_kind="update"
                 )
                 session.add(t_msg)
+                await session.flush()
+                ticket_message_id = t_msg.id
                 await session.commit()
 
             conf_text = (
@@ -553,7 +561,7 @@ def register_support_handlers(app: Client):
             await render_screen(client, user_id, conf_text, keyboard)
 
             # Notificar al staff
-            await notify_admins_ticket_update(client, ticket_id, user_id, message.from_user.username, content_text, media_id, media_type)
+            await notify_admins_ticket_update(client, ticket_id, user_id, message.from_user.username, content_text, media_id, media_type, ticket_message_id)
             return
 
         message.continue_propagation()
@@ -615,7 +623,50 @@ async def deliver_admin_ticket_reply(client: Client, admin_id: int, ticket_id: i
     except Exception as e:
         print(f"[DeliverReply Error]: {e}")
 
-async def notify_admins_new_ticket(client: Client, ticket_id: int, user_id: int, username: Optional[str], content_text: str, media_id: Optional[str], media_type: Optional[str]):
+async def _mark_admin_notification_delivered(message_id: Optional[int]) -> None:
+    if message_id is None:
+        return
+    async with async_session() as session:
+        await session.execute(
+            update(TicketMessage)
+            .where(TicketMessage.id == message_id)
+            .values(admin_notification_pending=False)
+        )
+        await session.commit()
+
+
+async def retry_pending_admin_ticket_notifications(client: Client) -> None:
+    async with async_session() as session:
+        result = await session.execute(
+            select(TicketMessage, SupportTicket, User)
+            .join(SupportTicket, TicketMessage.ticket_id == SupportTicket.id)
+            .join(User, SupportTicket.user_id == User.telegram_id)
+            .where(
+                TicketMessage.admin_notification_pending.is_(True),
+                TicketMessage.is_admin.is_(False)
+            )
+            .order_by(TicketMessage.id)
+            .limit(50)
+        )
+        pending = [
+            (message.id, ticket.id, ticket.user_id, user.username,
+             message.message_text or "", message.media_file_id, message.media_type,
+             message.admin_notification_kind)
+            for message, ticket, user in result.all()
+        ]
+
+    for message_id, ticket_id, user_id, username, content, media_id, media_type, kind in pending:
+        if kind == "new":
+            await notify_admins_new_ticket(
+                client, ticket_id, user_id, username, content, media_id, media_type, message_id
+            )
+        else:
+            await notify_admins_ticket_update(
+                client, ticket_id, user_id, username, content, media_id, media_type, message_id
+            )
+
+
+async def notify_admins_new_ticket(client: Client, ticket_id: int, user_id: int, username: Optional[str], content_text: str, media_id: Optional[str], media_type: Optional[str], message_id: Optional[int] = None):
     """Envía notificación de nuevo ticket al canal/grupo de administración"""
     user_tag = f"@{username}" if username else f"ID: <code>{user_id}</code>"
     preview = html.escape(content_text) if content_text else "[📸 Foto/Comprobante adjunto]"
@@ -644,10 +695,13 @@ async def notify_admins_new_ticket(client: Client, ticket_id: int, user_id: int,
             await client.send_photo(chat_id=target_chat, photo=media_id, caption=parse_emojis(admin_text), reply_markup=parse_keyboard(keyboard))
         else:
             await client.send_message(chat_id=target_chat, text=parse_emojis(admin_text), reply_markup=parse_keyboard(keyboard))
+        await _mark_admin_notification_delivered(message_id)
+        return True
     except Exception as e:
         print(f"[NotifyNewTicket Error]: {e}")
+        return False
 
-async def notify_admins_ticket_update(client: Client, ticket_id: int, user_id: int, username: Optional[str], content_text: str, media_id: Optional[str], media_type: Optional[str]):
+async def notify_admins_ticket_update(client: Client, ticket_id: int, user_id: int, username: Optional[str], content_text: str, media_id: Optional[str], media_type: Optional[str], message_id: Optional[int] = None):
     """Envía notificación al staff cuando el usuario añade un mensaje a su ticket"""
     user_tag = f"@{username}" if username else f"ID: <code>{user_id}</code>"
     safe_update_text = html.escape(content_text) if content_text else "[📸 Foto/Adjunto]"
@@ -665,6 +719,12 @@ async def notify_admins_ticket_update(client: Client, ticket_id: int, user_id: i
     ])
     target_chat = settings.LOG_GROUP_ID if settings.LOG_GROUP_ID != 0 else settings.owner_id
     try:
-        await client.send_message(chat_id=target_chat, text=parse_emojis(admin_text), reply_markup=parse_keyboard(keyboard))
+        if media_id and media_type == "photo":
+            await client.send_photo(chat_id=target_chat, photo=media_id, caption=parse_emojis(admin_text), reply_markup=parse_keyboard(keyboard))
+        else:
+            await client.send_message(chat_id=target_chat, text=parse_emojis(admin_text), reply_markup=parse_keyboard(keyboard))
+        await _mark_admin_notification_delivered(message_id)
+        return True
     except Exception as e:
         print(f"[NotifyTicketUpdate Error]: {e}")
+        return False

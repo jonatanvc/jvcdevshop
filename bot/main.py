@@ -16,6 +16,7 @@ from bot.services.vip_service import vip_service
 from bot.services.deposit_reminder import check_and_send_deposit_reminders
 from bot.services.virtual_numbers import check_and_notify_pending_virtual_orders
 from bot.services.fivesim_client import fivesim_api
+from bot.handlers.support import retry_pending_admin_ticket_notifications
 
 async def provider_balance_monitor(app: Client):
     """Monitorea periódicamente el saldo en BunaiStore para alertar al canal de auditoría si está bajo"""
@@ -183,11 +184,19 @@ async def daily_backup_worker(app: Client):
     """Genera y envía automáticamente una copia de seguridad de la base de datos cada 24 horas"""
     while True:
         try:
-            interval = settings.AUTO_BACKUP_HOURS * 3600
-            await asyncio.sleep(interval)
             await backup_service.send_automated_backup(app)
         except Exception as e:
             print(f"[DailyBackupWorker Error] {e}")
+        await asyncio.sleep(settings.AUTO_BACKUP_HOURS * 3600)
+
+async def support_notification_worker(app: Client):
+    """Reintenta notificaciones de soporte pendientes almacenadas en la base de datos."""
+    while True:
+        try:
+            await retry_pending_admin_ticket_notifications(app)
+        except Exception as e:
+            print(f"[SupportNotificationWorker Error] {e}")
+        await asyncio.sleep(60)
 async def deposit_reminder_worker(app: Client):
     """Monitorea periódicamente depósitos pendientes para enviar recordatorio amistoso a los 15-45 minutos (anti-abandono)"""
     while True:
@@ -286,6 +295,7 @@ async def main():
         asyncio.create_task(stock_restock_monitor(app), name="stock-restock"),
         asyncio.create_task(vip_maintenance_monitor(app), name="vip-maintenance"),
         asyncio.create_task(daily_backup_worker(app), name="daily-backup"),
+        asyncio.create_task(support_notification_worker(app), name="support-notifications"),
         asyncio.create_task(bot_health_worker(app), name="bot-health"),
     ]
 

@@ -37,6 +37,31 @@ class StockWatcher:
         except Exception as e:
             print(f"[StockWatcher Init Error]: {e}")
 
+    async def _deliver_restock_alert(self, client: Client, alert: StockAlert, lang: str, name: str, user_price: float, current_stock: int, product_id: str) -> bool:
+        dm_text = t(
+            "restock_alert_title",
+            lang,
+            product=name,
+            price=f"{user_price:.2f}",
+            stock=current_stock
+        )
+        dm_kb = parse_keyboard(InlineKeyboardMarkup([
+            [InlineKeyboardButton(t("btn_buy_now", lang), callback_data=f"product:view:{product_id}:disponibles:1:1")],
+            [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
+        ]))
+        try:
+            await client.send_message(
+                chat_id=alert.user_id,
+                text=parse_emojis(dm_text),
+                reply_markup=dm_kb,
+                parse_mode=ParseMode.HTML
+            )
+            await asyncio.sleep(0.05)
+            return True
+        except Exception as e:
+            print(f"[StockWatcher Notification Error] user={alert.user_id}: {e}")
+            return False
+
     async def check_and_notify_restocks(self, client: Client):
         """
         Escanea el catálogo de BunaiStore en tiempo real para:
@@ -95,7 +120,8 @@ class StockWatcher:
                     # ==========================================================
                     prev_stock = self._previous_stock.get(pid, 0)
 
-                    if current_stock > prev_stock and not infinite_stock:
+                    restocked = current_stock > prev_stock and not infinite_stock
+                    if restocked:
                         added_stock = current_stock - prev_stock
                         self._previous_stock[pid] = current_stock
 
@@ -110,7 +136,11 @@ class StockWatcher:
                             user_price=user_price
                         )
 
-                        # Notificar a usuarios de Telegram que tenían la alerta activa
+                    else:
+                        self._previous_stock[pid] = current_stock
+
+                    if infinite_stock or current_stock > 0:
+                        # Las alertas activas también se reintentan en ciclos posteriores si Telegram falla.
                         alert_stmt = select(StockAlert).where(
                             StockAlert.product_id == pid,
                             StockAlert.is_active.is_(True)
@@ -125,36 +155,14 @@ class StockWatcher:
                             user = u_res.scalar_one_or_none()
                             lang = getattr(user, "language", "es") or "es"
 
-                            dm_text = t(
-                                "restock_alert_title",
-                                lang,
-                                product=name,
-                                price=f"{user_price:.2f}",
-                                stock=current_stock
+                            delivered = await self._deliver_restock_alert(
+                                client, alert, lang, name, user_price, current_stock, pid
                             )
-                            dm_kb = parse_keyboard(InlineKeyboardMarkup([
-                                [InlineKeyboardButton(t("btn_buy_now", lang), callback_data=f"product:view:{pid}:disponibles:1:1")],
-                                [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
-                            ]))
-                            try:
-                                await client.send_message(
-                                    chat_id=alert.user_id,
-                                    text=parse_emojis(dm_text),
-                                    reply_markup=dm_kb,
-                                    parse_mode=ParseMode.HTML
-                                )
-                                await asyncio.sleep(0.05)
-                            except Exception:
-                                pass
-
-                            alert.is_active = False
-                            alert.notified_at = datetime.now(timezone.utc).replace(tzinfo=None)
+                            if delivered:
+                                alert.is_active = False
+                                alert.notified_at = datetime.now(timezone.utc).replace(tzinfo=None)
 
                         await session.commit()
-
-                    else:
-                        # Actualizar estado para seguimiento
-                        self._previous_stock[pid] = current_stock
 
         except Exception as e:
             print(f"[StockWatcher Error] {e}")

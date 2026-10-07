@@ -39,17 +39,19 @@ class BackupService:
 
         tables = {}
         async with async_session() as session:
-            for mapper in sorted(Base.registry.mappers, key=lambda item: item.local_table.name):
-                model = mapper.class_
-                result = await session.execute(select(model))
-                rows = result.scalars().all()
-                tables[model.__tablename__] = [
-                    {
-                        attribute.key: self._serialize_value(getattr(row, attribute.key))
-                        for attribute in mapper.column_attrs
-                    }
-                    for row in rows
-                ]
+            async with session.begin():
+                await session.execute(text("SET TRANSACTION ISOLATION LEVEL REPEATABLE READ, READ ONLY"))
+                for mapper in sorted(Base.registry.mappers, key=lambda item: item.local_table.name):
+                    model = mapper.class_
+                    result = await session.execute(select(model))
+                    rows = result.scalars().all()
+                    tables[model.__tablename__] = [
+                        {
+                            attribute.key: self._serialize_value(getattr(row, attribute.key))
+                            for attribute in mapper.column_attrs
+                        }
+                        for row in rows
+                    ]
 
         data = {
             "format_version": 1,

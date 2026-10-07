@@ -53,13 +53,31 @@ def register_checkout_handlers(app: Client):
         raw_method = callback.matches[0].group(3)
         pay_method = raw_method if raw_method else ("api" if is_owner else "bot")
         pay_with_api = is_owner and (pay_method == "api")
+        p_data = await bunai_api.get_product(product_id)
+        if not p_data:
+            cached_items = pricing_service._cached_catalog or []
+            p_data = next((item for item in cached_items if str(item.get("product_id") or item.get("id")) == str(product_id)), None)
+        if not p_data:
+            async with async_session() as catalog_session:
+                cached_items = await pricing_service.get_processed_catalog(
+                    catalog_session, filter_mode="todos", force_refresh=True
+                )
+                p_data = next((item for item in cached_items if str(item.get("product_id") or item.get("id")) == str(product_id)), None)
+        if not p_data:
+            await callback.answer("❌ Error / Not available", show_alert=True)
+            return
+        base_price = float(p_data.get("price") if p_data.get("price") is not None else p_data.get("base_price", 0.0))
+        api_balance = await bunai_api.get_balance(force_refresh=True) if pay_with_api else None
 
         async with async_session() as session:
             user_res = await session.execute(
                 select(User).where(User.telegram_id == user_id).with_for_update()
             )
             user = user_res.scalar_one_or_none()
-            lang = user.language if user else "es"
+            if not user:
+                await callback.answer("❌ No se encontró tu cuenta. Usa /start e inténtalo de nuevo.", show_alert=True)
+                return
+            lang = user.language or "es"
 
             unresolved_res = await session.execute(
                 select(Order.id)
@@ -86,22 +104,6 @@ def register_checkout_handlers(app: Client):
             if m_setting and m_setting.value == "true" and not is_owner:
                 await callback.answer("⚠️ Maintenance Mode Active / Modo Mantenimiento", show_alert=True)
                 return
-
-            # 2. Obtener producto y calcular precio total con soporte multivariante y caché
-            p_data = await bunai_api.get_product(product_id)
-            if not p_data:
-                cached_items = pricing_service._cached_catalog or []
-                p_data = next((item for item in cached_items if str(item.get("product_id") or item.get("id")) == str(product_id)), None)
-
-            if not p_data:
-                cached_items = await pricing_service.get_processed_catalog(session, filter_mode="todos", force_refresh=True)
-                p_data = next((item for item in cached_items if str(item.get("product_id") or item.get("id")) == str(product_id)), None)
-
-            if not p_data:
-                await callback.answer("❌ Error / Not available", show_alert=True)
-                return
-
-            base_price = float(p_data.get("price") if p_data.get("price") is not None else p_data.get("base_price", 0.0))
 
             now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
             is_active_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
@@ -164,7 +166,6 @@ def register_checkout_handlers(app: Client):
             # 3. Verificación y descuento de saldo
             if pay_with_api:
                 # El owner paga directamente con su saldo en la API de BunaiStore (precio costo)
-                api_balance = await bunai_api.get_balance(force_refresh=True)
                 if api_balance >= total_price:
                     remaining_balance = Decimal(str(round(api_balance - total_price, 2)))
                 elif float(user.balance) >= total_price:
@@ -396,25 +397,23 @@ def register_checkout_handlers(app: Client):
                     .values(voucher_message_id=voucher_msg_id, rating=5)
                 )
                 await session.commit()
-
-        # Pantalla de entrega traducida
         if warranty_hours <= 0:
             warranty_text = ""
         elif warranty_hours >= 24 and warranty_hours % 24 == 0:
-            w_str = t("warranty_days", lang, days=warranty_hours // 24)
-            warranty_text = f"\n{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> <code>{w_str}</code>"
+            warranty_label = t("warranty_days", lang, days=warranty_hours // 24)
+            warranty_text = f"\n{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> <code>{warranty_label}</code>"
         else:
-            w_str = t("warranty_hours", lang, hours=warranty_hours)
-            warranty_text = f"\n{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> <code>{w_str}</code>"
+            warranty_label = t("warranty_hours", lang, hours=warranty_hours)
+            warranty_text = f"\n{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> <code>{warranty_label}</code>"
         safe_after_note = html.escape(after_note)
         after_note_block = f"\n\n{EMOJI_PIN} <b>Info:</b>\n<i>{safe_after_note}</i>" if safe_after_note else ""
 
+        safe_pname = html.escape(product_name)
+        safe_items = html.escape(delivered_text)
         if is_owner:
             currency_tag = "USD (API)" if pay_with_api else "USDT (Bot)"
             balance_tag = f"💳 <b>Saldo Restante API:</b> <code>${audit_rem_bal:.2f} USD</code>" if pay_with_api else f"💳 <b>Saldo Restante Bot:</b> <code>${audit_rem_bal:.2f} USDT</code>"
             footer_note = "<i>👑 Compra procesada a precio de costo con tu saldo directo de BunaiStore.</i>" if pay_with_api else "<i>👑 Compra procesada a precio de costo con tu saldo en el bot.</i>"
-            safe_pname = html.escape(product_name)
-            safe_items = html.escape(delivered_text)
             success_text = (
                 f"👑 <b>¡COMPRA OWNER REALIZADA CON ÉXITO!</b>\n\n"
                 f"📦 <b>Producto:</b> <code>{safe_pname}</code> (x{qty})\n"
@@ -426,8 +425,6 @@ def register_checkout_handlers(app: Client):
                 f"{footer_note}"
             )
         else:
-            safe_pname = html.escape(product_name)
-            safe_items = html.escape(delivered_text)
             success_text = t(
                 "purchase_success_title",
                 lang,
