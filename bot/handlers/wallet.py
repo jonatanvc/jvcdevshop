@@ -29,6 +29,9 @@ USER_STATES: Dict[int, Dict[str, Any]] = {}
 _ACTIVE_HASH_VERIFICATIONS: Set[str] = set()
 DEPOSIT_AMOUNT_SUFFIX_MAX = 1_000_000
 
+def get_movement_emoji(is_credit: bool) -> str:
+    return "🟢" if is_credit else "🔴"
+
 def choose_deposit_exact_amount(base_amount: float, reserved_amounts: Set[Decimal]) -> Optional[Decimal]:
     base = Decimal(str(base_amount)).quantize(Decimal("0.000001"))
     suffix_count = DEPOSIT_AMOUNT_SUFFIX_MAX - 1
@@ -1125,7 +1128,7 @@ def register_wallet_handlers(app: Client):
         lines = []
         for ev in page_events:
             d_str = ev["date"].strftime("%Y-%m-%d %H:%M") if ev["date"] else "N/A"
-            icon = "🟢" if ev["is_credit"] else "🔴"
+            icon = get_movement_emoji(ev["is_credit"])
             safe_title = html.escape(ev['title'])
             lines.append(
                 f"{icon} <b>{safe_title}</b>\n"

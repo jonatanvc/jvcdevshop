@@ -1,7 +1,8 @@
 import unittest
 
 from bot.handlers.catalog import build_catalog_keyboard
-from bot.utils.emojis import get_service_custom_emoji_id, parse_keyboard
+from bot.handlers.wallet import get_movement_emoji
+from bot.utils.emojis import get_service_custom_emoji_id, parse_emojis, parse_keyboard
 
 
 class PortugalCatalogEmojiTests(unittest.TestCase):
@@ -33,6 +34,20 @@ class PortugalCatalogEmojiTests(unittest.TestCase):
                 )
                 parsed = parse_keyboard(keyboard)
                 self.assertEqual(parsed.inline_keyboard[0][0].icon_custom_emoji_id, expected_id)
+
+
+class StatusEmojiMappingTests(unittest.TestCase):
+    def test_wallet_credits_use_green_and_debits_use_red_premium_ids(self):
+        credit = parse_emojis(get_movement_emoji(True))
+        debit = parse_emojis(get_movement_emoji(False))
+
+        self.assertIn("<emoji id=5208429100951159058>🟢</emoji>", credit)
+        self.assertIn("<emoji id=5211182849297762045>🔴</emoji>", debit)
+
+    def test_negative_symbols_do_not_reuse_the_green_dot_custom_emoji(self):
+        parsed = parse_emojis("❌ ⛔ 🚫")
+
+        self.assertEqual(parsed, "❌ ⛔ 🚫")
 
 
 if __name__ == "__main__":
