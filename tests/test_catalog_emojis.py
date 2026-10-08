@@ -3,6 +3,7 @@ import unittest
 from bot.handlers.catalog import build_catalog_keyboard
 from bot.handlers.wallet import get_movement_emoji
 from bot.utils.emojis import get_service_custom_emoji_id, parse_emojis, parse_keyboard
+from bot.utils.i18n import t
 
 
 class PortugalCatalogEmojiTests(unittest.TestCase):
@@ -48,6 +49,21 @@ class StatusEmojiMappingTests(unittest.TestCase):
         parsed = parse_emojis("❌ ⛔ 🚫")
 
         self.assertEqual(parsed, "❌ ⛔ 🚫")
+
+
+class CatalogStockCategoryEmojiTests(unittest.TestCase):
+    def test_category_stock_emojis_use_the_correct_visual_ids_in_all_languages(self):
+        for language in ("es", "en", "pt"):
+            with self.subTest(language=language):
+                available_header = parse_emojis(t("catalog_header_disponibles", language, count=1))
+                out_of_stock_header = parse_emojis(t("catalog_header_agotados", language, count=1))
+                available_option = parse_emojis(t("cat_opt_disponibles", language, count=1))
+                out_of_stock_option = parse_emojis(t("cat_opt_agotados", language, count=1))
+
+                self.assertIn("<emoji id=5211182849297762045>🟢</emoji>", available_header)
+                self.assertIn("<emoji id=5208429100951159058>🔴</emoji>", out_of_stock_header)
+                self.assertIn("<emoji id=5211182849297762045>🟢</emoji>", available_option)
+                self.assertIn("<emoji id=5208429100951159058>🔴</emoji>", out_of_stock_option)
 
 
 if __name__ == "__main__":
