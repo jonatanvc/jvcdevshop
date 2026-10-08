@@ -98,6 +98,9 @@ class DepositTranslationTests(unittest.TestCase):
             expired = t("deposit_expired_screen", language, amount="2.123456")
 
             self.assertNotIn("{expiry_minutes}", invoice)
+            self.assertNotRegex(invoice.lower(), r"hash|txid")
+            self.assertIn("2.123456", invoice)
+            self.assertIn("30", invoice)
             self.assertNotIn("{amount}", review)
             self.assertNotIn("{amount}", expired)
 
