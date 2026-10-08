@@ -4,6 +4,7 @@ import time
 from pathlib import Path
 from tempfile import gettempdir
 from datetime import datetime, timezone, timedelta
+from typing import Optional
 from pyrogram import Client, idle
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from sqlalchemy import update
@@ -288,9 +289,20 @@ async def virtual_numbers_worker(app: Client):
             print(f"[VirtualNumbersWorker Error] {e}")
             await asyncio.sleep(5)
 
+def scanner_heartbeat_is_healthy(
+    last_successful_scan_at: Optional[float],
+    startup_at: float,
+    current_time: float,
+    timeout: float,
+) -> bool:
+    reference_time = startup_at if last_successful_scan_at is None else last_successful_scan_at
+    return current_time - reference_time <= timeout
+
+
 async def bot_health_worker(app: Client):
     health_file = Path(gettempdir()) / "bot-health"
     scanner_alerted = False
+    health_started_at = time.monotonic()
     while True:
         database_healthy = False
         try:
@@ -302,9 +314,11 @@ async def bot_health_worker(app: Client):
 
         scanner_last_success = deposit_monitor_service.last_successful_scan_at
         scanner_timeout = max(180, settings.BSC_MONITOR_INTERVAL_SECONDS * 3 + 30)
-        scanner_healthy = (
-            scanner_last_success is not None
-            and time.monotonic() - scanner_last_success <= scanner_timeout
+        scanner_healthy = scanner_heartbeat_is_healthy(
+            scanner_last_success,
+            health_started_at,
+            time.monotonic(),
+            scanner_timeout,
         )
         if app.is_connected and database_healthy and scanner_healthy:
             health_file.touch()

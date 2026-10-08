@@ -5,6 +5,7 @@ from decimal import Decimal
 from bot.services.blockchain import parse_incoming_usdt_transfer
 from bot.services.deposit_monitor import payment_requires_admin_review
 from bot.database.models import DepositStatus
+from bot.main import scanner_heartbeat_is_healthy
 from bot.utils.i18n import t
 
 
@@ -99,6 +100,16 @@ class DepositTranslationTests(unittest.TestCase):
             self.assertNotIn("{expiry_minutes}", invoice)
             self.assertNotIn("{amount}", review)
             self.assertNotIn("{amount}", expired)
+
+
+class ScannerHealthTests(unittest.TestCase):
+    def test_first_scan_gets_startup_grace(self):
+        self.assertTrue(scanner_heartbeat_is_healthy(None, 100.0, 279.0, 180.0))
+        self.assertFalse(scanner_heartbeat_is_healthy(None, 100.0, 281.0, 180.0))
+
+    def test_completed_scan_uses_its_heartbeat_instead_of_startup_time(self):
+        self.assertTrue(scanner_heartbeat_is_healthy(250.0, 100.0, 400.0, 180.0))
+        self.assertFalse(scanner_heartbeat_is_healthy(200.0, 100.0, 400.0, 180.0))
 
 
 if __name__ == "__main__":
