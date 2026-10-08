@@ -318,6 +318,11 @@ async def bot_health_worker(app: Client):
                         time.monotonic() - deposit_monitor_service.scanner_scan_started_at
                     ) if deposit_monitor_service.scanner_scan_started_at is not None else 0
                     scanner_status = f"Escaneo en curso: {scanner_phase} ({scan_duration} s)."
+                    if deposit_monitor_service.scanner_last_error_type:
+                        scanner_status += (
+                            f" Último intento fallido en {deposit_monitor_service.scanner_last_error_phase}: "
+                            f"{deposit_monitor_service.scanner_last_error_type}."
+                        )
                 elif deposit_monitor_service.scanner_last_error_type:
                     scanner_status = (
                         f"Último intento fallido en {deposit_monitor_service.scanner_last_error_phase}: "
