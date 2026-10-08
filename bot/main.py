@@ -312,10 +312,28 @@ async def bot_health_worker(app: Client):
         else:
             health_file.unlink(missing_ok=True)
             if app.is_connected and database_healthy and not scanner_healthy and not scanner_alerted:
+                scanner_phase = deposit_monitor_service.scanner_scan_phase
+                if deposit_monitor_service.scanner_scan_in_progress:
+                    scan_duration = int(
+                        time.monotonic() - deposit_monitor_service.scanner_scan_started_at
+                    ) if deposit_monitor_service.scanner_scan_started_at is not None else 0
+                    scanner_status = f"Escaneo en curso: {scanner_phase} ({scan_duration} s)."
+                elif deposit_monitor_service.scanner_last_error_type:
+                    scanner_status = (
+                        f"Último intento fallido en {deposit_monitor_service.scanner_last_error_phase}: "
+                        f"{deposit_monitor_service.scanner_last_error_type}."
+                    )
+                else:
+                    scanner_status = "No hay un escaneo activo ni un error registrado."
+                details = (
+                    f"No se completó un escaneo BSC correctamente en los últimos {scanner_timeout} segundos. "
+                    f"{scanner_status}"
+                )
+                print(f"[HealthCheck] SCANNER BSC ATRASADO: {details}")
                 await audit_logger.log_system_alert(
                     client=app,
                     title="SCANNER BSC ATRASADO",
-                    details=f"No se completó un escaneo BSC correctamente en los últimos {scanner_timeout} segundos.",
+                    details=details,
                 )
                 scanner_alerted = True
         await asyncio.sleep(20)

@@ -22,6 +22,11 @@ from bot.utils.navigation import USER_LAST_MESSAGES, USER_LAST_MESSAGES_IS_MEDIA
 _CURSOR_SETTING_KEY = "bsc_usdt_deposit_scan_block"
 _AMOUNT_QUANTUM = Decimal("0.000001")
 last_successful_scan_at: Optional[float] = None
+scanner_scan_in_progress = False
+scanner_scan_started_at: Optional[float] = None
+scanner_scan_phase = "idle"
+scanner_last_error_type: Optional[str] = None
+scanner_last_error_phase: Optional[str] = None
 
 
 def payment_requires_admin_review(
@@ -239,24 +244,35 @@ async def process_incoming_transfer(client: Client, event: Dict[str, Any]) -> bo
 
 
 async def scan_deposit_transfers_once(client: Client) -> None:
-    global last_successful_scan_at
+    global last_successful_scan_at, scanner_scan_phase
+    global scanner_last_error_type, scanner_last_error_phase
+    scanner_scan_phase = "reading_cursor"
     async with async_session() as session:
         cursor_setting = await session.get(Setting, _CURSOR_SETTING_KEY)
 
     if cursor_setting:
         start_block = int(cursor_setting.value) + 1
     else:
+        scanner_scan_phase = "reading_confirmed_block"
         latest_confirmed = await bsc_validator.get_confirmed_block_number()
         start_block = max(0, latest_confirmed - settings.BSC_INITIAL_SCAN_BLOCKS)
 
+    scanner_scan_phase = "fetching_transfers"
     last_scanned_block, events = await bsc_validator.scan_incoming_transfers(start_block)
-    for event in events:
+    for index, event in enumerate(events, start=1):
+        scanner_scan_phase = f"processing_transfer_{index}_of_{len(events)}"
         if not await process_incoming_transfer(client, event):
+            scanner_last_error_type = "TransferProcessingError"
+            scanner_last_error_phase = scanner_scan_phase
             return
 
     if last_scanned_block < start_block:
         last_successful_scan_at = time.monotonic()
+        scanner_last_error_type = None
+        scanner_last_error_phase = None
+        scanner_scan_phase = "idle"
         return
+    scanner_scan_phase = "saving_cursor"
     async with async_session() as session:
         cursor_setting = await session.get(Setting, _CURSOR_SETTING_KEY)
         if cursor_setting:
@@ -265,14 +281,31 @@ async def scan_deposit_transfers_once(client: Client) -> None:
             session.add(Setting(key=_CURSOR_SETTING_KEY, value=str(last_scanned_block)))
         await session.commit()
     last_successful_scan_at = time.monotonic()
+    scanner_last_error_type = None
+    scanner_last_error_phase = None
+    scanner_scan_phase = "idle"
 
 
 async def deposit_monitor_worker(client: Client) -> None:
+    global scanner_scan_in_progress, scanner_scan_started_at
+    global scanner_last_error_type, scanner_last_error_phase
     while True:
+        scanner_scan_in_progress = True
+        scanner_scan_started_at = time.monotonic()
         try:
             await scan_deposit_transfers_once(client)
         except asyncio.CancelledError:
             raise
         except Exception as exc:
-            print(f"[Deposit monitor error] {type(exc).__name__}: {exc}")
+            scanner_last_error_type = type(exc).__name__
+            scanner_last_error_phase = scanner_scan_phase
+            response = getattr(exc, "response", None)
+            status_code = getattr(response, "status_code", None)
+            status_detail = f" status={status_code}" if status_code is not None else ""
+            print(
+                f"[Deposit monitor error] phase={scanner_scan_phase} "
+                f"type={scanner_last_error_type}{status_detail}"
+            )
+        finally:
+            scanner_scan_in_progress = False
         await asyncio.sleep(max(3, settings.BSC_MONITOR_INTERVAL_SECONDS))
