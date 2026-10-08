@@ -1,4 +1,5 @@
 import asyncio
+import time
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_DOWN
 from typing import Any, Dict, Optional
@@ -14,11 +15,13 @@ from bot.database.session import async_session
 from bot.services.audit_logger import audit_logger
 from bot.services.blockchain import bsc_validator
 from bot.services.deposit_accounting import credit_deposit_in_session
+from bot.services.financial_outbox import process_pending_financial_notifications
 from bot.utils.i18n import t
 from bot.utils.navigation import USER_LAST_MESSAGES, USER_LAST_MESSAGES_IS_MEDIA, render_screen
 
 _CURSOR_SETTING_KEY = "bsc_usdt_deposit_scan_block"
 _AMOUNT_QUANTUM = Decimal("0.000001")
+last_successful_scan_at: Optional[float] = None
 
 
 def payment_requires_admin_review(
@@ -226,32 +229,7 @@ async def process_incoming_transfer(client: Client, event: Dict[str, Any]) -> bo
 
         if not credit_result:
             return True
-        await audit_logger.log_deposit_confirmed(
-            client=client,
-            user_id=user_id,
-            username=user.username,
-            first_name=user.first_name or "Usuario",
-            amount=float(credited_amount),
-            tx_hash=tx_hash,
-            new_balance=float(credit_result["balance"]),
-            deposit_id=deposit_id,
-            log_message_id=log_message_id,
-        )
-        await _edit_user_deposit_screen(
-            client,
-            deposit_id,
-            user_id,
-            user_message_id,
-            t(
-                "deposit_success_title",
-                credit_result["language"],
-                amount=f"{float(credited_amount):.6f}",
-                balance=f"{float(credit_result['balance']):.6f}",
-            ),
-            _credit_keyboard(),
-            user_message_is_media,
-        )
-        await notify_deposit_referrer(client, credit_result["referral"])
+        await process_pending_financial_notifications(client, deposit_id=deposit_id)
         return True
     except IntegrityError:
         return True
@@ -261,6 +239,7 @@ async def process_incoming_transfer(client: Client, event: Dict[str, Any]) -> bo
 
 
 async def scan_deposit_transfers_once(client: Client) -> None:
+    global last_successful_scan_at
     async with async_session() as session:
         cursor_setting = await session.get(Setting, _CURSOR_SETTING_KEY)
 
@@ -276,6 +255,7 @@ async def scan_deposit_transfers_once(client: Client) -> None:
             return
 
     if last_scanned_block < start_block:
+        last_successful_scan_at = time.monotonic()
         return
     async with async_session() as session:
         cursor_setting = await session.get(Setting, _CURSOR_SETTING_KEY)
@@ -284,6 +264,7 @@ async def scan_deposit_transfers_once(client: Client) -> None:
         else:
             session.add(Setting(key=_CURSOR_SETTING_KEY, value=str(last_scanned_block)))
         await session.commit()
+    last_successful_scan_at = time.monotonic()
 
 
 async def deposit_monitor_worker(client: Client) -> None:

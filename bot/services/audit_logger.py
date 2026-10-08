@@ -240,7 +240,7 @@ class AuditLogger:
         new_balance: float,
         deposit_id: Optional[int] = None,
         log_message_id: Optional[int] = None
-    ):
+    ) -> bool:
         """Edita el mismo mensaje original de la solicitud en el canal de logs indicando confirmación en blockchain"""
         user_mention = self._user_mention(username, user_id, first_name)
         safe_tx_hash = html.escape(tx_hash, quote=True)
@@ -258,7 +258,7 @@ class AuditLogger:
         )
 
         if not self.log_group_id or self.log_group_id == 0:
-            return
+            return True
 
         if log_message_id:
             try:
@@ -277,12 +277,12 @@ class AuditLogger:
                     )
                 except Exception as exc:
                     print(f"[AuditLogger remove deposit review button error]: {exc}")
-                return
+                return True
             except Exception as e:
                 print(f"[AuditLogger edit confirmed error]: {e}")
 
         # Fallback
-        await self._send_log(client, msg)
+        return await self._send_log(client, msg) is not None
 
     async def log_restock_alert(
         self,

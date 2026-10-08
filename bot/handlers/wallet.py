@@ -1,4 +1,3 @@
-import asyncio
 import random
 import math
 import re
@@ -16,7 +15,7 @@ from bot.database.session import async_session
 from bot.database.models import User, Deposit, DepositStatus, Order, VirtualNumberOrder
 from bot.services.blockchain import bsc_validator
 from bot.services.deposit_accounting import credit_deposit_in_session
-from bot.services.deposit_monitor import notify_deposit_referrer
+from bot.services.financial_outbox import process_pending_financial_notifications
 from bot.services.audit_logger import audit_logger
 from bot.services.qr_generator import get_wallet_qr_media
 from bot.services.promos import promo_service
@@ -494,17 +493,10 @@ def register_wallet_handlers(app: Client):
                     await client.send_message(settings.LOG_GROUP_ID, f"DEP_{deposit_id}: el hash ya pertenece a otro depósito.")
                     return
 
-                user = await session.scalar(select(User).where(User.telegram_id == deposit.user_id))
-                username = user.username if user else None
-                first_name = user.first_name or "Usuario" if user else "Usuario"
-                user_message_id = deposit.user_message_id
-                user_message_is_media = deposit.user_message_is_media
-                user_id = deposit.user_id
                 amount = Decimal(str(deposit.exact_amount))
                 credit_result = await credit_deposit_in_session(
                     session, deposit, amount, deposit.block_number
                 )
-                log_message_id = deposit.log_message_id
                 await session.commit()
         except IntegrityError:
             await client.send_message(settings.LOG_GROUP_ID, f"DEP_{deposit_id}: el hash ya fue utilizado.")
@@ -512,50 +504,7 @@ def register_wallet_handlers(app: Client):
 
         if not credit_result:
             return
-
-        await audit_logger.log_deposit_confirmed(
-            client=client,
-            user_id=user_id,
-            username=username,
-            first_name=first_name,
-            amount=float(amount),
-            tx_hash=tx_hash,
-            new_balance=float(credit_result["balance"]),
-            deposit_id=deposit_id,
-            log_message_id=log_message_id,
-        )
-
-        if user_message_id:
-            if user_message_is_media:
-                try:
-                    await client.delete_messages(user_id, user_message_id)
-                except Exception:
-                    pass
-                USER_LAST_MESSAGES.pop(user_id, None)
-                USER_LAST_MESSAGES_IS_MEDIA.pop(user_id, None)
-            else:
-                USER_LAST_MESSAGES[user_id] = user_message_id
-                USER_LAST_MESSAGES_IS_MEDIA[user_id] = False
-        success_text = t(
-            "deposit_success_title",
-            credit_result["language"],
-            amount=f"{float(amount):.6f}",
-            balance=f"{float(credit_result['balance']):.6f}",
-        )
-        keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(t("btn_catalog", credit_result["language"]), callback_data="catalog:disponibles:1")],
-            [InlineKeyboardButton(t("btn_main_menu", credit_result["language"]), callback_data="menu_main")],
-        ])
-        success_message = await render_screen(client, user_id, success_text, keyboard)
-        if success_message:
-            async with async_session() as session:
-                await session.execute(
-                    update(Deposit)
-                    .where(Deposit.id == deposit_id)
-                    .values(user_message_id=success_message.id, user_message_is_media=False)
-                )
-                await session.commit()
-        await notify_deposit_referrer(client, credit_result["referral"])
+        await process_pending_financial_notifications(client, deposit_id=deposit_id)
 
     @app.on_callback_query(filters.regex(r"^wallet:redeem_gift$"))
     async def cb_wallet_redeem_gift(client: Client, callback: CallbackQuery):
@@ -829,7 +778,6 @@ def register_wallet_handlers(app: Client):
                     await render_screen(client, user_id, f"❌ <b>Error:</b>\n{html.escape(str(err_msg))}", retry_kb)
                     return
 
-                log_msg_id = None
                 async with async_session() as session:
                     stmt = select(Deposit).where(Deposit.id == deposit_id, Deposit.user_id == user_id).with_for_update()
                     res = await session.execute(stmt)
@@ -841,92 +789,19 @@ def register_wallet_handlers(app: Client):
                         return
 
                     credited_amount = Decimal(str(val_res["amount"]))
-                    deposit.status = DepositStatus.CONFIRMED
-                    deposit.confirmed_at = datetime.now(timezone.utc).replace(tzinfo=None)
-                    deposit.verification_started_at = None
-                    log_msg_id = deposit.log_message_id
-
-                    user_stmt = select(User).where(User.telegram_id == user_id).with_for_update()
-                    u_res = await session.execute(user_stmt)
-                    user = u_res.scalar_one_or_none()
-                    user.balance += credited_amount
-                    new_balance = float(user.balance)
-
-                    if user.referred_by:
-                        ref_stmt = select(User).where(User.telegram_id == user.referred_by).with_for_update()
-                        ref_res = await session.execute(ref_stmt)
-                        referrer = ref_res.scalar_one_or_none()
-                        if referrer:
-                            now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
-                            is_ref_vip = bool(referrer.is_vip and referrer.vip_expires_at and referrer.vip_expires_at > now_utc)
-                            comm_pct = settings.VIP_REFERRAL_COMMISSION_PERCENT if is_ref_vip else settings.REFERRAL_COMMISSION_PERCENT
-                            comm_rate = Decimal(str(comm_pct)) / Decimal("100")
-                            commission = credited_amount * comm_rate
-                            referrer.balance += commission
-                            deposit.referral_commission_amount = commission
-
-                            ref_uid = referrer.telegram_id
-                            ref_lang = referrer.language or "es"
-                            ref_new_bal = float(referrer.balance)
-                            ref_comm_val = float(commission)
-                            user_tag = f"@{message.from_user.username}" if message.from_user.username else f"Usuario #{user_id}"
-
-                            try:
-                                ref_msg = (
-                                    f"🎉 <b>¡Comisión de Referido Recibida!</b>\n\n"
-                                    f"Tu referido <b>{user_tag}</b> acaba de realizar una recarga de saldo.\n\n"
-                                    f"➕ <b>Comisión acreditada:</b> <code>+${ref_comm_val:.2f} USDT</code>\n"
-                                    f"👛 <b>Tu nuevo saldo:</b> <code>${ref_new_bal:.2f} USDT</code>\n\n"
-                                    f"<i>¡Gracias por recomendar nuestro servicio!</i>"
-                                )
-                                if ref_lang == "en":
-                                    ref_msg = (
-                                        f"🎉 <b>Referral Commission Received!</b>\n\n"
-                                        f"Your referral <b>{user_tag}</b> has just completed a balance deposit.\n\n"
-                                        f"➕ <b>Credited Commission:</b> <code>+${ref_comm_val:.2f} USDT</code>\n"
-                                        f"👛 <b>Your New Balance:</b> <code>${ref_new_bal:.2f} USDT</code>\n\n"
-                                        f"<i>Thank you for sharing our store!</i>"
-                                    )
-                                elif ref_lang == "pt":
-                                    ref_msg = (
-                                        f"🎉 <b>Comissão de Indicação Recebida!</b>\n\n"
-                                        f"Seu indicado <b>{user_tag}</b> acabou de recarregar saldo.\n\n"
-                                        f"➕ <b>Comissão creditada:</b> <code>+${ref_comm_val:.2f} USDT</code>\n"
-                                        f"👛 <b>Seu novo saldo:</b> <code>${ref_new_bal:.2f} USDT</code>\n\n"
-                                        f"<i>Obrigado por recomendar nosso serviço!</i>"
-                                    )
-                                asyncio.create_task(client.send_message(
-                                    chat_id=ref_uid,
-                                    text=parse_emojis(ref_msg),
-                                    reply_markup=parse_keyboard(InlineKeyboardMarkup([[InlineKeyboardButton("👛 Ver Mi Billetera", callback_data="wallet:deposit_menu")]])),
-                                    disable_web_page_preview=True
-                                ))
-                            except Exception as e:
-                                print(f"[ReferralDM Error]: {e}")
+                    credit_result = await credit_deposit_in_session(
+                        session,
+                        deposit,
+                        credited_amount,
+                        val_res.get("block_number"),
+                    )
+                    new_balance = float(credit_result["balance"])
 
                     await session.commit()
             finally:
                 _ACTIVE_HASH_VERIFICATIONS.discard(tx_hash)
 
-            # EDITAR el mismo mensaje en el canal de logs
-            await audit_logger.log_deposit_confirmed(
-                client=client,
-                user_id=user_id,
-                username=message.from_user.username,
-                first_name=message.from_user.first_name or "Usuario",
-                amount=float(credited_amount),
-                tx_hash=tx_hash,
-                new_balance=new_balance,
-                deposit_id=deposit_id,
-                log_message_id=log_msg_id
-            )
-
-            success_text = t("deposit_success_title", lang, amount=f"{float(credited_amount):.6f}", balance=f"{new_balance:.6f}")
-            keyboard = InlineKeyboardMarkup([
-                [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
-                [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
-            ])
-            await render_screen(client, user_id, success_text, keyboard)
+            await process_pending_financial_notifications(client, deposit_id=deposit_id)
             return
 
         # 3. Esperando Código de Tarjeta de Regalo

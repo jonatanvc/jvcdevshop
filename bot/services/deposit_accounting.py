@@ -1,3 +1,4 @@
+import json
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any, Dict, Optional
@@ -6,7 +7,54 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from bot.config import settings
-from bot.database.models import Deposit, DepositStatus, User
+from bot.database.models import Deposit, DepositStatus, FinancialNotification, User
+
+
+def enqueue_deposit_notifications(
+    session: AsyncSession,
+    deposit: Deposit,
+    user: User,
+    amount: Decimal,
+    balance: Decimal,
+    referral: Optional[Dict[str, Any]],
+) -> None:
+    common_payload = {
+        "deposit_id": deposit.id,
+        "user_id": user.telegram_id,
+        "username": user.username,
+        "first_name": user.first_name or "Usuario",
+        "language": user.language or "es",
+        "amount": str(amount),
+        "balance": str(balance),
+        "tx_hash": deposit.tx_hash or "",
+        "log_message_id": deposit.log_message_id,
+        "user_message_id": deposit.user_message_id,
+        "user_message_is_media": deposit.user_message_is_media,
+    }
+    notifications = [
+        ("audit", {key: common_payload[key] for key in (
+            "deposit_id", "user_id", "username", "first_name", "amount", "balance", "tx_hash", "log_message_id"
+        )}),
+        ("user", {key: common_payload[key] for key in (
+            "deposit_id", "user_id", "language", "amount", "balance", "user_message_id", "user_message_is_media"
+        )}),
+    ]
+    if referral:
+        notifications.append(("referral", {
+            "user_id": referral["user_id"],
+            "language": referral["language"],
+            "balance": str(referral["balance"]),
+            "commission": str(referral["commission"]),
+            "referred_user_id": user.telegram_id,
+            "referred_username": user.username,
+        }))
+
+    for event_type, payload in notifications:
+        session.add(FinancialNotification(
+            event_key=f"deposit:{deposit.id}:{event_type}",
+            event_type=event_type,
+            payload=json.dumps(payload),
+        ))
 
 
 async def credit_deposit_in_session(
@@ -53,6 +101,8 @@ async def credit_deposit_in_session(
                 "commission": commission,
                 "language": referrer.language or "es",
             }
+
+    enqueue_deposit_notifications(session, deposit, user, amount, Decimal(user.balance), referral)
 
     return {
         "user_id": user.telegram_id,

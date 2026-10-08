@@ -4,6 +4,9 @@ from typing import Dict, Any, List, Optional
 from bot.config import settings
 from bot.utils.formatters import adjust_warranty_in_name
 
+class CatalogUnavailableError(RuntimeError):
+    """El proveedor no respondió y todavía no hay un catálogo válido en caché."""
+
 class BunaiAPIClient:
     def __init__(self):
         self.base_url = settings.BUNAI_BASE_URL.rstrip("/")
@@ -15,6 +18,7 @@ class BunaiAPIClient:
         }
         # Caché en memoria para evitar saturar el rate limit de BunaiStore (60 req/min)
         self._cache: Dict[str, Any] = {}
+        self._last_good_products: Dict[str, List[Dict[str, Any]]] = {}
         self._cache_ttl = 30  # 30 segundos de TTL
         self._client: Optional[httpx.AsyncClient] = None
 
@@ -91,27 +95,37 @@ class BunaiAPIClient:
                 return cached
 
         url = f"{self.base_url}/products?view={view}&limit={limit}"
+        def use_last_good(reason: str) -> List[Dict[str, Any]]:
+            stale_products = self._last_good_products.get(cache_key)
+            if stale_products is None:
+                raise CatalogUnavailableError(reason)
+            print(f"[BunaiAPIClient] Usando catálogo válido en caché: {reason}")
+            return stale_products
+
         try:
             client = self._get_client()
             res = await client.get(url)
-            if res.status_code == 200:
-                try:
-                    data = res.json()
-                except Exception:
-                    data = []
-                if isinstance(data, list):
-                    for item in data:
-                        if isinstance(item, dict):
-                            if "name" in item and item["name"]:
-                                item["name"] = adjust_warranty_in_name(item["name"])
-                            if "display_name" in item and item["display_name"]:
-                                item["display_name"] = adjust_warranty_in_name(item["display_name"])
-                self._set_cache(cache_key, data)
-                return data
-            return []
+            if res.status_code != 200:
+                return use_last_good(f"HTTP {res.status_code}")
+            try:
+                data = res.json()
+            except Exception as exc:
+                return use_last_good(f"JSON inválido: {exc}")
+            if not isinstance(data, list) or any(not isinstance(item, dict) for item in data):
+                return use_last_good("la respuesta no contiene una lista válida de productos")
+            for item in data:
+                if item.get("name"):
+                    item["name"] = adjust_warranty_in_name(item["name"])
+                if item.get("display_name"):
+                    item["display_name"] = adjust_warranty_in_name(item["display_name"])
+            self._set_cache(cache_key, data)
+            self._last_good_products[cache_key] = data
+            return data
         except Exception as e:
             print(f"[BunaiAPIClient Error] get_products: {e}")
-            return []
+            if isinstance(e, CatalogUnavailableError):
+                raise
+            return use_last_good(str(e))
 
     async def get_product_groups(self, include_variants: bool = True, force_refresh: bool = False) -> List[Dict[str, Any]]:
         """Obtiene las colecciones/grupos de productos con sus variantes"""

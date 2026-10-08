@@ -140,14 +140,17 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
             InlineKeyboardButton("🎁 Tarjetas de Regalo", callback_data="admin:gifts:page:1")
         ],
         [InlineKeyboardButton("🩺 Diagnóstico operativo", callback_data="admin:diagnostics")],
-        [
-            InlineKeyboardButton("📣 Enviar Difusión (Broadcast)", callback_data="admin:broadcast"),
-            InlineKeyboardButton("💾 Backup BD", callback_data="admin:download_backup")
-        ],
+        [InlineKeyboardButton("📣 Enviar Difusión (Broadcast)", callback_data="admin:broadcast")],
         [
             InlineKeyboardButton("🔙 Volver", callback_data="menu_main")
         ]
     ])
+
+    if settings.is_owner(user_id):
+        keyboard.inline_keyboard.insert(
+            -1,
+            [InlineKeyboardButton("💾 Backup BD", callback_data="admin:download_backup")],
+        )
 
     await render_screen(client, target, text, keyboard)
 
@@ -750,7 +753,8 @@ def register_admin_handlers(app: Client):
     @app.on_callback_query(filters.regex("^admin:download_backup$"))
     async def cb_download_backup(client: Client, callback: CallbackQuery):
         user_id = callback.from_user.id
-        if not is_admin(user_id):
+        if not settings.is_owner(user_id):
+            await callback.answer("⛔ Solo el owner puede descargar backups.", show_alert=True)
             return
 
         await callback.answer("⏳ Generando backup...")

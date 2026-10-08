@@ -80,6 +80,8 @@ Los depósitos BSC se detectan mediante el RPC configurado: no necesitan dominio
 
 Para habilitar los backups cifrados, genera una clave Fernet con `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` y guárdala en `BACKUP_ENCRYPTION_KEY` en Dokploy. Conserva esa clave fuera del servidor: los archivos `.json.gz.enc` no pueden restaurarse sin ella. Si no está configurada, el bot no enviará una copia sin cifrar.
 
+La descarga manual del backup está disponible únicamente para el owner. El esquema PostgreSQL se inicializa y actualiza al arrancar mediante Alembic; las nuevas revisiones deben añadirse en `bot/database/migrations/versions/`.
+
 Para restaurar, prepara una base de datos PostgreSQL vacía, configura en `.env` su `DATABASE_URL` y la misma `BACKUP_ENCRYPTION_KEY`, instala las dependencias y ejecuta `python -m bot.restore_backup ruta/al/backup.json.gz.enc`. El comando aborta si la base no está vacía o el backup no coincide con el modelo actual.
 
 Si una orden queda en revisión por un timeout del proveedor, un administrador debe verificarla antes de resolverla: `/orderresolve ID complete PROVIDER_ID ENTREGA` registra una entrega confirmada, `/orderresolve ID refund` reembolsa una compra Bunai rechazada, `/vnumresolve ID check` consulta 5SIM y reanuda el monitor, y `/vnumresolve ID refund` solo devuelve el saldo si 5SIM confirma la cancelación. No ejecutes estos comandos sin revisar primero el estado real del proveedor.

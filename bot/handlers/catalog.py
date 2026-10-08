@@ -9,7 +9,7 @@ from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, StockAlert
 from bot.services.pricing import pricing_service, PAGE_SIZE
-from bot.services.bunai_client import bunai_api
+from bot.services.bunai_client import CatalogUnavailableError, bunai_api
 from bot.services.promos import promo_service
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
@@ -229,7 +229,15 @@ def register_catalog_handlers(app: Client):
             user = user_res.scalar_one_or_none()
             lang = getattr(user, "language", "es") or "es"
 
-            products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=False)
+            try:
+                products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=False)
+            except CatalogUnavailableError:
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t("btn_refresh", lang), callback_data=f"catalog_refresh:{filter_mode}:{page}")],
+                    [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")],
+                ])
+                await render_screen(client, callback, "⚠️ No se pudo consultar el catálogo. Inténtalo de nuevo en unos minutos.", keyboard)
+                return
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
             now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -261,7 +269,15 @@ def register_catalog_handlers(app: Client):
             user = user_res.scalar_one_or_none()
             lang = getattr(user, "language", "es") or "es"
 
-            products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=True)
+            try:
+                products = await pricing_service.get_processed_catalog(session, filter_mode=filter_mode, force_refresh=True)
+            except CatalogUnavailableError:
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t("btn_refresh", lang), callback_data=f"catalog_refresh:{filter_mode}:{page}")],
+                    [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")],
+                ])
+                await render_screen(client, callback, "⚠️ No se pudo consultar el catálogo. Inténtalo de nuevo en unos minutos.", keyboard)
+                return
             items_page, total_pages, current_page = pricing_service.paginate(products, page=page, page_size=PAGE_SIZE)
 
             now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -459,22 +475,25 @@ def register_catalog_handlers(app: Client):
             qty = 1
 
         async with async_session() as session:
-            p_data = await bunai_api.get_product(product_id)
-            if not p_data:
-                # 1. Buscar en el catálogo en caché local como respaldo
-                cached_items = pricing_service._cached_catalog or []
-                p_data = next((
-                    item for item in cached_items
-                    if str(item.get("product_id") or item.get("id")) == str(product_id)
-                ), None)
+            try:
+                p_data = await bunai_api.get_product(product_id)
+                if not p_data:
+                    cached_items = pricing_service._cached_catalog or []
+                    p_data = next((
+                        item for item in cached_items
+                        if str(item.get("product_id") or item.get("id")) == str(product_id)
+                    ), None)
 
-            if not p_data:
-                # 2. Si no estaba en memoria (ej: reinicio), cargar catálogo completo
-                cached_items = await pricing_service.get_processed_catalog(session, filter_mode="todos", force_refresh=True)
-                p_data = next((
-                    item for item in cached_items
-                    if str(item.get("product_id") or item.get("id")) == str(product_id)
-                ), None)
+                if not p_data:
+                    cached_items = await pricing_service.get_processed_catalog(session, filter_mode="todos", force_refresh=True)
+                    p_data = next((
+                        item for item in cached_items
+                        if str(item.get("product_id") or item.get("id")) == str(product_id)
+                    ), None)
+            except CatalogUnavailableError:
+                if isinstance(target, CallbackQuery):
+                    await target.answer("⚠️ El catálogo no está disponible temporalmente. Inténtalo de nuevo.", show_alert=True)
+                return
 
             if not p_data:
                 if isinstance(target, CallbackQuery):

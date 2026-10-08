@@ -26,14 +26,14 @@ class Settings(BaseSettings):
     BSC_RPC_URL: str = "https://bsc-dataseed.binance.org/"
     BSC_RPC_FALLBACKS_RAW: str = "https://1rpc.io/bnb,https://rpc.ankr.com/bsc,https://bsc.publicnode.com,https://bsc-dataseed1.defibit.io"
     USDT_CONTRACT_ADDRESS: str = "0x55d398326f99059fF775485246999027B3197955"
-    MIN_BLOCK_CONFIRMATIONS: int = 3
-    BSC_MONITOR_INTERVAL_SECONDS: int = 10
-    BSC_INITIAL_SCAN_BLOCKS: int = 5000
+    MIN_BLOCK_CONFIRMATIONS: int = Field(default=3, ge=1)
+    BSC_MONITOR_INTERVAL_SECONDS: int = Field(default=10, ge=3)
+    BSC_INITIAL_SCAN_BLOCKS: int = Field(default=5000, ge=1)
     
     # Parámetros del servicio
     DEFAULT_MARGIN_PERCENT: float = 30.0
     MIN_DEPOSIT_USDT: float = 2.0
-    DEPOSIT_EXPIRY_MINUTES: int = 30
+    DEPOSIT_EXPIRY_MINUTES: int = Field(default=30, ge=1)
     REFERRAL_COMMISSION_PERCENT: float = 5.0
     QR_IMAGE_PATH: str = "assets/TrustWalletQR.jpg"
     AUTO_BACKUP_HOURS: int = 24
@@ -61,6 +61,8 @@ class Settings(BaseSettings):
         admin_ids = [admin_id.strip() for admin_id in value.split(",")]
         if not admin_ids or any(not admin_id.isdigit() for admin_id in admin_ids):
             raise ValueError("ADMIN_IDS debe contener uno o mas IDs numericos")
+        if len(set(admin_ids)) != len(admin_ids):
+            raise ValueError("ADMIN_IDS no debe contener IDs duplicados")
         return ",".join(admin_ids)
 
     @property
@@ -74,7 +76,7 @@ class Settings(BaseSettings):
         return self.admin_ids[0]
 
     def is_owner(self, user_id: int) -> bool:
-        return user_id in self.admin_ids
+        return user_id == self.owner_id
 
     @property
     def rpc_endpoints(self) -> List[str]:

@@ -1,3 +1,4 @@
+import html
 from datetime import datetime, timezone, timedelta
 from pyrogram import Client
 from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
@@ -41,7 +42,7 @@ async def check_and_send_deposit_reminders(app: Client):
                 continue
 
             lang = user.language or "es"
-            name = user.first_name or "Usuario"
+            name = html.escape(user.first_name or "Usuario")
             amount_str = f"{float(dep.exact_amount):.6f}"
 
             if lang == "en":
@@ -99,9 +100,8 @@ async def check_and_send_deposit_reminders(app: Client):
                 if reminder_message:
                     dep.user_message_id = reminder_message.id
                     dep.user_message_is_media = False
+                    dep.reminder_sent = True
             except Exception as e:
                 print(f"[DepositReminder] No se pudo actualizar factura de {dep.user_id}: {e}")
-
-            dep.reminder_sent = True
 
         await session.commit()

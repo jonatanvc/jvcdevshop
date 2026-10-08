@@ -78,6 +78,19 @@ class Deposit(Base):
         Index("ix_deposits_user_status", "user_id", "status"),
     )
 
+class FinancialNotification(Base):
+    __tablename__ = "financial_notifications"
+
+    id = Column(Integer, primary_key=True, autoincrement=True)
+    event_key = Column(String(128), unique=True, nullable=False)
+    event_type = Column(String(32), nullable=False)
+    payload = Column(Text, nullable=False)
+    attempts = Column(Integer, default=0, nullable=False)
+    next_attempt_at = Column(DateTime, default=utc_now, nullable=False, index=True)
+    last_error = Column(Text, nullable=True)
+    created_at = Column(DateTime, default=utc_now, nullable=False)
+    delivered_at = Column(DateTime, nullable=True, index=True)
+
 class Order(Base):
     __tablename__ = "orders"
 

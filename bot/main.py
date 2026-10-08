@@ -1,5 +1,6 @@
 import asyncio
 import html
+import time
 from pathlib import Path
 from tempfile import gettempdir
 from datetime import datetime, timezone, timedelta
@@ -7,7 +8,7 @@ from pyrogram import Client, idle
 from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from sqlalchemy import update
 from bot.config import settings
-from bot.database.session import init_db, async_session
+from bot.database.session import init_db, async_session, engine
 from bot.database.models import Deposit, DepositStatus, Order, User, VirtualNumberOrder
 from bot.handlers import register_all_handlers
 from bot.services.bunai_client import bunai_api
@@ -16,12 +17,14 @@ from bot.services.backup_service import backup_service
 from bot.services.stock_watcher import stock_watcher
 from bot.services.vip_service import vip_service
 from bot.services.deposit_reminder import check_and_send_deposit_reminders
-from bot.services.deposit_monitor import deposit_monitor_worker
+from bot.services import deposit_monitor as deposit_monitor_service
+from bot.services.financial_outbox import financial_notification_worker
 from bot.services.virtual_numbers import check_and_notify_pending_virtual_orders
 from bot.services.fivesim_client import fivesim_api
 from bot.handlers.support import retry_pending_admin_ticket_notifications, retry_pending_user_ticket_notifications
 from bot.utils.i18n import t
 from bot.utils.navigation import USER_LAST_MESSAGES, USER_LAST_MESSAGES_IS_MEDIA, render_screen
+from sqlalchemy import text
 
 async def provider_balance_monitor(app: Client):
     """Monitorea periódicamente el saldo en BunaiStore para alertar al canal de auditoría si está bajo"""
@@ -287,11 +290,34 @@ async def virtual_numbers_worker(app: Client):
 
 async def bot_health_worker(app: Client):
     health_file = Path(gettempdir()) / "bot-health"
+    scanner_alerted = False
     while True:
-        if app.is_connected:
+        database_healthy = False
+        try:
+            async with engine.connect() as connection:
+                await connection.execute(text("SELECT 1"))
+            database_healthy = True
+        except Exception as exc:
+            print(f"[HealthCheck] PostgreSQL no disponible: {type(exc).__name__}")
+
+        scanner_last_success = deposit_monitor_service.last_successful_scan_at
+        scanner_timeout = max(180, settings.BSC_MONITOR_INTERVAL_SECONDS * 3 + 30)
+        scanner_healthy = (
+            scanner_last_success is not None
+            and time.monotonic() - scanner_last_success <= scanner_timeout
+        )
+        if app.is_connected and database_healthy and scanner_healthy:
             health_file.touch()
+            scanner_alerted = False
         else:
             health_file.unlink(missing_ok=True)
+            if app.is_connected and database_healthy and not scanner_healthy and not scanner_alerted:
+                await audit_logger.log_system_alert(
+                    client=app,
+                    title="SCANNER BSC ATRASADO",
+                    details=f"No se completó un escaneo BSC correctamente en los últimos {scanner_timeout} segundos.",
+                )
+                scanner_alerted = True
         await asyncio.sleep(20)
 
 async def main():
@@ -357,7 +383,8 @@ async def main():
         asyncio.create_task(provider_balance_monitor(app), name="provider-balance"),
         asyncio.create_task(fivesim_balance_monitor(app), name="fivesim-balance"),
         asyncio.create_task(deposit_expiry_worker(app), name="deposit-expiry"),
-        asyncio.create_task(deposit_monitor_worker(app), name="bsc-deposit-monitor"),
+        asyncio.create_task(deposit_monitor_service.deposit_monitor_worker(app), name="bsc-deposit-monitor"),
+        asyncio.create_task(financial_notification_worker(app), name="financial-notifications"),
         asyncio.create_task(stale_orders_worker(app), name="stale-orders-review"),
         asyncio.create_task(deposit_reminder_worker(app), name="deposit-reminders"),
         asyncio.create_task(virtual_numbers_worker(app), name="virtual-numbers"),
