@@ -533,6 +533,7 @@ def register_catalog_handlers(app: Client):
             now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
             is_active_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
 
+            active_coupon = None
             if not has_stock:
                 total_price = 0.0
                 can_buy = False
@@ -574,7 +575,6 @@ def register_catalog_handlers(app: Client):
                     subtotal = subtotal * (1.0 - (discount_pct / 100.0))
 
                 coupon_line = ""
-                active_coupon = None
                 if user and user.active_coupon_code:
                     ok, msg, c_obj, c_disc = await promo_service.validate_coupon(
                         session=session,
