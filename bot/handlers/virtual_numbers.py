@@ -18,7 +18,7 @@ from bot.services.vouchers import voucher_service
 from bot.services.audit_logger import audit_logger
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
-from bot.utils.emojis import InlineKeyboardButton, receipt_logo_for_user
+from bot.utils.emojis import InlineKeyboardButton, receipt_logo_for_user, redact_provider_names
 
 COUNTRIES_PER_PAGE = 6
 VNUM_SEARCH_STATES: Dict[int, str] = {}
@@ -91,7 +91,7 @@ async def render_countries_screen(client: Client, target: Any, user_id: int, ser
     if not offers:
         text = (
             f"📲 <b>{service_info['name']} — Países no disponibles</b>\n\n"
-            f"En este momento no hay números en stock para <b>{service_info['name']}</b> en los proveedores de 5SIM.\n\n"
+            f"En este momento no hay números en stock para <b>{service_info['name']}</b>.\n\n"
             f"<i>Por favor intenta más tarde o prueba con otra plataforma.</i>"
         )
         keyboard = InlineKeyboardMarkup([
@@ -199,12 +199,12 @@ async def execute_vnum_search(
     target = callback if callback else user_id
     if offers is None:
         if callback:
-            await callback.answer("🔎 Buscando países en 5SIM...")
+            await callback.answer("🔎 Buscando países disponibles...")
         else:
             await render_screen(
                 client,
                 user_id,
-                "🔎 <b>Buscando países disponibles en 5SIM...</b>",
+                "🔎 <b>Buscando países disponibles...</b>",
                 InlineKeyboardMarkup([[
                     InlineKeyboardButton("🔙 Volver a Plataformas", callback_data="vnum:catalog")
                 ]]),
@@ -222,7 +222,7 @@ async def execute_vnum_search(
             await render_screen(
                 client,
                 target,
-                "⚠️ 5SIM no respondió. La búsqueda no se perdió; vuelve a intentarlo.",
+                "⚠️ El proveedor de números no respondió. La búsqueda no se perdió; vuelve a intentarlo.",
                 error_keyboard,
             )
             return
@@ -368,7 +368,7 @@ def register_virtual_numbers_handlers(app: Client):
             await callback.answer("❌ Plataforma no disponible.", show_alert=True)
             return
 
-        await callback.answer("⏳ Consultando países disponibles en 5SIM...")
+        await callback.answer("⏳ Consultando países disponibles...")
         await render_countries_screen(client, callback, user_id, service_code, page, sort_by=sort_by)
 
     # ==========================================
@@ -543,7 +543,7 @@ def register_virtual_numbers_handlers(app: Client):
         country_code = callback.matches[0].group(2)
         raw_method = callback.matches[0].group(3)
 
-        await callback.answer("⏳ Solicitando número en 5SIM...")
+        await callback.answer("⏳ Solicitando número...")
 
         is_owner = settings.is_owner(user_id)
         pay_with_api = bool(is_owner and (raw_method == "api" or raw_method is None))
@@ -677,7 +677,7 @@ def register_virtual_numbers_handlers(app: Client):
         res = await virtual_numbers_service.cancel_and_refund_order(order_id, user_id, client=client)
 
         if "error" in res:
-            await callback.answer(f"❌ {res['error']}", show_alert=True)
+            await callback.answer(redact_provider_names(f"❌ {res['error']}"), show_alert=True)
             await show_live_order_screen(client, callback, order_id, user_id)
             return
 
@@ -689,7 +689,7 @@ def register_virtual_numbers_handlers(app: Client):
         if is_api_pay:
             refund_info = (
                 f"💰 <b>Saldo Reembolsado:</b> <code>+${refunded:.2f} USD</code>\n"
-                f"<i>Los fondos fueron devueltos directamente a tu cuenta de 5SIM.net.</i>"
+                f"<i>Los fondos fueron devueltos directamente a la cuenta del proveedor.</i>"
             )
         else:
             refund_info = (
@@ -699,7 +699,7 @@ def register_virtual_numbers_handlers(app: Client):
 
         text = (
             f"✅ <b>NÚMERO CANCELADO EXITOSAMENTE</b>\n\n"
-            f"La orden fue liberada en 5SIM y no se generó ningún cargo.\n\n"
+            f"La orden fue liberada y no se generó ningún cargo.\n\n"
             f"{refund_info}"
         )
         buttons_cancel = []
@@ -723,12 +723,12 @@ def register_virtual_numbers_handlers(app: Client):
         order_id = int(callback.matches[0].group(1))
         user_id = callback.from_user.id
 
-        await callback.answer("⏳ Reportando número bloqueado a 5SIM y reembolsando...")
+        await callback.answer("⏳ Reportando el número bloqueado y procesando el reembolso...")
 
         res = await virtual_numbers_service.ban_and_refund_order(order_id, user_id, client=client)
 
         if "error" in res:
-            await callback.answer(f"❌ {res['error']}", show_alert=True)
+            await callback.answer(redact_provider_names(f"❌ {res['error']}"), show_alert=True)
             await show_live_order_screen(client, callback, order_id, user_id)
             return
 
@@ -740,7 +740,7 @@ def register_virtual_numbers_handlers(app: Client):
         if is_api_pay:
             refund_info = (
                 f"💰 <b>Saldo Reintegrado:</b> <code>+${refunded:.2f} USD</code>\n"
-                f"<i>Los fondos volvieron directamente a tu cuenta de la API 5SIM.</i>"
+                f"<i>Los fondos volvieron directamente a la cuenta del proveedor.</i>"
             )
         else:
             refund_info = (
@@ -750,7 +750,7 @@ def register_virtual_numbers_handlers(app: Client):
 
         text = (
             f"🚫 <b>NÚMERO REPORTADO Y REEMBOLSADO</b>\n\n"
-            f"El número fue reportado a 5SIM como no funcional/bloqueado y se anuló cualquier cargo.\n\n"
+            f"El número fue reportado como no funcional/bloqueado y se anuló cualquier cargo.\n\n"
             f"{refund_info}\n\n"
             f"<i>Puedes solicitar otro número inmediatamente:</i>"
         )
@@ -785,7 +785,7 @@ def register_virtual_numbers_handlers(app: Client):
         user_id = callback.from_user.id
         result = await virtual_numbers_service.finish_and_close_order(order_id, user_id)
         if "error" in result:
-            await callback.answer(result["error"], show_alert=True)
+            await callback.answer(redact_provider_names(result["error"]), show_alert=True)
             return
         await callback.answer("✅ Número finalizado correctamente. ¡Gracias por tu compra!", show_alert=True)
         keyboard = InlineKeyboardMarkup([
@@ -842,7 +842,7 @@ def register_virtual_numbers_handlers(app: Client):
                     current_bal = float(user.balance) if user else 0.0
 
                 if current_bal < req_price:
-                    await callback.answer(f"❌ Saldo insuficiente en 5SIM (${fivesim_bal:.2f}) y en el bot (${current_bal:.2f})", show_alert=True)
+                    await callback.answer(f"❌ Saldo insuficiente en el proveedor (${fivesim_bal:.2f}) y en el bot (${current_bal:.2f})", show_alert=True)
                     return
         else:
             async with async_session() as session:
@@ -873,7 +873,7 @@ def register_virtual_numbers_handlers(app: Client):
         await render_screen(
             client,
             callback,
-            "⚡ <b>Asignando nuevo número virtual en 5SIM...</b>\n<i>Por favor espera unos segundos.</i>",
+            "⚡ <b>Asignando nuevo número virtual...</b>\n<i>Por favor espera unos segundos.</i>",
             None
         )
 
@@ -992,7 +992,7 @@ async def show_live_order_screen(client: Client, target: Any, order_id: int, use
                 [InlineKeyboardButton("🏠 Menú Principal", callback_data="menu_main")]
             ])
             if getattr(order, "payment_method", "bot") == "api":
-                exp_text = "⏰ <b>Tiempo agotado sin recibir el código SMS.</b>\n\n<i>La orden finalizó y tu saldo fue reintegrado a tu cuenta de la API 5SIM.</i>"
+                exp_text = "⏰ <b>Tiempo agotado sin recibir el código SMS.</b>\n\n<i>La orden finalizó y tu saldo fue reintegrado a la cuenta del proveedor.</i>"
             else:
                 exp_text = "⏰ <b>Tiempo agotado sin recibir el código SMS.</b>\n\n<i>La orden finalizó y tu saldo fue reembolsado al 100% en tu billetera.</i>"
             await render_screen(client, target, exp_text, keyboard)

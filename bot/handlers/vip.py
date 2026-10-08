@@ -258,8 +258,8 @@ def register_vip_handlers(app: Client):
                 parse_mode=ParseMode.HTML
             )
             await callback.answer("📋 Mensaje para cliente enviado abajo para fácil copiado.", show_alert=True)
-        except Exception as e:
-            await callback.answer(f"Error: {e}", show_alert=True)
+        except Exception:
+            await callback.answer("No se pudo completar la acción.", show_alert=True)
 
     @app.on_message(filters.command(["vip"]) & filters.private)
     async def cmd_admin_vip(client: Client, message: Message):

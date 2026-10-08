@@ -65,9 +65,9 @@ class AuditLogger:
         user_mention = self._user_mention(username, user_id, first_name)
         now = get_now_str("%Y-%m-%d %H:%M:%S")
 
-        title = f"👑 <b>COMPRA OWNER (PROVEEDOR API) #ORD_{order_id}</b>" if is_owner else f"{EMOJI_SHOPPING} <b>NUEVA COMPRA REALIZADA #ORD_{order_id}</b>"
-        paid_label = f"{EMOJI_MONEY} <b>Costo Pagado:</b> <code>${paid_price:.2f} USD (API BunaiStore)</code>" if is_owner else f"{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${paid_price:.2f} USDT</code>"
-        bal_label = f"{EMOJI_BAR_CHART} <b>Saldo Restante API:</b> <code>${remaining_balance:.2f} USD</code>" if is_owner else f"{EMOJI_BAR_CHART} <b>Saldo Restante Usuario:</b> <code>${remaining_balance:.2f} USDT</code>"
+        title = f"👑 <b>COMPRA OWNER (SALDO EXTERNO) #ORD_{order_id}</b>" if is_owner else f"{EMOJI_SHOPPING} <b>NUEVA COMPRA REALIZADA #ORD_{order_id}</b>"
+        paid_label = f"{EMOJI_MONEY} <b>Costo Pagado:</b> <code>${paid_price:.2f} USD (saldo externo)</code>" if is_owner else f"{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${paid_price:.2f} USDT</code>"
+        bal_label = f"{EMOJI_BAR_CHART} <b>Saldo Restante Externo:</b> <code>${remaining_balance:.2f} USD</code>" if is_owner else f"{EMOJI_BAR_CHART} <b>Saldo Restante Usuario:</b> <code>${remaining_balance:.2f} USDT</code>"
 
         clean_product_name = html.escape(adjust_warranty_in_name(product_name))
         clean_delivered_items = html.escape(format_delivered_credentials(delivered_items))
@@ -363,7 +363,7 @@ class AuditLogger:
         plat_prefix = f"<emoji id={icon_id}>📲</emoji> " if icon_id else "🌐 "
 
         title = f"👑 <b>ACTIVACIÓN NÚMERO VIRTUAL OWNER #VNUM_{order_id}</b>" if is_owner else f"📲 <b>NUEVA ACTIVACIÓN NÚMERO VIRTUAL #VNUM_{order_id}</b>"
-        paid_label = f"{EMOJI_MONEY} <b>Costo Pagado:</b> <code>${price_usdt:.2f} USD (API 5SIM)</code>" if is_owner else f"{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${price_usdt:.2f} USDT</code>"
+        paid_label = f"{EMOJI_MONEY} <b>Costo Pagado:</b> <code>${price_usdt:.2f} USD (saldo externo)</code>" if is_owner else f"{EMOJI_MONEY} <b>Precio Pagado:</b> <code>${price_usdt:.2f} USDT</code>"
 
         msg = (
             f"{title}\n\n"
@@ -374,7 +374,7 @@ class AuditLogger:
             f"📞 <b>Número:</b> <code>{html.escape(phone)}</code>\n"
             f"🔑 <b>Código OTP Recibido:</b> <code>{html.escape(code)}</code>\n"
             f"{paid_label}\n"
-            f"🆔 <b>ID Orden 5SIM:</b> <code>{fivesim_order_id or 'N/A'}</code>\n"
+            f"🆔 <b>ID de orden externa:</b> <code>{fivesim_order_id or 'N/A'}</code>\n"
             f"{EMOJI_CHECK} <b>Estado:</b> <code>Activación Completada Exitosamente</code>\n"
             f"{EMOJI_CLOCK} <b>Fecha:</b> <code>{now}</code>"
         )

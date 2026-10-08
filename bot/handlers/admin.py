@@ -97,11 +97,11 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
             fivesim_bal = float(fivesim_prof.get("balance", 0.0))
             fivesim_alert = f" {EMOJI_WARN} <i>Error al consultar</i>" if fivesim_prof.get("error") else (f" {EMOJI_WARN} <i>¡Recarga recomendada!</i>" if fivesim_bal < 5.0 else f" {EMOJI_CHECK}")
             fivesim_value = "Error" if fivesim_prof.get("error") else f"${fivesim_bal:.2f} USD"
-            fivesim_line = f"📱 <b>Saldo en 5SIM.net:</b> <code>{fivesim_value}</code>{fivesim_alert}\n"
+            fivesim_line = f"📱 <b>Saldo de números virtuales:</b> <code>{fivesim_value}</code>{fivesim_alert}\n"
         except Exception:
-            fivesim_line = "📱 <b>Saldo en 5SIM.net:</b> <code>Error al consultar</code>\n"
+            fivesim_line = "📱 <b>Saldo de números virtuales:</b> <code>Error al consultar</code>\n"
     else:
-        fivesim_line = "📱 <b>Saldo en 5SIM.net:</b> <code>API Key no configurada</code>\n"
+        fivesim_line = "📱 <b>Saldo de números virtuales:</b> <code>No configurado</code>\n"
 
     status_tag = f"{EMOJI_RED_DOT} ACTIVADO" if maintenance_active else f"{EMOJI_GREEN_DOT} DESACTIVADO"
 
@@ -112,16 +112,16 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
         f"{EMOJI_SHOPPING} <b>Ventas Cuentas/Servicios:</b> <code>{total_orders} pedidos</code> (${total_sales:.2f} USDT)\n"
         f"📱 <b>Ventas Números Virtuales:</b> <code>{vnum_orders} activaciones</code> (${vnum_sales:.2f} USDT)\n"
         f"💰 <b>Total Facturado:</b> <code>{total_combined_orders} ventas</code> (${total_combined_revenue:.2f} USDT)\n\n"
-        f"{EMOJI_PROVIDER} <b>Saldo en BunaiStore:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
+        f"{EMOJI_PROVIDER} <b>Saldo del proveedor de servicios:</b> <code>${bunai_balance:.2f} USD</code>{balance_alert}\n"
         f"{fivesim_line}"
         f"{EMOJI_CHART_DOWN} <b>Gasto Total en Proveedor:</b> <code>${bunai_spent:.2f} USD</code>\n\n"
-        f"{EMOJI_CHART_UP} <b>ESTRATEGIA DE PRECIOS COMPETITIVA (BUNAI & 5SIM):</b>\n"
+        f"{EMOJI_CHART_UP} <b>ESTRATEGIA DE PRECIOS COMPETITIVA:</b>\n"
         f"• <b>Costo &lt; $0.50:</b> <code>x3.5 (+250% | VIP: +180%)</code>\n"
         f"• <b>Costo $0.50 - $0.99:</b> <code>x2.4 (+140% | VIP: +92%)</code>\n"
         f"• <b>Costo $1.00 - $2.99:</b> <code>x1.75 (+75% | VIP: +40%)</code>\n"
         f"• <b>Costo $3.00 - $7.99:</b> <code>x1.50 (+50% | VIP: +20%)</code>\n"
         f"• <b>Costo &ge; $8.00:</b> <code>x1.38 (+38% | VIP: +10.4%)</code>\n"
-        f"{EMOJI_SHIELD} <b>Garantías:</b> <code>50% de BunaiStore</code>\n\n"
+        f"{EMOJI_SHIELD} <b>Garantías:</b> <code>50% del plazo del proveedor</code>\n\n"
         f"{EMOJI_WARN} <b>Modo Mantenimiento:</b> <code>{status_tag}</code>\n\n"
         f"<i>Selecciona una acción administrativa:</i>"
     )
@@ -249,11 +249,11 @@ async def show_admin_diagnostics(client: Client, target: Any):
         f"<b>Depósitos activos:</b> <code>{pending_total}</code> "
         f"(pendientes {deposit_counts['PENDING']}, verificando {deposit_counts['VERIFYING']}, "
         f"en revisión {deposit_counts['REVIEW']})\n"
-        f"<b>Órdenes atascadas &gt;5 min:</b> <code>{stuck_orders} Bunai / {stuck_vnums} 5SIM</code>\n"
-        f"<b>Órdenes Bunai en revisión:</b> <code>{review_orders}</code>\n"
+        f"<b>Órdenes atascadas &gt;5 min:</b> <code>{stuck_orders} catálogo / {stuck_vnums} números</code>\n"
+        f"<b>Órdenes de catálogo en revisión:</b> <code>{review_orders}</code>\n"
         f"<b>Fallos de compra (24 h):</b> <code>{failed_orders}</code>\n\n"
-        f"<b>Saldo BunaiStore:</b> <code>{bunai_balance}</code>\n"
-        f"<b>Saldo 5SIM:</b> <code>{fivesim_balance}</code>\n\n"
+        f"<b>Saldo del proveedor de servicios:</b> <code>{bunai_balance}</code>\n"
+        f"<b>Saldo para números virtuales:</b> <code>{fivesim_balance}</code>\n\n"
         "<b>Depósitos activos (máx. 5):</b>\n" + active_deposits_text + "\n\n"
         "<b>Alertas:</b>\n" + "\n".join(alerts) + "\n\n"
         "<b>Incidentes recientes:</b>\n" + recent_issues_text
@@ -554,7 +554,7 @@ def register_admin_handlers(app: Client):
                 response = f"Orden #{order_id} marcada como completada."
             else:
                 if order.payment_method == "api":
-                    await client.send_message(admin_id, "Confirma primero el resultado/cargo en BunaiStore; no se reembolsa una compra pagada desde la API automáticamente.")
+                    await client.send_message(admin_id, "Confirma primero el resultado/cargo con el proveedor del catálogo; no se reembolsa una compra pagada desde una cuenta externa automáticamente.")
                     return
 
                 user_result = await session.execute(
@@ -630,13 +630,13 @@ def register_admin_handlers(app: Client):
             provider_order_id = order.fivesim_order_id
 
         if not provider_order_id:
-            await client.send_message(admin_id, "La orden no tiene ID 5SIM. No se modificó ni reembolsó; revisa la cuenta del proveedor antes de resolverla.")
+            await client.send_message(admin_id, "La orden no tiene ID del proveedor de números. No se modificó ni reembolsó; revisa la cuenta externa antes de resolverla.")
             return
 
         if action == "check":
             provider_result = await fivesim_api.check_order(provider_order_id)
             if provider_result.get("error") or not provider_result.get("status"):
-                await client.send_message(admin_id, "5SIM no confirmó el estado; la orden sigue en revisión y conserva la reserva.")
+                await client.send_message(admin_id, "El proveedor no confirmó el estado; la orden sigue en revisión y conserva la reserva.")
                 return
             provider_status = str(provider_result["status"]).upper()
             async with async_session() as session:
@@ -663,25 +663,25 @@ def register_admin_handlers(app: Client):
                         user.total_spent = max(Decimal("0"), user.total_spent - order.price_usdt)
                     order.status = "FAILED"
                     order.is_refunded = True
-                    response = f"5SIM reporta <code>{html.escape(provider_status)}</code>; orden #{order_id} cerrada y reserva conciliada."
+                    response = f"El proveedor reporta <code>{html.escape(provider_status)}</code>; orden #{order_id} cerrada y reserva conciliada."
                     target_user_id = order.user_id
                 elif provider_status == "RECEIVED":
                     sms_list = provider_result.get("sms") or []
                     if not sms_list:
-                        await client.send_message(admin_id, "5SIM marca el número como recibido, pero no devolvió SMS; la orden sigue en revisión.")
+                        await client.send_message(admin_id, "El proveedor marca el número como recibido, pero no devolvió el SMS; la orden sigue en revisión.")
                         return
                     latest_sms = sms_list[-1]
                     order.sms_code = str(latest_sms.get("code") or "")
                     order.sms_full_text = str(latest_sms.get("text") or "")
                     order.status = "RECEIVED"
-                    response = f"5SIM reporta SMS recibido; orden #{order_id} actualizada."
+                    response = f"El proveedor confirmó el SMS; orden #{order_id} actualizada."
                     target_user_id = order.user_id
                 elif provider_status in {"PENDING", "WAITING"}:
                     order.status = "PENDING"
-                    response = f"Orden virtual #{order_id} reanudada; 5SIM reporta <code>{html.escape(provider_status)}</code>."
+                    response = f"Orden virtual #{order_id} reanudada; el proveedor informa <code>{html.escape(provider_status)}</code>."
                     target_user_id = order.user_id
                 else:
-                    await client.send_message(admin_id, "Estado 5SIM desconocido; la orden sigue en revisión sin cambios.")
+                    await client.send_message(admin_id, "Estado del proveedor desconocido; la orden sigue en revisión sin cambios.")
                     return
                 await session.commit()
             try:
@@ -692,7 +692,7 @@ def register_admin_handlers(app: Client):
             provider_result = await fivesim_api.cancel_order(provider_order_id)
             cancel_status = str(provider_result.get("status", "")).upper()
             if provider_result.get("error") or cancel_status not in {"CANCELED", "CANCELLED"}:
-                await client.send_message(admin_id, "5SIM no confirmó la cancelación. La orden conserva su estado y saldo reservado.")
+                await client.send_message(admin_id, "El proveedor no confirmó la cancelación. La orden conserva su estado y saldo reservado.")
                 return
 
             async with async_session() as session:
@@ -796,7 +796,7 @@ def register_admin_handlers(app: Client):
 
         bunai_api.invalidate_cache()
         pricing_service.invalidate_cache()
-        await callback.answer("✅ Catálogo sincronizado con BunaiStore.", show_alert=True)
+        await callback.answer("✅ Catálogo sincronizado con el proveedor de servicios.", show_alert=True)
         await cb_admin_menu(client, callback)
 
     @app.on_callback_query(filters.regex("^admin:broadcast$"))
@@ -1038,8 +1038,8 @@ def register_admin_handlers(app: Client):
                 await pricing_service.set_global_margin(session, val)
             await callback.answer(f"✅ Margen actualizado a {val:.1f}%.", show_alert=True)
             await cb_admin_margin_menu(client, callback)
-        except Exception as e:
-            await callback.answer(f"Error: {e}", show_alert=True)
+        except Exception:
+            await callback.answer("No se pudo completar la acción.", show_alert=True)
 
     @app.on_message(filters.private & ~filters.command(["start", "admin", "orderresolve", "vnumresolve", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep", "user", "reply", "vip"]), group=3)
     async def handle_admin_text(client: Client, message: Message):

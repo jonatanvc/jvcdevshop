@@ -67,14 +67,14 @@ class VoucherService:
         stars_bar = "⭐" * stars_clamped
 
         return (
-            f"⭐ <b>COMPROBANTE DE COMPRA EXITOSA</b>\n\n"
+            f"✨ <b>COMPRA CONFIRMADA</b>\n\n"
             f"👤 <b>Cliente:</b> {masked_user}\n"
             f"📦 <b>Producto:</b> <code>{clean_name}</code> (x{qty})\n"
             f"💵 <b>Total Pagado:</b> <code>${total_price:.2f} USDT</code>\n"
             f"🆔 <b>Comprobante #:</b> <code>#ORD_{order_id}</code>\n"
             f"🌟 <b>Calificación:</b> {stars_bar} ({stars_clamped}/5)\n"
             f"📅 <b>Fecha:</b> <code>{now}</code>\n\n"
-            f"🛡️ <i>Servicio entregado de forma automática y 100% garantizada.</i>\n\n"
+            f"✅ <i>Entrega completada correctamente.</i>\n\n"
             f"{PREMIUM_RECEIPT_LOGO}"
         )
 
@@ -201,7 +201,7 @@ class VoucherService:
         stars_bar = "⭐" * stars_clamped
 
         return (
-            f"📲 <b>ACTIVACIÓN DE NÚMERO VIRTUAL</b>\n\n"
+            f"✨ <b>ACTIVACIÓN COMPLETADA</b>\n\n"
             f"👤 <b>Cliente:</b> {masked_user}\n"
             f"{plat_prefix}<b>Plataforma:</b> <b>{service_display}</b>\n"
             f"📍 <b>País:</b> {flag} {safe_country_name}\n"
@@ -211,7 +211,7 @@ class VoucherService:
             f"🌟 <b>Calificación:</b> {stars_bar} ({stars_clamped}/5)\n"
             f"✅ <b>Estado:</b> <code>SMS OTP Recibido</code>\n"
             f"📅 <b>Fecha:</b> <code>{now}</code>\n\n"
-            f"🛡️ <i>Activación instantánea y 100% verificada.</i>\n\n"
+            f"✅ <i>Código recibido y activación completada.</i>\n\n"
             f"{PREMIUM_RECEIPT_LOGO}"
         )
 

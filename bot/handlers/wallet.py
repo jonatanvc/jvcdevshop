@@ -341,8 +341,8 @@ def register_wallet_handlers(app: Client):
                 )
                 await session.commit()
             await callback.answer()
-        except Exception as e:
-            await callback.answer(f"Error: {e}", show_alert=True)
+        except Exception:
+            await callback.answer("No se pudo completar la acción.", show_alert=True)
 
     @app.on_callback_query(filters.regex(r"^deposit:view_inv:(\d+)$"))
     async def cb_view_invoice(client: Client, callback: CallbackQuery):

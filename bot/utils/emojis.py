@@ -607,6 +607,15 @@ _PROTECTED_TAGS_REGEX = re.compile(
     re.DOTALL
 )
 _TG_EMOJI_CONVERTER = re.compile(r'<tg-emoji emoji-id="(\d+)">([^<]+)</tg-emoji>')
+_PROVIDER_NAMES = re.compile(
+    r"https?://(?:api\.)?bunaistore\.shop(?:/[^\s<]*)?|api\.bunaistore\.shop|\bbunai\s*store\b|"
+    r"https?://(?:www\.)?5sim\.net(?:/[^\s<]*)?|5sim\.net|\b5\s*sim\b",
+    re.IGNORECASE,
+)
+
+
+def redact_provider_names(text: str) -> str:
+    return _PROVIDER_NAMES.sub("proveedor externo", str(text))
 
 def strip_custom_emojis(text: str) -> str:
     """
@@ -629,7 +638,7 @@ def parse_emojis(text: str) -> str:
     if not text:
         return ""
 
-    text = str(text)
+    text = redact_provider_names(text)
 
     # Compatibilidad retroactiva: convertir cualquier <tg-emoji emoji-id="..."> a <emoji id="...">
     text = _TG_EMOJI_CONVERTER.sub(r'<emoji id=\1>\2</emoji>', text)

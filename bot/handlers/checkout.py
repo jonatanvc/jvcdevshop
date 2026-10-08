@@ -181,7 +181,7 @@ def register_checkout_handlers(app: Client):
                 elif float(user.balance) >= total_price:
                     pay_with_api = False
                 else:
-                    await callback.answer(f"❌ Saldo insuficiente (${api_balance:.2f} API / ${float(user.balance):.2f} Bot)", show_alert=True)
+                    await callback.answer(f"❌ Saldo insuficiente (${api_balance:.2f} externo / ${float(user.balance):.2f} en el bot)", show_alert=True)
                     return
 
             if not pay_with_api:
@@ -299,7 +299,7 @@ def register_checkout_handlers(app: Client):
                 fail_text = (
                     f"❌ <b>NO SE PUDO COMPLETAR LA COMPRA OWNER</b>\n\n"
                     f"El proveedor rechazó la orden:\n<code>{html.escape(str(error_msg)[:500])}</code>\n\n"
-                    f"<i>Tu saldo del bot no fue afectado. Verifica tu cuenta en BunaiStore.</i>"
+                    f"<i>Tu saldo del bot no fue afectado. Verifica tu cuenta externa antes de reintentar.</i>"
                 )
             else:
                 fail_text = t("purchase_fail_title", lang, total=total_price)
@@ -423,7 +423,7 @@ def register_checkout_handlers(app: Client):
         if is_owner:
             currency_tag = "USD (API)" if pay_with_api else "USDT (Bot)"
             balance_tag = f"💳 <b>Saldo Restante API:</b> <code>${audit_rem_bal:.2f} USD</code>" if pay_with_api else f"💳 <b>Saldo Restante Bot:</b> <code>${audit_rem_bal:.2f} USDT</code>"
-            footer_note = "<i>👑 Compra procesada a precio de costo con tu saldo directo de BunaiStore.</i>" if pay_with_api else "<i>👑 Compra procesada a precio de costo con tu saldo en el bot.</i>"
+            footer_note = "<i>👑 Compra procesada a precio de costo con tu saldo externo.</i>" if pay_with_api else "<i>👑 Compra procesada a precio de costo con tu saldo en el bot.</i>"
             success_text = (
                 f"👑 <b>¡COMPRA OWNER REALIZADA CON ÉXITO!</b>\n\n"
                 f"📦 <b>Producto:</b> <code>{safe_pname}</code> (x{qty})\n"
