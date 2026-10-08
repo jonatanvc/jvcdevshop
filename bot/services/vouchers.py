@@ -7,7 +7,7 @@ from pyrogram.types import InlineKeyboardMarkup, InlineKeyboardButton
 from bot.config import settings
 from bot.utils.time_utils import get_now_str
 from bot.utils.formatters import adjust_warranty_in_name
-from bot.utils.emojis import parse_emojis
+from bot.utils.emojis import PREMIUM_RECEIPT_LOGO, parse_emojis
 
 logger = logging.getLogger(__name__)
 
@@ -74,7 +74,8 @@ class VoucherService:
             f"🆔 <b>Comprobante #:</b> <code>#ORD_{order_id}</code>\n"
             f"🌟 <b>Calificación:</b> {stars_bar} ({stars_clamped}/5)\n"
             f"📅 <b>Fecha:</b> <code>{now}</code>\n\n"
-            f"🛡️ <i>Servicio entregado de forma automática y 100% garantizada.</i>"
+            f"🛡️ <i>Servicio entregado de forma automática y 100% garantizada.</i>\n\n"
+            f"{PREMIUM_RECEIPT_LOGO}"
         )
 
     async def publish_product_voucher(
@@ -210,7 +211,8 @@ class VoucherService:
             f"🌟 <b>Calificación:</b> {stars_bar} ({stars_clamped}/5)\n"
             f"✅ <b>Estado:</b> <code>SMS OTP Recibido</code>\n"
             f"📅 <b>Fecha:</b> <code>{now}</code>\n\n"
-            f"🛡️ <i>Activación instantánea y 100% verificada.</i>"
+            f"🛡️ <i>Activación instantánea y 100% verificada.</i>\n\n"
+            f"{PREMIUM_RECEIPT_LOGO}"
         )
 
     async def publish_virtual_number_voucher(

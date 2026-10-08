@@ -14,7 +14,7 @@ from bot.services.fivesim_client import fivesim_api
 from bot.services.pricing import pricing_service
 from bot.services.audit_logger import audit_logger
 from bot.services.vouchers import voucher_service
-from bot.utils.emojis import PLATFORM_EMOJIS, parse_emojis, parse_keyboard, InlineKeyboardButton
+from bot.utils.emojis import PLATFORM_EMOJIS, parse_emojis, parse_keyboard, InlineKeyboardButton, receipt_logo_for_user
 
 logger = logging.getLogger(__name__)
 
@@ -980,6 +980,16 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                         logger.warning(f"[VirtualNumberOrder Polling] Error enviando auditoría: {e_audit}")
 
                 try:
+                    is_vip = False
+                    async with async_session() as session:
+                        user = await session.scalar(select(User).where(User.telegram_id == order.user_id))
+                        now = datetime.now(timezone.utc).replace(tzinfo=None)
+                        is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
+                except Exception as exc:
+                    logger.warning(f"[VirtualNumberOrder Polling] No se pudo consultar VIP: {exc}")
+                try:
+                    receipt_logo = receipt_logo_for_user(is_vip, settings.is_owner(order.user_id))
+                    receipt_logo_suffix = f"\n\n{receipt_logo}" if receipt_logo else ""
                     success_text = (
                         f"🎉 <b>¡CÓDIGO DE VERIFICACIÓN RECIBIDO!</b>\n\n"
                         f"• <b>Plataforma:</b> {html.escape(order.service_name.upper())}\n"
@@ -989,6 +999,7 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                         f"💬 <b>SMS Completo:</b>\n"
                         f"<i>\"{html.escape(text_msg)}\"</i>\n\n"
                         f"✅ <i>¡Activación completada con éxito!</i>"
+                        f"{receipt_logo_suffix}"
                     )
                     kb = InlineKeyboardMarkup([
                         [

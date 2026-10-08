@@ -10,6 +10,21 @@ def pe(emoji_id: str, fallback: str) -> str:
     """Retorna el emoji unicode nativo para mensajes de texto 100% compatibles sin errores MTProto"""
     return fallback
 
+PREMIUM_RECEIPT_EMOJI_IDS = (
+    "5136410999137502847",
+    "5136496292893034692",
+    "5138836891155564408",
+    "5138839944877311987",
+    "5136498470441453359",
+)
+PREMIUM_RECEIPT_LOGO = " ".join(
+    f"<emoji id={emoji_id}>❗</emoji>" for emoji_id in PREMIUM_RECEIPT_EMOJI_IDS
+)
+
+
+def receipt_logo_for_user(is_vip: bool, is_owner: bool = False) -> str:
+    return "" if is_vip or is_owner else PREMIUM_RECEIPT_LOGO
+
 # --- BOTONES Y MENÚS PRINCIPALES ---
 # --- BOTONES Y MENÚS PRINCIPALES ---
 # 7- Catálogo de Servicios - (5278613311858959074)

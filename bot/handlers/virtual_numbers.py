@@ -2,7 +2,7 @@ import math
 import html
 import unicodedata
 from datetime import datetime, timezone
-from typing import Dict, Any, Optional, Tuple
+from typing import Dict, Any, List, Optional, Tuple
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, Message, InlineKeyboardMarkup
 from sqlalchemy import select
@@ -18,11 +18,12 @@ from bot.services.vouchers import voucher_service
 from bot.services.audit_logger import audit_logger
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
-from bot.utils.emojis import InlineKeyboardButton
+from bot.utils.emojis import InlineKeyboardButton, receipt_logo_for_user
 
 COUNTRIES_PER_PAGE = 6
 VNUM_SEARCH_STATES: Dict[int, str] = {}
 VNUM_LAST_SEARCH: Dict[int, Tuple[str, str]] = {}
+VNUM_SEARCH_OFFERS: Dict[int, Tuple[str, str, List[Dict[str, Any]]]] = {}
 
 def normalize_text(text: str) -> str:
     """Normaliza texto removiendo acentos y convirtiendo a minúsculas para búsquedas flexibles"""
@@ -183,11 +184,49 @@ async def render_countries_screen(client: Client, target: Any, user_id: int, ser
 
     await render_screen(client, target, text, InlineKeyboardMarkup(buttons))
 
-async def execute_vnum_search(client: Client, user_id: int, service_code: str, query: str, page: int = 1, callback: Optional[CallbackQuery] = None):
+async def execute_vnum_search(
+    client: Client,
+    user_id: int,
+    service_code: str,
+    query: str,
+    page: int = 1,
+    callback: Optional[CallbackQuery] = None,
+    offers: Optional[List[Dict[str, Any]]] = None,
+):
     """Ejecuta la búsqueda de países filtrando por código y nombre en español"""
     VNUM_LAST_SEARCH[user_id] = (service_code, query)
     service_info = CURATED_SERVICES.get(service_code, {"name": service_code.capitalize()})
-    offers = await fivesim_api.get_service_offers(service_code)
+    target = callback if callback else user_id
+    if offers is None:
+        if callback:
+            await callback.answer("🔎 Buscando países en 5SIM...")
+        else:
+            await render_screen(
+                client,
+                user_id,
+                "🔎 <b>Buscando países disponibles en 5SIM...</b>",
+                InlineKeyboardMarkup([[
+                    InlineKeyboardButton("🔙 Volver a Plataformas", callback_data="vnum:catalog")
+                ]]),
+            )
+        try:
+            offers = await fivesim_api.get_service_offers(service_code)
+        except Exception:
+            offers = None
+
+        if offers is None:
+            error_keyboard = InlineKeyboardMarkup([
+                [InlineKeyboardButton("🔄 Reintentar búsqueda", callback_data=f"vnum:search_prompt:{service_code}")],
+                [InlineKeyboardButton("🔙 Volver a Plataformas", callback_data="vnum:catalog")],
+            ])
+            await render_screen(
+                client,
+                target,
+                "⚠️ 5SIM no respondió. La búsqueda no se perdió; vuelve a intentarlo.",
+                error_keyboard,
+            )
+            return
+        VNUM_SEARCH_OFFERS[user_id] = (service_code, query, offers)
 
     norm_query = normalize_text(query)
 
@@ -207,7 +246,6 @@ async def execute_vnum_search(client: Client, user_id: int, service_code: str, q
         is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
 
     price_label = "USDT"
-    target = callback if callback else user_id
     safe_query = html.escape(query)
 
     if not matched_offers:
@@ -386,7 +424,19 @@ def register_virtual_numbers_handlers(app: Client):
             return
 
         service_code, query = cached
-        await execute_vnum_search(client, user_id, service_code, query, page=page, callback=callback)
+        cached_offers = VNUM_SEARCH_OFFERS.get(user_id)
+        offers = cached_offers[2] if cached_offers and cached_offers[:2] == (service_code, query) else None
+        if offers is not None:
+            await callback.answer("🔎 Abriendo resultados...")
+        await execute_vnum_search(
+            client,
+            user_id,
+            service_code,
+            query,
+            page=page,
+            callback=callback,
+            offers=offers,
+        )
 
     @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "orderresolve", "vnumresolve", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=5)
     async def handle_vnum_search_text(client: Client, message: Message):
@@ -993,6 +1043,7 @@ async def show_success_screen(client: Client, target: Any, check_res: Dict[str, 
     country = check_res.get("country", "")
 
     current_rating = None
+    receipt_logo = ""
     async with async_session() as session:
         r = await session.execute(select(VirtualNumberOrder).where(VirtualNumberOrder.id == order_id))
         o = r.scalar_one_or_none()
@@ -1000,6 +1051,14 @@ async def show_success_screen(client: Client, target: Any, check_res: Dict[str, 
             service = service or o.service_name
             country = country or o.country
             current_rating = o.rating
+            try:
+                user = await session.scalar(select(User).where(User.telegram_id == o.user_id))
+                now = datetime.now(timezone.utc).replace(tzinfo=None)
+                is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now)
+                receipt_logo = receipt_logo_for_user(is_vip, settings.is_owner(o.user_id))
+            except Exception:
+                receipt_logo = ""
+    receipt_logo_suffix = f"\n\n{receipt_logo}" if receipt_logo else ""
 
     text = (
         f"🎉 <b>¡CÓDIGO DE VERIFICACIÓN RECIBIDO!</b>\n\n"
@@ -1009,6 +1068,7 @@ async def show_success_screen(client: Client, target: Any, check_res: Dict[str, 
         f"💬 <b>Mensaje Completo:</b>\n"
         f"<i>\"{full_text}\"</i>\n\n"
         f"✅ <i>¡Activación en curso! Si necesitas un segundo código del mismo número, pulsa 'Esperar Otro SMS'.</i>"
+        f"{receipt_logo_suffix}"
     )
 
     buttons = []

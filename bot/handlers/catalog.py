@@ -1,7 +1,7 @@
 import asyncio
 import html
 from datetime import datetime, timezone
-from typing import Union, Optional
+from typing import Dict, Union, Optional
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from sqlalchemy import select
@@ -22,13 +22,14 @@ from bot.utils.emojis import (
 )
 
 SEARCH_STATES = {}
+SEARCH_LAST_QUERY: Dict[int, str] = {}
 CUSTOM_QTY_STATES = {}
 
 def get_product_icon(name: str, for_html: bool = False) -> str:
     """Asigna un icono representativo según el catálogo de servicios"""
     return get_service_icon(name, for_html=for_html)
 
-def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode: str, lang: str = "es", is_vip: bool = False) -> InlineKeyboardMarkup:
+def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode: str, lang: str = "es", is_vip: bool = False, search_mode: bool = False) -> InlineKeyboardMarkup:
     """Construye la botonera inline del catálogo ultra limpia con botón de categorías dedicado y precios VIP"""
     buttons = []
 
@@ -49,14 +50,16 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
     if total_pages > 1:
         nav_row = []
         if page > 1:
-            nav_row.append(InlineKeyboardButton("◀️", callback_data=f"catalog:{filter_mode}:{page - 1}"))
+            page_callback = f"catalog_search_page:{page - 1}" if search_mode else f"catalog:{filter_mode}:{page - 1}"
+            nav_row.append(InlineKeyboardButton("◀️", callback_data=page_callback))
         else:
             nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
 
         nav_row.append(InlineKeyboardButton(f"{page}/{total_pages}", callback_data="noop"))
 
         if page < total_pages:
-            nav_row.append(InlineKeyboardButton("▶️", callback_data=f"catalog:{filter_mode}:{page + 1}"))
+            page_callback = f"catalog_search_page:{page + 1}" if search_mode else f"catalog:{filter_mode}:{page + 1}"
+            nav_row.append(InlineKeyboardButton("▶️", callback_data=page_callback))
         else:
             nav_row.append(InlineKeyboardButton("🔵", callback_data="noop"))
         
@@ -64,7 +67,10 @@ def build_catalog_keyboard(items: list, page: int, total_pages: int, filter_mode
 
     # 3. Fila de Controles: Actualizar y Selector Directo de Categorías
     buttons.append([
-        InlineKeyboardButton(t("btn_refresh", lang), callback_data=f"catalog_refresh:{filter_mode}:{page}"),
+        InlineKeyboardButton(
+            t("btn_refresh", lang),
+            callback_data=f"catalog_search_refresh:{page}" if search_mode else f"catalog_refresh:{filter_mode}:{page}",
+        ),
         InlineKeyboardButton(t("btn_categories", lang), callback_data=f"catalog:picker:{filter_mode}:{page}")
     ])
 
@@ -190,6 +196,7 @@ def register_catalog_handlers(app: Client):
 
         current_filter = callback.matches[0].group(1)
         current_page = int(callback.matches[0].group(2))
+        await callback.answer("Cargando categorías...")
 
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
@@ -223,6 +230,7 @@ def register_catalog_handlers(app: Client):
 
         filter_mode = callback.matches[0].group(1)
         page = int(callback.matches[0].group(2))
+        await callback.answer("Cargando catálogo...")
 
         async with async_session() as session:
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
@@ -322,7 +330,15 @@ def register_catalog_handlers(app: Client):
             user = user_res.scalar_one_or_none()
             lang = getattr(user, "language", "es") or "es"
 
-            products = await pricing_service.get_processed_catalog(session, filter_mode="disponibles", force_refresh=False)
+            try:
+                products = await pricing_service.get_processed_catalog(session, filter_mode="disponibles", force_refresh=False)
+            except CatalogUnavailableError:
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t("btn_refresh", lang), callback_data="catalog_refresh:disponibles:1")],
+                    [InlineKeyboardButton(t("btn_back", lang), callback_data="menu_main")],
+                ])
+                await render_screen(client, user_id, "⚠️ No se pudo consultar el catálogo. Inténtalo de nuevo en unos minutos.", keyboard)
+                return
             items_page, total_pages, current_page = pricing_service.paginate(products, page=1, page_size=PAGE_SIZE)
 
             now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
@@ -350,6 +366,7 @@ def register_catalog_handlers(app: Client):
             lang = getattr(user, "language", "es") or "es"
 
         if len(message.command) < 2:
+            SEARCH_STATES[user_id] = True
             text = t("search_prompt_title", lang)
             keyboard = InlineKeyboardMarkup([[InlineKeyboardButton(t("btn_back", lang), callback_data="catalog:disponibles:1")]])
             await render_screen(client, user_id, text, keyboard)
@@ -357,6 +374,30 @@ def register_catalog_handlers(app: Client):
 
         query = " ".join(message.command[1:]).lower()
         await execute_search(client, user_id, query, lang)
+
+    @app.on_callback_query(filters.regex(r"^catalog_search_(page|refresh):(\d+)$"))
+    async def cb_catalog_search_page(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        action = callback.matches[0].group(1)
+        page = int(callback.matches[0].group(2))
+        query = SEARCH_LAST_QUERY.get(user_id)
+        if not query:
+            await callback.answer("⚠️ La búsqueda expiró. Vuelve a buscar el servicio.", show_alert=True)
+            return
+
+        await callback.answer("🔎 Actualizando resultados..." if action == "refresh" else "🔎 Abriendo resultados...")
+        async with async_session() as session:
+            user = await session.scalar(select(User).where(User.telegram_id == user_id))
+            lang = getattr(user, "language", "es") or "es"
+        await execute_search(
+            client,
+            user_id,
+            query,
+            lang,
+            page=page,
+            target=callback,
+            force_refresh=action == "refresh",
+        )
 
     @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "orderresolve", "vnumresolve", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=1)
     async def handle_catalog_text_inputs(client: Client, message: Message):
@@ -435,10 +476,38 @@ def register_catalog_handlers(app: Client):
 
         message.continue_propagation()
 
-    async def execute_search(client: Client, user_id: int, query: str, lang: str):
+    async def execute_search(
+        client: Client,
+        user_id: int,
+        query: str,
+        lang: str,
+        page: int = 1,
+        target=None,
+        force_refresh: bool = False,
+    ):
+        SEARCH_LAST_QUERY[user_id] = query
+        if target is None:
+            await render_screen(client, user_id, "🔎 <b>Buscando servicios...</b>")
         safe_query = html.escape(query)
         async with async_session() as session:
-            products = await pricing_service.get_processed_catalog(session, filter_mode="todos", force_refresh=False)
+            try:
+                products = await pricing_service.get_processed_catalog(
+                    session,
+                    filter_mode="todos",
+                    force_refresh=force_refresh,
+                )
+            except CatalogUnavailableError:
+                keyboard = InlineKeyboardMarkup([
+                    [InlineKeyboardButton(t("btn_refresh", lang), callback_data=f"catalog_search_refresh:{page}")],
+                    [InlineKeyboardButton(t("btn_back", lang), callback_data="catalog:disponibles:1")],
+                ])
+                await render_screen(
+                    client,
+                    target or user_id,
+                    "⚠️ No se pudo consultar el catálogo. Pulsa actualizar para reintentar.",
+                    keyboard,
+                )
+                return
             results = [p for p in products if query in p["name"].lower() or query in p["product_id"].lower()]
 
             if not results:
@@ -447,7 +516,7 @@ def register_catalog_handlers(app: Client):
                     [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
                     [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
                 ])
-                await render_screen(client, user_id, text, keyboard)
+                await render_screen(client, target or user_id, text, keyboard)
                 return
 
             user_res = await session.execute(select(User).where(User.telegram_id == user_id))
@@ -455,11 +524,19 @@ def register_catalog_handlers(app: Client):
             now_utc = datetime.now(timezone.utc).replace(tzinfo=None)
             is_vip = bool(user and user.is_vip and user.vip_expires_at and user.vip_expires_at > now_utc)
 
-            items_page, total_pages, current_page = pricing_service.paginate(results, page=1, page_size=PAGE_SIZE)
+            items_page, total_pages, current_page = pricing_service.paginate(results, page=page, page_size=PAGE_SIZE)
             vip_banner = "👑 <i>(Modo Revendedor VIP: 20% OFF aplicado)</i>\n\n" if is_vip else ""
             text = f"{vip_banner}" + t("search_results_title", lang, query=safe_query, count=len(results)) + "\n"
-            keyboard = build_catalog_keyboard(items_page, current_page, total_pages, "todos", lang, is_vip=is_vip)
-            await render_screen(client, user_id, text, keyboard)
+            keyboard = build_catalog_keyboard(
+                items_page,
+                current_page,
+                total_pages,
+                "todos",
+                lang,
+                is_vip=is_vip,
+                search_mode=True,
+            )
+            await render_screen(client, target or user_id, text, keyboard)
 
     async def render_product_screen(
         client: Client,

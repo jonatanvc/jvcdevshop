@@ -15,7 +15,7 @@ from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.translator import translate_text
-from bot.utils.emojis import EMOJI_STAR, EMOJI_PIN
+from bot.utils.emojis import EMOJI_STAR, EMOJI_PIN, receipt_logo_for_user
 from bot.utils.formatters import adjust_warranty_in_name, format_delivered_credentials
 from bot.services.promos import promo_service
 from bot.services.vouchers import voucher_service
@@ -446,6 +446,10 @@ def register_checkout_handlers(app: Client):
                 items=safe_items,
                 after_note=after_note_block
             )
+
+        receipt_logo = receipt_logo_for_user(is_active_vip, is_owner)
+        if receipt_logo:
+            success_text += f"\n\n{receipt_logo}"
 
         buttons_success = []
         if is_active_vip or is_owner:
