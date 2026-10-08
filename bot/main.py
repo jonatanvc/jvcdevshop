@@ -1,4 +1,5 @@
 import asyncio
+import html
 from pathlib import Path
 from tempfile import gettempdir
 from datetime import datetime, timezone, timedelta
@@ -18,7 +19,7 @@ from bot.services.deposit_reminder import check_and_send_deposit_reminders
 from bot.services.deposit_monitor import deposit_monitor_worker
 from bot.services.virtual_numbers import check_and_notify_pending_virtual_orders
 from bot.services.fivesim_client import fivesim_api
-from bot.handlers.support import retry_pending_admin_ticket_notifications
+from bot.handlers.support import retry_pending_admin_ticket_notifications, retry_pending_user_ticket_notifications
 from bot.utils.i18n import t
 from bot.utils.navigation import USER_LAST_MESSAGES, USER_LAST_MESSAGES_IS_MEDIA, render_screen
 
@@ -28,6 +29,13 @@ async def provider_balance_monitor(app: Client):
         try:
             await asyncio.sleep(3600)  # Cada 1 hora
             profile = await bunai_api.get_me()
+            if profile.get("error"):
+                await audit_logger.log_system_alert(
+                    client=app,
+                    title="ERROR DE CONEXIÓN CON BUNAISTORE",
+                    details=f"No se pudo consultar el saldo: <code>{html.escape(str(profile['error'])[:400])}</code>"
+                )
+                continue
             balance = float(profile.get("balance", 0.0))
             if balance < 10.0:
                 alert_text = (
@@ -53,8 +61,12 @@ async def fivesim_balance_monitor(app: Client):
                 continue
 
             profile = await fivesim_api.get_profile()
-            if "error" in profile and not profile.get("balance"):
-                await asyncio.sleep(600)
+            if profile.get("error"):
+                await audit_logger.log_system_alert(
+                    client=app,
+                    title="ERROR DE CONEXIÓN CON 5SIM",
+                    details=f"No se pudo consultar el saldo: <code>{html.escape(str(profile['error'])[:400])}</code>"
+                )
                 continue
 
             balance = float(profile.get("balance", 0.0))
@@ -249,6 +261,7 @@ async def support_notification_worker(app: Client):
     while True:
         try:
             await retry_pending_admin_ticket_notifications(app)
+            await retry_pending_user_ticket_notifications(app)
         except Exception as e:
             print(f"[SupportNotificationWorker Error] {e}")
         await asyncio.sleep(60)

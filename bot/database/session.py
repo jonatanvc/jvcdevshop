@@ -66,7 +66,8 @@ async def init_db():
             "ALTER TABLE virtual_number_orders ALTER COLUMN status SET DEFAULT 'PROCESSING';",
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS is_banned BOOLEAN DEFAULT FALSE;",
             "ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS admin_notification_pending BOOLEAN DEFAULT FALSE NOT NULL;",
-            "ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS admin_notification_kind VARCHAR(16);"
+            "ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS admin_notification_kind VARCHAR(16);",
+            "ALTER TABLE ticket_messages ADD COLUMN IF NOT EXISTS user_notification_pending BOOLEAN DEFAULT FALSE NOT NULL;"
         ]
         for sql in migrations:
             await conn.execute(text(sql))

@@ -85,15 +85,19 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
     bunai_balance = float(bunai_profile.get("balance", 0.0))
     bunai_spent = float(bunai_profile.get("api_spent", 0.0))
 
-    balance_alert = f" {EMOJI_WARN} <i>¡Recarga recomendada!</i>" if bunai_balance < 10.0 else f" {EMOJI_CHECK}"
+    balance_alert = (
+        f" {EMOJI_WARN} <i>Error al consultar</i>" if bunai_profile.get("error")
+        else (f" {EMOJI_WARN} <i>¡Recarga recomendada!</i>" if bunai_balance < 10.0 else f" {EMOJI_CHECK}")
+    )
 
     fivesim_line = ""
     if fivesim_api.is_configured():
         try:
             fivesim_prof = await fivesim_api.get_profile()
             fivesim_bal = float(fivesim_prof.get("balance", 0.0))
-            fivesim_alert = f" {EMOJI_WARN} <i>¡Recarga recomendada!</i>" if fivesim_bal < 5.0 else f" {EMOJI_CHECK}"
-            fivesim_line = f"📱 <b>Saldo en 5SIM.net:</b> <code>${fivesim_bal:.2f} USD</code>{fivesim_alert}\n"
+            fivesim_alert = f" {EMOJI_WARN} <i>Error al consultar</i>" if fivesim_prof.get("error") else (f" {EMOJI_WARN} <i>¡Recarga recomendada!</i>" if fivesim_bal < 5.0 else f" {EMOJI_CHECK}")
+            fivesim_value = "Error" if fivesim_prof.get("error") else f"${fivesim_bal:.2f} USD"
+            fivesim_line = f"📱 <b>Saldo en 5SIM.net:</b> <code>{fivesim_value}</code>{fivesim_alert}\n"
         except Exception:
             fivesim_line = "📱 <b>Saldo en 5SIM.net:</b> <code>Error al consultar</code>\n"
     else:
@@ -135,6 +139,7 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
             InlineKeyboardButton("🎟️ Gestión de Cupones", callback_data="admin:coupons:page:1"),
             InlineKeyboardButton("🎁 Tarjetas de Regalo", callback_data="admin:gifts:page:1")
         ],
+        [InlineKeyboardButton("🩺 Diagnóstico operativo", callback_data="admin:diagnostics")],
         [
             InlineKeyboardButton("📣 Enviar Difusión (Broadcast)", callback_data="admin:broadcast"),
             InlineKeyboardButton("💾 Backup BD", callback_data="admin:download_backup")
@@ -144,6 +149,116 @@ async def show_admin_panel(client: Client, target: Any, user_id: int):
         ]
     ])
 
+    await render_screen(client, target, text, keyboard)
+
+
+async def show_admin_diagnostics(client: Client, target: Any):
+    now = datetime.now(timezone.utc).replace(tzinfo=None)
+    stale_before = now - timedelta(minutes=5)
+    day_ago = now - timedelta(hours=24)
+
+    async with async_session() as session:
+        deposit_counts = {}
+        for status in (DepositStatus.PENDING, DepositStatus.VERIFYING, DepositStatus.REVIEW):
+            result = await session.execute(
+                select(func.count(Deposit.id)).where(Deposit.status == status)
+            )
+            deposit_counts[status.value] = result.scalar() or 0
+
+        stuck_orders_result = await session.execute(
+            select(func.count(Order.id)).where(
+                Order.status == "PROCESSING", Order.created_at < stale_before
+            )
+        )
+        review_orders_result = await session.execute(
+            select(func.count(Order.id)).where(Order.status == "REVIEW")
+        )
+        failed_orders_result = await session.execute(
+            select(func.count(Order.id)).where(
+                Order.status == "FAILED", Order.created_at >= day_ago
+            )
+        )
+        stuck_vnums_result = await session.execute(
+            select(func.count(VirtualNumberOrder.id)).where(
+                VirtualNumberOrder.status.in_(["PROCESSING", "REVIEW"]),
+                VirtualNumberOrder.created_at < stale_before
+            )
+        )
+        recent_issues_result = await session.execute(
+            select(Order).where(
+                Order.status.in_(["REVIEW", "FAILED"]), Order.created_at >= day_ago
+            ).order_by(Order.created_at.desc()).limit(5)
+        )
+        recent_issues = recent_issues_result.scalars().all()
+        active_deposits_result = await session.execute(
+            select(Deposit).where(
+                Deposit.status.in_([
+                    DepositStatus.PENDING,
+                    DepositStatus.VERIFYING,
+                    DepositStatus.REVIEW,
+                ])
+            ).order_by(Deposit.created_at.asc()).limit(5)
+        )
+        active_deposits = active_deposits_result.scalars().all()
+
+    bunai_profile = await bunai_api.get_me(force_refresh=True)
+    bunai_balance = "Error de API" if bunai_profile.get("error") else f"${float(bunai_profile.get('balance', 0.0)):.2f} USD"
+
+    if fivesim_api.is_configured():
+        fivesim_profile = await fivesim_api.get_profile()
+        fivesim_balance = "Error de API" if fivesim_profile.get("error") else f"${float(fivesim_profile.get('balance', 0.0)):.2f} USD"
+    else:
+        fivesim_balance = "API Key no configurada"
+
+    issue_lines = []
+    for order in recent_issues:
+        reason = html.escape((order.provider_note or "Sin detalle del proveedor")[:180])
+        issue_lines.append(
+            f"• <code>ORD_{order.id}</code> {html.escape(order.status)}: "
+            f"{html.escape(order.product_name[:60])} | {reason}"
+        )
+    recent_issues_text = "\n".join(issue_lines) if issue_lines else "• Sin fallos ni revisiones en las últimas 24 h."
+    deposit_lines = [
+        f"• <code>DEP_{deposit.id}</code> usuario <code>{deposit.user_id}</code> "
+        f"${float(deposit.exact_amount):.6f} | {html.escape(deposit.status.value)} | "
+        f"vence {deposit.expires_at.strftime('%d/%m %H:%M UTC')}"
+        for deposit in active_deposits
+    ]
+    active_deposits_text = "\n".join(deposit_lines) if deposit_lines else "• Sin depósitos activos."
+
+    pending_total = sum(deposit_counts.values())
+    stuck_orders = stuck_orders_result.scalar() or 0
+    review_orders = review_orders_result.scalar() or 0
+    failed_orders = failed_orders_result.scalar() or 0
+    stuck_vnums = stuck_vnums_result.scalar() or 0
+    alerts = []
+    if deposit_counts[DepositStatus.REVIEW.value]:
+        alerts.append(f"⚠️ {deposit_counts[DepositStatus.REVIEW.value]} depósito(s) requieren revisión manual.")
+    if stuck_orders or stuck_vnums:
+        alerts.append("⚠️ Hay órdenes en proceso por más de 5 minutos.")
+    if review_orders:
+        alerts.append(f"⚠️ {review_orders} orden(es) Bunai esperan resolución.")
+    if not alerts:
+        alerts.append("✅ No hay alertas operativas pendientes detectadas.")
+
+    text = (
+        "🩺 <b>DIAGNÓSTICO OPERATIVO</b>\n\n"
+        f"<b>Depósitos activos:</b> <code>{pending_total}</code> "
+        f"(pendientes {deposit_counts['PENDING']}, verificando {deposit_counts['VERIFYING']}, "
+        f"en revisión {deposit_counts['REVIEW']})\n"
+        f"<b>Órdenes atascadas &gt;5 min:</b> <code>{stuck_orders} Bunai / {stuck_vnums} 5SIM</code>\n"
+        f"<b>Órdenes Bunai en revisión:</b> <code>{review_orders}</code>\n"
+        f"<b>Fallos de compra (24 h):</b> <code>{failed_orders}</code>\n\n"
+        f"<b>Saldo BunaiStore:</b> <code>{bunai_balance}</code>\n"
+        f"<b>Saldo 5SIM:</b> <code>{fivesim_balance}</code>\n\n"
+        "<b>Depósitos activos (máx. 5):</b>\n" + active_deposits_text + "\n\n"
+        "<b>Alertas:</b>\n" + "\n".join(alerts) + "\n\n"
+        "<b>Incidentes recientes:</b>\n" + recent_issues_text
+    )
+    keyboard = InlineKeyboardMarkup([
+        [InlineKeyboardButton("🔄 Actualizar", callback_data="admin:diagnostics")],
+        [InlineKeyboardButton("🔙 Panel de administración", callback_data="admin:menu")]
+    ])
     await render_screen(client, target, text, keyboard)
 
 BROADCAST_SEGMENTS = {
@@ -622,6 +737,15 @@ def register_admin_handlers(app: Client):
             await callback.answer("⛔ Acceso denegado.", show_alert=True)
             return
         await show_admin_panel(client, callback, user_id)
+
+    @app.on_callback_query(filters.regex(r"^admin:diagnostics$"))
+    async def cb_admin_diagnostics(client: Client, callback: CallbackQuery):
+        user_id = callback.from_user.id
+        if not is_admin(user_id):
+            await callback.answer("⛔ Acceso denegado.", show_alert=True)
+            return
+        await callback.answer("Actualizando diagnóstico...")
+        await show_admin_diagnostics(client, callback)
 
     @app.on_callback_query(filters.regex("^admin:download_backup$"))
     async def cb_download_backup(client: Client, callback: CallbackQuery):

@@ -22,6 +22,16 @@ from bot.services.vouchers import voucher_service
 
 _ACTIVE_CHECKOUT_USERS: Set[int] = set()
 
+def is_definitively_rejected(status_code) -> bool:
+    return (
+        isinstance(status_code, int)
+        and 400 <= status_code < 500
+        and status_code not in (408, 409, 425, 429)
+    )
+
+def has_sufficient_stock(stock_count: int, quantity: int, infinite_stock: bool) -> bool:
+    return infinite_stock or stock_count >= quantity
+
 def register_checkout_handlers(app: Client):
 
     @app.on_callback_query(filters.regex(r"^checkout:confirm:([^:]+):(\d+)(?::([a-z]+))?$"))
@@ -156,7 +166,7 @@ def register_checkout_handlers(app: Client):
             product_name = adjust_warranty_in_name(p_data.get("display_name") or p_data.get("name") or "Servicio Digital")
             stock_count = int(p_data.get("stock_count", 0))
             infinite_stock = bool(p_data.get("infinite_stock", False))
-            if not infinite_stock and stock_count < qty:
+            if not has_sufficient_stock(stock_count, qty, infinite_stock):
                 await callback.answer("❌ Stock insuficiente en el proveedor", show_alert=True)
                 return
 
@@ -234,17 +244,17 @@ def register_checkout_handlers(app: Client):
         if not order_res.get("success"):
             error_msg = order_res.get("error", "Error desconocido")
             status_code = order_res.get("status_code")
-            definitively_rejected = (
-                isinstance(status_code, int)
-                and 400 <= status_code < 500
-                and status_code not in (408, 409, 425, 429)
-            )
+            definitively_rejected = is_definitively_rejected(status_code)
             async with async_session() as session:
                 if definitively_rejected:
                     await session.execute(
                         update(Order)
                         .where(Order.id == internal_order_id, Order.status == "PROCESSING")
-                        .values(status="FAILED", delivered_items="El proveedor rechazó la orden")
+                        .values(
+                            status="FAILED",
+                            delivered_items="El proveedor rechazó la orden",
+                            provider_note=str(error_msg)[:1000]
+                        )
                     )
                     if not pay_with_api:
                         # Revertir el débito solo tras un rechazo definitivo del proveedor.
@@ -268,7 +278,7 @@ def register_checkout_handlers(app: Client):
                     rollback_stmt = (
                         update(Order)
                         .where(Order.id == internal_order_id, Order.status == "PROCESSING")
-                        .values(status="REVIEW")
+                        .values(status="REVIEW", provider_note=str(error_msg)[:1000])
                     )
                     await session.execute(rollback_stmt)
                 await session.commit()

@@ -72,7 +72,7 @@ class BunaiAPIClient:
         except Exception:
             pass
 
-        return {"balance": 0.0, "api_spent": 0.0}
+        return {"balance": 0.0, "api_spent": 0.0, "error": "No se pudo consultar el saldo de BunaiStore."}
 
     async def get_balance(self, force_refresh: bool = False) -> float:
         """Consulta directamente el saldo disponible en la API de BunaiStore"""

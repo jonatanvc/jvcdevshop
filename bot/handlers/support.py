@@ -589,9 +589,12 @@ async def deliver_admin_ticket_reply(client: Client, admin_id: int, ticket_id: i
             ticket_id=ticket_id,
             sender_id=admin_id,
             is_admin=True,
-            message_text=reply_text
+            message_text=reply_text,
+            user_notification_pending=True
         )
         session.add(msg)
+        await session.flush()
+        message_id = msg.id
         await session.commit()
 
     # Confirmación al Admin
@@ -600,7 +603,21 @@ async def deliver_admin_ticket_reply(client: Client, admin_id: int, ticket_id: i
         text=parse_emojis(f"✅ <b>Respuesta entregada al cliente del Ticket #{ticket_id}.</b>")
     )
 
-    # Envío al Cliente por DM
+    await _deliver_admin_ticket_reply_dm(client, target_uid, ticket_id, reply_text, message_id)
+
+
+async def _mark_user_notification_delivered(message_id: int) -> None:
+    async with async_session() as session:
+        await session.execute(
+            update(TicketMessage)
+            .where(TicketMessage.id == message_id)
+            .values(user_notification_pending=False)
+        )
+        await session.commit()
+
+
+async def _deliver_admin_ticket_reply_dm(client: Client, target_uid: int, ticket_id: int, reply_text: str, message_id: int) -> bool:
+    """Entrega una respuesta del staff y conserva pendiente el DM si Telegram falla."""
     safe_reply = html.escape(reply_text)
     dm_text = (
         f"💬 <b>RESPUESTA DE SOPORTE (Ticket #{ticket_id})</b>\n\n"
@@ -620,8 +637,32 @@ async def deliver_admin_ticket_reply(client: Client, admin_id: int, ticket_id: i
     ])
     try:
         await client.send_message(chat_id=target_uid, text=parse_emojis(dm_text), reply_markup=parse_keyboard(dm_keyboard))
+        await _mark_user_notification_delivered(message_id)
+        return True
     except Exception as e:
         print(f"[DeliverReply Error]: {e}")
+        return False
+
+
+async def retry_pending_user_ticket_notifications(client: Client) -> None:
+    async with async_session() as session:
+        result = await session.execute(
+            select(TicketMessage, SupportTicket)
+            .join(SupportTicket, TicketMessage.ticket_id == SupportTicket.id)
+            .where(
+                TicketMessage.user_notification_pending.is_(True),
+                TicketMessage.is_admin.is_(True)
+            )
+            .order_by(TicketMessage.id)
+            .limit(50)
+        )
+        pending = [
+            (message.id, ticket.user_id, ticket.id, message.message_text or "")
+            for message, ticket in result.all()
+        ]
+
+    for message_id, user_id, ticket_id, reply_text in pending:
+        await _deliver_admin_ticket_reply_dm(client, user_id, ticket_id, reply_text, message_id)
 
 async def _mark_admin_notification_delivered(message_id: Optional[int]) -> None:
     if message_id is None:
