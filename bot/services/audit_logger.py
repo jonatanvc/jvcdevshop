@@ -2,6 +2,7 @@ import html
 from typing import Optional
 from pyrogram import Client
 from pyrogram.enums import ParseMode
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from bot.config import settings
 from bot.utils.time_utils import get_now_str
 from bot.utils.formatters import adjust_warranty_in_name, format_delivered_credentials
@@ -22,7 +23,12 @@ class AuditLogger:
             return f"@{html.escape(username)}"
         return f"<a href='tg://user?id={user_id}'>{html.escape(first_name)}</a>"
 
-    async def _send_log(self, client: Client, text: str) -> Optional[int]:
+    async def _send_log(
+        self,
+        client: Client,
+        text: str,
+        reply_markup: Optional[InlineKeyboardMarkup] = None,
+    ) -> Optional[int]:
         """Envía un mensaje de auditoría al grupo privado configurado y devuelve su ID"""
         if not self.log_group_id or self.log_group_id == 0:
             return None
@@ -33,7 +39,8 @@ class AuditLogger:
                 chat_id=self.log_group_id,
                 text=text,
                 parse_mode=ParseMode.HTML,
-                disable_web_page_preview=True
+                disable_web_page_preview=True,
+                reply_markup=reply_markup,
             )
             return msg.id
         except Exception as e:
@@ -96,8 +103,8 @@ class AuditLogger:
             f"{EMOJI_INBOX} <b>NUEVA SOLICITUD DE DEPÓSITO</b>\n\n"
             f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
             f"💵 <b>Monto Base Solicitado:</b> <code>${base_amount:.2f} USDT</code>\n"
-            f"{EMOJI_TARGET} <b>Monto Exacto Asignado:</b> <code>{exact_amount:.4f} USDT</code>\n"
-            f"{EMOJI_HOURGLASS} <b>Vigencia:</b> 30 minutos\n"
+            f"{EMOJI_TARGET} <b>Monto Exacto Asignado:</b> <code>${exact_amount:.6f} USDT</code>\n"
+            f"{EMOJI_HOURGLASS} <b>Vigencia:</b> {settings.DEPOSIT_EXPIRY_MINUTES} minutos\n"
             f"{EMOJI_CLOCK} <b>Fecha:</b> <code>{now}</code>"
         )
         return await self._send_log(client, msg)
@@ -119,7 +126,7 @@ class AuditLogger:
         msg = (
             f"{EMOJI_CROSS} <b>SOLICITUD DE DEPÓSITO CANCELADA</b>\n\n"
             f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
-            f"{EMOJI_MONEY} <b>Monto Cancelado:</b> <code>${amount_cancelled:.4f} USDT</code>\n"
+            f"{EMOJI_MONEY} <b>Monto Cancelado:</b> <code>${amount_cancelled:.6f} USDT</code>\n"
             f"🆔 <b>ID Depósito:</b> <code>DEP_{deposit_id}</code>\n"
             f"{EMOJI_CLOCK} <b>Cancelado:</b> <code>{now}</code>"
         )
@@ -143,6 +150,85 @@ class AuditLogger:
         # Fallback si no se pudo editar el mensaje previo
         await self._send_log(client, msg)
 
+    async def log_deposit_review(
+        self,
+        client: Client,
+        deposit_id: int,
+        user_id: int,
+        username: Optional[str],
+        first_name: str,
+        amount: float,
+        tx_hash: str,
+        log_message_id: Optional[int] = None,
+    ) -> Optional[int]:
+        """Marks a late on-chain payment for one-click administrator review."""
+        user_mention = self._user_mention(username, user_id, first_name)
+        safe_hash = html.escape(tx_hash, quote=True)
+        bsc_link = f"https://bscscan.com/tx/{safe_hash}"
+        msg = (
+            "⏳ <b>PAGO BSC REQUIERE REVISIÓN ADMINISTRATIVA</b>\n\n"
+            f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
+            f"{EMOJI_MONEY} <b>Importe:</b> <code>{amount:.6f} USDT</code>\n"
+            f"{EMOJI_LINK} <b>Transacción:</b> <a href='{bsc_link}'>{safe_hash[:10]}...{safe_hash[-8:]}</a>\n"
+            f"🆔 <b>Depósito:</b> <code>DEP_{deposit_id}</code>\n\n"
+            "La factura venció o fue cancelada. El bot volverá a validar el pago al pulsar Añadir saldo."
+        )
+        keyboard = InlineKeyboardMarkup([[
+            InlineKeyboardButton("➕ Añadir saldo", callback_data=f"deposit:review:add:{deposit_id}")
+        ]])
+
+        if not self.log_group_id or self.log_group_id == 0:
+            return None
+        if log_message_id:
+            try:
+                await client.edit_message_text(
+                    chat_id=self.log_group_id,
+                    message_id=log_message_id,
+                    text=parse_emojis(msg),
+                    parse_mode=ParseMode.HTML,
+                    disable_web_page_preview=True,
+                    reply_markup=keyboard,
+                )
+                return log_message_id
+            except Exception as exc:
+                print(f"[AuditLogger deposit review edit error]: {exc}")
+        return await self._send_log(client, msg, reply_markup=keyboard)
+
+    async def log_deposit_expired(
+        self,
+        client: Client,
+        deposit_id: int,
+        user_id: int,
+        amount: float,
+        log_message_id: Optional[int] = None,
+    ) -> None:
+        """Edits the invoice audit message when its payment window expires."""
+        now = get_now_str("%Y-%m-%d %H:%M:%S")
+        msg = (
+            "⌛ <b>SOLICITUD DE DEPÓSITO VENCIDA</b>\n\n"
+            f"{EMOJI_USER} <b>Usuario:</b> <code>{user_id}</code>\n"
+            f"{EMOJI_MONEY} <b>Importe solicitado:</b> <code>{amount:.6f} USDT</code>\n"
+            f"🆔 <b>Depósito:</b> <code>DEP_{deposit_id}</code>\n"
+            f"{EMOJI_CLOCK} <b>Venció:</b> <code>{now}</code>\n\n"
+            "Si llega una transferencia tarde, aparecerá aquí para revisión administrativa."
+        )
+        if not self.log_group_id or self.log_group_id == 0:
+            return
+        if log_message_id:
+            try:
+                await client.edit_message_text(
+                    chat_id=self.log_group_id,
+                    message_id=log_message_id,
+                    text=parse_emojis(msg),
+                    parse_mode=ParseMode.HTML,
+                    disable_web_page_preview=True,
+                    reply_markup=None,
+                )
+                return
+            except Exception as exc:
+                print(f"[AuditLogger deposit expired edit error]: {exc}")
+        await self._send_log(client, msg)
+
     async def log_deposit_confirmed(
         self,
         client: Client,
@@ -164,8 +250,8 @@ class AuditLogger:
         msg = (
             f"{EMOJI_CHECK} <b>DEPÓSITO CONFIRMADO EN BLOCKCHAIN</b>\n\n"
             f"{EMOJI_USER} <b>Usuario:</b> {user_mention} (<code>{user_id}</code>)\n"
-            f"{EMOJI_MONEY} <b>Monto Acreditado:</b> <code>+${amount:.4f} USDT</code>\n"
-            f"{EMOJI_CARD} <b>Nuevo Saldo Usuario:</b> <code>${new_balance:.4f} USDT</code>\n"
+            f"{EMOJI_MONEY} <b>Monto Acreditado:</b> <code>+${amount:.6f} USDT</code>\n"
+            f"{EMOJI_CARD} <b>Nuevo Saldo Usuario:</b> <code>${new_balance:.6f} USDT</code>\n"
             f"{EMOJI_LINK} <b>Hash / TxID:</b> <a href='{bsc_link}'>{safe_tx_hash[:10]}...{safe_tx_hash[-8:]}</a>\n"
             f"🆔 <b>ID Depósito:</b> <code>DEP_{deposit_id or 'N/A'}</code>\n"
             f"{EMOJI_CLOCK} <b>Confirmado:</b> <code>{now}</code>"
@@ -183,6 +269,14 @@ class AuditLogger:
                     parse_mode=ParseMode.HTML,
                     disable_web_page_preview=True
                 )
+                try:
+                    await client.edit_message_reply_markup(
+                        chat_id=self.log_group_id,
+                        message_id=log_message_id,
+                        reply_markup=None,
+                    )
+                except Exception as exc:
+                    print(f"[AuditLogger remove deposit review button error]: {exc}")
                 return
             except Exception as e:
                 print(f"[AuditLogger edit confirmed error]: {e}")

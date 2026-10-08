@@ -3,10 +3,11 @@ from pathlib import Path
 from tempfile import gettempdir
 from datetime import datetime, timezone, timedelta
 from pyrogram import Client, idle
+from pyrogram.types import InlineKeyboardButton, InlineKeyboardMarkup
 from sqlalchemy import update
 from bot.config import settings
 from bot.database.session import init_db, async_session
-from bot.database.models import Deposit, DepositStatus, Order, VirtualNumberOrder
+from bot.database.models import Deposit, DepositStatus, Order, User, VirtualNumberOrder
 from bot.handlers import register_all_handlers
 from bot.services.bunai_client import bunai_api
 from bot.services.audit_logger import audit_logger
@@ -14,9 +15,12 @@ from bot.services.backup_service import backup_service
 from bot.services.stock_watcher import stock_watcher
 from bot.services.vip_service import vip_service
 from bot.services.deposit_reminder import check_and_send_deposit_reminders
+from bot.services.deposit_monitor import deposit_monitor_worker
 from bot.services.virtual_numbers import check_and_notify_pending_virtual_orders
 from bot.services.fivesim_client import fivesim_api
 from bot.handlers.support import retry_pending_admin_ticket_notifications
+from bot.utils.i18n import t
+from bot.utils.navigation import USER_LAST_MESSAGES, USER_LAST_MESSAGES_IS_MEDIA, render_screen
 
 async def provider_balance_monitor(app: Client):
     """Monitorea periódicamente el saldo en BunaiStore para alertar al canal de auditoría si está bajo"""
@@ -69,20 +73,27 @@ async def fivesim_balance_monitor(app: Client):
             print(f"[FiveSimBalanceMonitor Error] {e}")
             await asyncio.sleep(600)
 
-async def deposit_expiry_worker():
+async def deposit_expiry_worker(app: Client):
     """Limpia periódicamente depósitos pendientes expirados (Anti-Memory/Lock Leak)"""
     while True:
         try:
-            await asyncio.sleep(300)  # Cada 5 minutos
+            await asyncio.sleep(30)
             async with async_session() as session:
                 now = datetime.now(timezone.utc).replace(tzinfo=None)
                 verification_cutoff = now - timedelta(minutes=15)
-                stmt = (
+                expired_rows = (await session.execute(
                     update(Deposit)
-                    .where(Deposit.status == DepositStatus.PENDING, Deposit.expires_at < now)
+                    .where(Deposit.status == DepositStatus.PENDING, Deposit.expires_at <= now)
                     .values(status=DepositStatus.EXPIRED)
-                )
-                await session.execute(stmt)
+                    .returning(
+                        Deposit.id,
+                        Deposit.user_id,
+                        Deposit.exact_amount,
+                        Deposit.user_message_id,
+                        Deposit.user_message_is_media,
+                        Deposit.log_message_id,
+                    )
+                )).all()
                 await session.execute(
                     update(Deposit)
                     .where(
@@ -110,9 +121,53 @@ async def deposit_expiry_worker():
                     )
                 )
                 await session.commit()
+
+            for deposit_id, user_id, exact_amount, user_message_id, is_media, log_message_id in expired_rows:
+                async with async_session() as session:
+                    user = await session.get(User, user_id)
+                    lang = user.language if user else "es"
+                    deposit = await session.get(Deposit, deposit_id)
+                    if deposit:
+                        deposit.user_message_is_media = False
+                        await session.commit()
+
+                if user_message_id:
+                    if is_media:
+                        try:
+                            await app.delete_messages(user_id, user_message_id)
+                        except Exception:
+                            pass
+                        USER_LAST_MESSAGES.pop(user_id, None)
+                        USER_LAST_MESSAGES_IS_MEDIA.pop(user_id, None)
+                    else:
+                        USER_LAST_MESSAGES[user_id] = user_message_id
+                        USER_LAST_MESSAGES_IS_MEDIA[user_id] = False
+                expired_text = t(
+                    "deposit_expired_screen",
+                    lang,
+                    amount=f"{float(exact_amount):.6f}",
+                )
+                expired_keyboard = InlineKeyboardMarkup([[
+                    InlineKeyboardButton(t("btn_new_deposit", lang), callback_data="wallet:deposit_menu")
+                ]])
+                expired_message = await render_screen(app, user_id, expired_text, expired_keyboard)
+                if expired_message:
+                    async with async_session() as session:
+                        await session.execute(
+                            update(Deposit)
+                            .where(Deposit.id == deposit_id)
+                            .values(
+                                user_message_id=expired_message.id,
+                                user_message_is_media=False,
+                            )
+                        )
+                        await session.commit()
+                await audit_logger.log_deposit_expired(
+                    app, deposit_id, user_id, float(exact_amount), log_message_id
+                )
         except Exception as e:
             print(f"[ExpiryWorker Error] {e}")
-            await asyncio.sleep(300)
+            await asyncio.sleep(30)
 
 async def stale_orders_worker(app: Client):
     """Moves provider requests left in flight by a process crash into manual review."""
@@ -288,7 +343,8 @@ async def main():
     background_tasks = [
         asyncio.create_task(provider_balance_monitor(app), name="provider-balance"),
         asyncio.create_task(fivesim_balance_monitor(app), name="fivesim-balance"),
-        asyncio.create_task(deposit_expiry_worker(), name="deposit-expiry"),
+        asyncio.create_task(deposit_expiry_worker(app), name="deposit-expiry"),
+        asyncio.create_task(deposit_monitor_worker(app), name="bsc-deposit-monitor"),
         asyncio.create_task(stale_orders_worker(app), name="stale-orders-review"),
         asyncio.create_task(deposit_reminder_worker(app), name="deposit-reminders"),
         asyncio.create_task(virtual_numbers_worker(app), name="virtual-numbers"),

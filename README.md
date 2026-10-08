@@ -14,14 +14,15 @@ Bot de Telegram desarrollado en **Python (Pyrogram)** con arquitectura de **1 so
   * 📋 **Todos:** Listado completo del catálogo.
 * **💳 Depósitos Automatizados en USDT BEP-20:**
   * Monto mínimo de $2.00 USDT con botones rápidos ($2, $5, $10, $20, $50) o entrada personalizada.
-  * Generación de decimales únicos (ej. `5.034 USDT`) válidos por 30 minutos.
-  * Verificación on-chain mediante nodo RPC de BNB Smart Chain validando contrato oficial de USDT, receptor y monto exacto.
+  * Facturas con importe único de seis decimales y vencimiento configurable (30 minutos por defecto).
+  * Detección automática de transferencias USDT entrantes en BNB Smart Chain; el usuario no envía hash ni abre una pasarela.
+  * Verificación del contrato oficial, receptor y confirmaciones; los pagos tardíos o de facturas canceladas requieren revisión administrativa con un botón en el canal de logs.
 * **👥 Canal / Grupo Privado de Auditoría (DB del Owner):**
   * Registro en tiempo real de todas las compras con credenciales y cuentas entregadas.
   * Registro de depósitos solicitados y confirmados con enlace a BscScan.
   * Alertas de saldo bajo en BunaiStore (< $10 USD).
 * **🛡️ Seguridad Anti-Exploits Bancaria:**
-  * Protección anti-reuso de Hash (Anti-Replay Attack).
+  * Protección anti-reuso de transacciones y acreditación atómica contra pagos duplicados.
   * Transacciones ACID con bloqueo de fila en PostgreSQL contra doble-gasto concurrente.
   * Rollback automático en caso de falta de stock en el proveedor.
   * Throttling anti-flood.
@@ -61,6 +62,9 @@ USDT_CONTRACT_ADDRESS=0x55d398326f99059fF775485246999027B3197955
 
 DEFAULT_MARGIN_PERCENT=30.0
 MIN_DEPOSIT_USDT=2.0
+DEPOSIT_EXPIRY_MINUTES=30
+BSC_MONITOR_INTERVAL_SECONDS=10
+BSC_INITIAL_SCAN_BLOCKS=5000
 REFERRAL_COMMISSION_PERCENT=5.0
 AUTO_BACKUP_HOURS=24
 BACKUP_ENCRYPTION_KEY=generar_una_clave_fernet_y_guardarla_en_secreto
@@ -71,6 +75,8 @@ POSTGRES_DB=services_bot
 ```
 
 Completa los valores requeridos antes de desplegar. Genera una contraseña de PostgreSQL de al menos 32 caracteres alfanuméricos; se usa dentro de `DATABASE_URL`. `FIVESIM_API_KEY` puede quedar vacío si no se utiliza ese proveedor. No publiques el archivo `.env`; si una credencial real estuvo expuesta, revócala y genera una nueva.
+
+Los depósitos BSC se detectan mediante el RPC configurado: no necesitan dominio público, URL IPN ni cuenta de NOWPayments. El cliente debe enviar exactamente el importe mostrado, por la red BNB Smart Chain (BEP-20), antes de que venza la factura. Una transferencia recibida después del vencimiento o tras cancelar la solicitud aparecerá en `LOG_GROUP_ID`; un administrador autorizado debe pulsar **Añadir saldo** y el bot volverá a verificarla antes de acreditarla. El monitor escanea eventos USDT cada 10 segundos y espera las confirmaciones configuradas en `MIN_BLOCK_CONFIRMATIONS`.
 
 Para habilitar los backups cifrados, genera una clave Fernet con `python -c "from cryptography.fernet import Fernet; print(Fernet.generate_key().decode())"` y guárdala en `BACKUP_ENCRYPTION_KEY` en Dokploy. Conserva esa clave fuera del servidor: los archivos `.json.gz.enc` no pueden restaurarse sin ella. Si no está configurada, el bot no enviará una copia sin cifrar.
 

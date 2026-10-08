@@ -23,8 +23,10 @@ def utc_now() -> datetime:
 class DepositStatus(str, enum.Enum):
     PENDING = "PENDING"
     VERIFYING = "VERIFYING"
+    REVIEW = "REVIEW"
     CONFIRMED = "CONFIRMED"
     EXPIRED = "EXPIRED"
+    CANCELLED = "CANCELLED"
 
 class User(Base):
     __tablename__ = "users"
@@ -32,7 +34,7 @@ class User(Base):
     telegram_id = Column(BigInteger, primary_key=True, index=True)
     username = Column(String(64), nullable=True)
     first_name = Column(String(128), nullable=True)
-    balance = Column(Numeric(12, 4), default=0.0000, nullable=False)
+    balance = Column(Numeric(16, 8), default=0.00000000, nullable=False)
     total_spent = Column(Numeric(12, 4), default=0.0000, nullable=False)
     language = Column(String(5), default="es", nullable=False)
     referred_by = Column(BigInteger, nullable=True)
@@ -55,16 +57,20 @@ class Deposit(Base):
     id = Column(Integer, primary_key=True, autoincrement=True)
     user_id = Column(BigInteger, ForeignKey("users.telegram_id"), nullable=False, index=True)
     base_amount = Column(Numeric(12, 4), nullable=False)
-    exact_amount = Column(Numeric(12, 4), nullable=False, index=True)
+    exact_amount = Column(Numeric(16, 8), nullable=False, index=True)
     tx_hash = Column(String(128), unique=True, nullable=True, index=True)
     status = Column(Enum(DepositStatus), default=DepositStatus.PENDING, nullable=False, index=True)
+    auto_monitor = Column(Boolean, default=False, nullable=False)
     verification_started_at = Column(DateTime, nullable=True)
     reminder_sent = Column(Boolean, default=False, nullable=False)
     expires_at = Column(DateTime, nullable=False)
     created_at = Column(DateTime, default=utc_now, nullable=False)
     confirmed_at = Column(DateTime, nullable=True)
     log_message_id = Column(BigInteger, nullable=True)
-    referral_commission_amount = Column(Numeric(12, 4), default=0.0000, nullable=False)
+    user_message_id = Column(BigInteger, nullable=True)
+    user_message_is_media = Column(Boolean, default=False, nullable=False)
+    block_number = Column(BigInteger, nullable=True)
+    referral_commission_amount = Column(Numeric(16, 8), default=0.00000000, nullable=False)
 
     user = relationship("User", back_populates="deposits")
 

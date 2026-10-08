@@ -26,6 +26,8 @@ async def init_db():
     async with engine.begin() as conn:
         await conn.run_sync(Base.metadata.create_all)
         await conn.execute(text("ALTER TYPE depositstatus ADD VALUE IF NOT EXISTS 'VERIFYING';"))
+        await conn.execute(text("ALTER TYPE depositstatus ADD VALUE IF NOT EXISTS 'REVIEW';"))
+        await conn.execute(text("ALTER TYPE depositstatus ADD VALUE IF NOT EXISTS 'CANCELLED';"))
 
         # Migraciones automáticas idempotentes para bases de datos existentes
         migrations = [
@@ -42,7 +44,15 @@ async def init_db():
             "ALTER TABLE users ADD COLUMN IF NOT EXISTS active_coupon_code VARCHAR(32);",
             "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS reminder_sent BOOLEAN DEFAULT FALSE;",
             "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS verification_started_at TIMESTAMP;",
-            "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS referral_commission_amount NUMERIC(12, 4) DEFAULT 0.0000 NOT NULL;",
+            "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS auto_monitor BOOLEAN DEFAULT FALSE NOT NULL;",
+            "UPDATE deposits SET auto_monitor = TRUE WHERE status = 'PENDING' AND expires_at > CURRENT_TIMESTAMP;",
+            "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS user_message_id BIGINT;",
+            "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS user_message_is_media BOOLEAN DEFAULT FALSE NOT NULL;",
+            "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS block_number BIGINT;",
+            "ALTER TABLE users ALTER COLUMN balance TYPE NUMERIC(16, 8);",
+            "ALTER TABLE deposits ALTER COLUMN exact_amount TYPE NUMERIC(16, 8);",
+            "ALTER TABLE deposits ADD COLUMN IF NOT EXISTS referral_commission_amount NUMERIC(16, 8) DEFAULT 0.00000000 NOT NULL;",
+            "ALTER TABLE deposits ALTER COLUMN referral_commission_amount TYPE NUMERIC(16, 8);",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS provider_note TEXT DEFAULT '' NOT NULL;",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS status VARCHAR(20) DEFAULT 'COMPLETED' NOT NULL;",
             "ALTER TABLE orders ADD COLUMN IF NOT EXISTS payment_method VARCHAR(16) DEFAULT 'bot' NOT NULL;",

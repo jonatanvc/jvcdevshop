@@ -27,10 +27,13 @@ class Settings(BaseSettings):
     BSC_RPC_FALLBACKS_RAW: str = "https://1rpc.io/bnb,https://rpc.ankr.com/bsc,https://bsc.publicnode.com,https://bsc-dataseed1.defibit.io"
     USDT_CONTRACT_ADDRESS: str = "0x55d398326f99059fF775485246999027B3197955"
     MIN_BLOCK_CONFIRMATIONS: int = 3
+    BSC_MONITOR_INTERVAL_SECONDS: int = 10
+    BSC_INITIAL_SCAN_BLOCKS: int = 5000
     
     # Parámetros del servicio
     DEFAULT_MARGIN_PERCENT: float = 30.0
     MIN_DEPOSIT_USDT: float = 2.0
+    DEPOSIT_EXPIRY_MINUTES: int = 30
     REFERRAL_COMMISSION_PERCENT: float = 5.0
     QR_IMAGE_PATH: str = "assets/TrustWalletQR.jpg"
     AUTO_BACKUP_HOURS: int = 24

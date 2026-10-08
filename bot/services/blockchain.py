@@ -21,6 +21,32 @@ def clean_hex(val: Any) -> str:
         h = h[2:]
     return h
 
+
+def parse_incoming_usdt_transfer(log: Dict[str, Any], usdt_contract: str, admin_wallet: str) -> Optional[Dict[str, Any]]:
+    topics = log.get("topics", [])
+    if clean_hex(log.get("address")) != clean_hex(usdt_contract):
+        return None
+    if len(topics) < 3 or clean_hex(topics[0]) != "ddf252ad1be2c89b69c2b068fc378daa952ba7f163c4a11628f55a4df523b3ef":
+        return None
+
+    recipient = clean_hex(topics[2])
+    wallet = clean_hex(admin_wallet)
+    if len(recipient) != 64 or recipient[-40:] != wallet:
+        return None
+
+    data_hex = clean_hex(log.get("data", ""))
+    tx_hash = str(log.get("transactionHash") or "").lower()
+    raw_block = log.get("blockNumber")
+    if not data_hex or not tx_hash or raw_block is None:
+        return None
+
+    return {
+        "tx_hash": tx_hash if tx_hash.startswith("0x") else f"0x{tx_hash}",
+        "block_number": int(clean_hex(raw_block), 16),
+        "log_index": int(clean_hex(log.get("logIndex", "0")), 16),
+        "amount": Decimal(int(data_hex, 16)) / Decimal(10**18),
+    }
+
 class BSCValidator:
     def __init__(self):
         self.rpc_endpoints = settings.rpc_endpoints
@@ -46,6 +72,90 @@ class BSCValidator:
             total_amount += Decimal(int(data_hex, 16) if data_hex else 0) / Decimal(10**18)
             found_transfer = True
         return found_transfer, total_amount
+
+    @staticmethod
+    async def _rpc_call(rpc_url: str, client: httpx.AsyncClient, method: str, params: list) -> Any:
+        response = await client.post(
+            rpc_url,
+            json={"jsonrpc": "2.0", "id": 1, "method": method, "params": params}
+        )
+        response.raise_for_status()
+        payload = response.json()
+        if payload.get("error"):
+            raise RuntimeError(payload["error"].get("message", "BSC RPC request failed"))
+        return payload.get("result")
+
+    async def _scan_rpc_range(
+        self,
+        rpc_url: str,
+        client: httpx.AsyncClient,
+        start_block: int
+    ) -> tuple[int, list[Dict[str, Any]]]:
+        raw_head = await self._rpc_call(rpc_url, client, "eth_blockNumber", [])
+        latest_block = int(clean_hex(raw_head), 16)
+        confirmed_block = latest_block - self.min_confirmations + 1
+        if confirmed_block < start_block:
+            return confirmed_block, []
+
+        events = []
+        cursor = start_block
+        recipient_topic = "0x" + ("0" * 24) + self.admin_wallet
+        while cursor <= confirmed_block:
+            range_end = min(confirmed_block, cursor + 499)
+            logs = await self._rpc_call(
+                rpc_url,
+                client,
+                "eth_getLogs",
+                [{
+                    "address": "0x" + self.usdt_contract,
+                    "fromBlock": hex(cursor),
+                    "toBlock": hex(range_end),
+                    "topics": ["0x" + self.transfer_topic, None, recipient_topic],
+                }]
+            )
+            for log in logs or []:
+                event = parse_incoming_usdt_transfer(log, self.usdt_contract, self.admin_wallet)
+                if event:
+                    events.append(event)
+            cursor = range_end + 1
+
+        block_numbers = sorted({event["block_number"] for event in events})
+        timestamps = {}
+        for block_number in block_numbers:
+            block = await self._rpc_call(
+                rpc_url, client, "eth_getBlockByNumber", [hex(block_number), False]
+            )
+            if not block or not block.get("timestamp"):
+                raise RuntimeError(f"No se pudo obtener el timestamp del bloque {block_number}")
+            timestamps[block_number] = int(clean_hex(block["timestamp"]), 16)
+
+        for event in events:
+            event["timestamp"] = timestamps[event["block_number"]]
+        events.sort(key=lambda event: (event["block_number"], event["log_index"]))
+        return confirmed_block, events
+
+    async def get_confirmed_block_number(self) -> int:
+        """Returns the highest BSC block with the configured confirmation count."""
+        last_error = "No se pudo consultar ningún nodo RPC de BSC."
+        async with httpx.AsyncClient(timeout=12.0, headers={"User-Agent": "JVCDevStoreBot/1.0"}) as client:
+            for rpc_url in self.rpc_endpoints:
+                try:
+                    raw_head = await self._rpc_call(rpc_url, client, "eth_blockNumber", [])
+                    return int(clean_hex(raw_head), 16) - self.min_confirmations + 1
+                except Exception as exc:
+                    last_error = str(exc)
+        raise RuntimeError(f"No se pudo determinar el bloque confirmado de BSC: {last_error}")
+
+    async def scan_incoming_transfers(self, start_block: int) -> tuple[int, list[Dict[str, Any]]]:
+        """Lee eventos USDT entrantes hasta el último bloque con confirmaciones suficientes."""
+        last_error = "No se pudo consultar ningún nodo RPC de BSC."
+        async with httpx.AsyncClient(timeout=12.0, headers={"User-Agent": "JVCDevStoreBot/1.0"}) as client:
+            for rpc_url in self.rpc_endpoints:
+                try:
+                    return await self._scan_rpc_range(rpc_url, client, start_block)
+                except Exception as exc:
+                    last_error = str(exc)
+        raise RuntimeError(f"Error al escanear transferencias USDT en BSC: {last_error}")
 
     async def _query_rpc_httpx(self, rpc_url: str, client: httpx.AsyncClient, tx_hash: str) -> Optional[Dict[str, Any]]:
         """Consulta el recibo de la transacción mediante JSON-RPC HTTP asíncrono directo."""

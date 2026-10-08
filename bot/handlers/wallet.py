@@ -9,12 +9,14 @@ from typing import Dict, Any, Set, Optional
 from pyrogram import Client, filters
 from pyrogram.types import Message, CallbackQuery, InlineKeyboardMarkup, InlineKeyboardButton
 from pyrogram.enums import ParseMode
-from sqlalchemy import func, or_, select, update
+from sqlalchemy import func, select, update
 from sqlalchemy.exc import IntegrityError
 from bot.config import settings
 from bot.database.session import async_session
 from bot.database.models import User, Deposit, DepositStatus, Order, VirtualNumberOrder
 from bot.services.blockchain import bsc_validator
+from bot.services.deposit_accounting import credit_deposit_in_session
+from bot.services.deposit_monitor import notify_deposit_referrer
 from bot.services.audit_logger import audit_logger
 from bot.services.qr_generator import get_wallet_qr_media
 from bot.services.promos import promo_service
@@ -25,12 +27,15 @@ from bot.utils.emojis import parse_emojis, parse_keyboard
 
 USER_STATES: Dict[int, Dict[str, Any]] = {}
 _ACTIVE_HASH_VERIFICATIONS: Set[str] = set()
+DEPOSIT_AMOUNT_SUFFIX_MAX = 1_000_000
 
 def choose_deposit_exact_amount(base_amount: float, reserved_amounts: Set[Decimal]) -> Optional[Decimal]:
-    suffixes = list(range(100, 1000))
-    random.shuffle(suffixes)
-    for suffix in suffixes:
-        exact_amount = Decimal(str(round(base_amount + suffix / 10000.0, 4)))
+    base = Decimal(str(base_amount)).quantize(Decimal("0.000001"))
+    suffix_count = DEPOSIT_AMOUNT_SUFFIX_MAX - 1
+    start = random.randrange(1, DEPOSIT_AMOUNT_SUFFIX_MAX)
+    for offset in range(suffix_count):
+        suffix = ((start + offset - 1) % suffix_count) + 1
+        exact_amount = base + Decimal(suffix) / Decimal("1000000")
         if exact_amount not in reserved_amounts:
             return exact_amount
     return None
@@ -65,16 +70,10 @@ def get_deposit_menu_keyboard(lang: str = "es", active_coupon: Optional[str] = N
     ])
 
 def get_invoice_keyboard(deposit_id: int, lang: str = "es") -> InlineKeyboardMarkup:
-    """Botonera de la pantalla de pago: NO permite salir al menú principal sin cancelar primero"""
+    """Botonera de pago directo; la detección de transferencias es automática."""
     return InlineKeyboardMarkup([
         [
             InlineKeyboardButton(t("btn_show_qr", lang), callback_data=f"deposit:show_qr:{deposit_id}")
-        ],
-        [
-            InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")
-        ],
-        [
-            InlineKeyboardButton(t("btn_verify_payment", lang), callback_data=f"deposit:submit_hash:{deposit_id}")
         ],
         [
             InlineKeyboardButton(t("btn_cancel_request", lang), callback_data=f"deposit:cancel:{deposit_id}")
@@ -85,7 +84,7 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
     """Crea la solicitud de depósito y guarda el log_message_id para editar el mismo mensaje en logs"""
     async with async_session() as session:
         now = datetime.now(timezone.utc).replace(tzinfo=None)
-        expires_at = now + timedelta(minutes=30)
+        expires_at = now + timedelta(minutes=settings.DEPOSIT_EXPIRY_MINUTES)
         await session.execute(select(func.pg_advisory_xact_lock(75103001, 1)))
 
         verifying_stmt = select(Deposit.id).where(
@@ -96,20 +95,15 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
             await render_screen(client, target, t("verifying_tx", lang), None)
             return
 
-        # Si ya existe una solicitud PENDING activa previa, la marcamos como expirada
+        # Replaced invoices are not eligible for automatic credit if paid later.
         cancel_old_stmt = (
             update(Deposit)
             .where(Deposit.user_id == user_id, Deposit.status == DepositStatus.PENDING)
-            .values(status=DepositStatus.EXPIRED)
+            .values(status=DepositStatus.CANCELLED)
         )
         await session.execute(cancel_old_stmt)
         reserved_res = await session.execute(
-            select(Deposit.exact_amount).where(
-                or_(
-                    Deposit.status == DepositStatus.VERIFYING,
-                    (Deposit.status == DepositStatus.PENDING) & (Deposit.expires_at > now)
-                )
-            )
+            select(Deposit.exact_amount)
         )
         reserved_amounts = set(reserved_res.scalars())
         exact_dec = choose_deposit_exact_amount(base_amount, reserved_amounts)
@@ -129,6 +123,7 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
             base_amount=Decimal(str(base_amount)),
             exact_amount=exact_dec,
             status=DepositStatus.PENDING,
+            auto_monitor=True,
             expires_at=expires_at,
             created_at=now,
             log_message_id=None
@@ -158,10 +153,19 @@ async def create_deposit_invoice(client: Client, user_id: int, username: str, fi
     invoice_text = t(
         "invoice_title",
         lang,
-        exact_val=f"{exact_val:.4f}",
-        wallet=settings.ADMIN_WALLET_BSC
+        exact_val=f"{exact_val:.6f}",
+        wallet=settings.ADMIN_WALLET_BSC,
+        expiry_minutes=settings.DEPOSIT_EXPIRY_MINUTES,
     )
-    await render_screen(client, target, invoice_text, get_invoice_keyboard(deposit_id, lang))
+    invoice_message = await render_screen(client, target, invoice_text, get_invoice_keyboard(deposit_id, lang))
+    if invoice_message:
+        async with async_session() as session:
+            await session.execute(
+                update(Deposit)
+                .where(Deposit.id == deposit_id)
+                .values(user_message_id=invoice_message.id, user_message_is_media=False)
+            )
+            await session.commit()
 
 def register_wallet_handlers(app: Client):
     @app.on_callback_query(filters.regex(r"^(wallet:(deposit_menu|topup)|wallet_main|account:wallet)$"))
@@ -201,10 +205,17 @@ def register_wallet_handlers(app: Client):
                 invoice_text = t(
                     "invoice_title",
                     lang,
-                    exact_val=f"{float(active_dep.exact_amount):.4f}",
-                    wallet=settings.ADMIN_WALLET_BSC
+                    exact_val=f"{float(active_dep.exact_amount):.6f}",
+                    wallet=settings.ADMIN_WALLET_BSC,
+                    expiry_minutes=settings.DEPOSIT_EXPIRY_MINUTES,
                 )
-                await render_screen(client, callback, invoice_text, get_invoice_keyboard(active_dep.id, lang))
+                invoice_message = await render_screen(
+                    client, callback, invoice_text, get_invoice_keyboard(active_dep.id, lang)
+                )
+                if invoice_message:
+                    active_dep.user_message_id = invoice_message.id
+                    active_dep.user_message_is_media = False
+                    await session.commit()
                 return
 
         coupon_info = ""
@@ -217,7 +228,7 @@ def register_wallet_handlers(app: Client):
         text = t(
             "wallet_title",
             lang,
-            balance=f"{balance:.4f}",
+            balance=f"{balance:.6f}",
             min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}"
         ) + coupon_info
         await render_screen(client, callback, text, get_deposit_menu_keyboard(lang, active_coupon))
@@ -296,12 +307,11 @@ def register_wallet_handlers(app: Client):
         caption = t(
             "qr_caption",
             lang,
-            exact_val=f"{exact_val:.4f}",
+            exact_val=f"{exact_val:.6f}",
             wallet=settings.ADMIN_WALLET_BSC
         )
 
         keyboard = InlineKeyboardMarkup([
-            [InlineKeyboardButton(t("btn_submit_hash", lang), callback_data=f"deposit:submit_hash:{deposit_id}")],
             [InlineKeyboardButton(t("btn_back_to_invoice", lang), callback_data=f"deposit:view_inv:{deposit_id}")]
         ])
 
@@ -321,6 +331,13 @@ def register_wallet_handlers(app: Client):
             )
             USER_LAST_MESSAGES[user_id] = photo_msg.id
             USER_LAST_MESSAGES_IS_MEDIA[user_id] = True
+            async with async_session() as session:
+                await session.execute(
+                    update(Deposit)
+                    .where(Deposit.id == deposit_id, Deposit.user_id == user_id)
+                    .values(user_message_id=photo_msg.id, user_message_is_media=True)
+                )
+                await session.commit()
             await callback.answer()
         except Exception as e:
             await callback.answer(f"Error: {e}", show_alert=True)
@@ -348,8 +365,9 @@ def register_wallet_handlers(app: Client):
         invoice_text = t(
             "invoice_title",
             lang,
-            exact_val=f"{exact_val:.4f}",
-            wallet=settings.ADMIN_WALLET_BSC
+            exact_val=f"{exact_val:.6f}",
+            wallet=settings.ADMIN_WALLET_BSC,
+            expiry_minutes=settings.DEPOSIT_EXPIRY_MINUTES,
         )
 
         await render_screen(client, callback, invoice_text, get_invoice_keyboard(deposit_id, lang))
@@ -395,7 +413,7 @@ def register_wallet_handlers(app: Client):
             lang = getattr(user, "language", "es") or "es"
 
             if dep and dep.status == DepositStatus.PENDING:
-                dep.status = DepositStatus.EXPIRED
+                dep.status = DepositStatus.CANCELLED
                 amount_cancelled = float(dep.exact_amount)
                 log_msg_id = dep.log_message_id
                 await session.commit()
@@ -417,7 +435,7 @@ def register_wallet_handlers(app: Client):
             log_message_id=log_msg_id
         )
 
-        cancel_text = t("deposit_cancelled_screen", lang, amount=f"{amount_cancelled:.4f}")
+        cancel_text = t("deposit_cancelled_screen", lang, amount=f"{amount_cancelled:.6f}")
         keyboard = InlineKeyboardMarkup([
             [InlineKeyboardButton(t("btn_new_deposit", lang), callback_data="wallet:deposit_menu")],
             [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
@@ -425,6 +443,116 @@ def register_wallet_handlers(app: Client):
 
         await callback.answer("Solicitud cancelada.")
         await render_screen(client, callback, cancel_text, keyboard)
+
+    @app.on_callback_query(filters.regex(r"^deposit:review:add:(\d+)$"))
+    async def cb_deposit_review_add(client: Client, callback: CallbackQuery):
+        admin_id = callback.from_user.id
+        if not settings.is_owner(admin_id):
+            await callback.answer("Solo un administrador puede aprobar depósitos.", show_alert=True)
+            return
+        if not callback.message or callback.message.chat.id != settings.LOG_GROUP_ID:
+            await callback.answer("Este botón solo funciona en el canal de logs.", show_alert=True)
+            return
+
+        deposit_id = int(callback.matches[0].group(1))
+        await callback.answer("Revalidando la transacción en BSC...")
+
+        async with async_session() as session:
+            deposit = await session.get(Deposit, deposit_id)
+            if not deposit or deposit.status != DepositStatus.REVIEW or not deposit.tx_hash:
+                await client.send_message(settings.LOG_GROUP_ID, f"DEP_{deposit_id}: ya fue revisado o no está disponible.")
+                return
+            tx_hash = deposit.tx_hash
+            expected_amount = float(deposit.exact_amount)
+
+        verification = await bsc_validator.verify_deposit(tx_hash, expected_amount)
+        if not verification.get("success"):
+            error = html.escape(str(verification.get("error", "Transacción no válida")))
+            await client.send_message(
+                settings.LOG_GROUP_ID,
+                f"⚠️ DEP_{deposit_id} sigue pendiente: {error}",
+            )
+            return
+
+        credit_result = None
+        try:
+            async with async_session() as session:
+                deposit = await session.scalar(
+                    select(Deposit).where(Deposit.id == deposit_id).with_for_update()
+                )
+                if not deposit or deposit.status != DepositStatus.REVIEW or deposit.tx_hash != tx_hash:
+                    await client.send_message(settings.LOG_GROUP_ID, f"DEP_{deposit_id}: ya fue procesado.")
+                    return
+
+                duplicate = await session.scalar(
+                    select(Deposit.id).where(Deposit.tx_hash == tx_hash, Deposit.id != deposit_id)
+                )
+                if duplicate:
+                    await client.send_message(settings.LOG_GROUP_ID, f"DEP_{deposit_id}: el hash ya pertenece a otro depósito.")
+                    return
+
+                user = await session.scalar(select(User).where(User.telegram_id == deposit.user_id))
+                username = user.username if user else None
+                first_name = user.first_name or "Usuario" if user else "Usuario"
+                user_message_id = deposit.user_message_id
+                user_message_is_media = deposit.user_message_is_media
+                user_id = deposit.user_id
+                amount = Decimal(str(deposit.exact_amount))
+                credit_result = await credit_deposit_in_session(
+                    session, deposit, amount, deposit.block_number
+                )
+                log_message_id = deposit.log_message_id
+                await session.commit()
+        except IntegrityError:
+            await client.send_message(settings.LOG_GROUP_ID, f"DEP_{deposit_id}: el hash ya fue utilizado.")
+            return
+
+        if not credit_result:
+            return
+
+        await audit_logger.log_deposit_confirmed(
+            client=client,
+            user_id=user_id,
+            username=username,
+            first_name=first_name,
+            amount=float(amount),
+            tx_hash=tx_hash,
+            new_balance=float(credit_result["balance"]),
+            deposit_id=deposit_id,
+            log_message_id=log_message_id,
+        )
+
+        if user_message_id:
+            if user_message_is_media:
+                try:
+                    await client.delete_messages(user_id, user_message_id)
+                except Exception:
+                    pass
+                USER_LAST_MESSAGES.pop(user_id, None)
+                USER_LAST_MESSAGES_IS_MEDIA.pop(user_id, None)
+            else:
+                USER_LAST_MESSAGES[user_id] = user_message_id
+                USER_LAST_MESSAGES_IS_MEDIA[user_id] = False
+        success_text = t(
+            "deposit_success_title",
+            credit_result["language"],
+            amount=f"{float(amount):.6f}",
+            balance=f"{float(credit_result['balance']):.6f}",
+        )
+        keyboard = InlineKeyboardMarkup([
+            [InlineKeyboardButton(t("btn_catalog", credit_result["language"]), callback_data="catalog:disponibles:1")],
+            [InlineKeyboardButton(t("btn_main_menu", credit_result["language"]), callback_data="menu_main")],
+        ])
+        success_message = await render_screen(client, user_id, success_text, keyboard)
+        if success_message:
+            async with async_session() as session:
+                await session.execute(
+                    update(Deposit)
+                    .where(Deposit.id == deposit_id)
+                    .values(user_message_id=success_message.id, user_message_is_media=False)
+                )
+                await session.commit()
+        await notify_deposit_referrer(client, credit_result["referral"])
 
     @app.on_callback_query(filters.regex(r"^wallet:redeem_gift$"))
     async def cb_wallet_redeem_gift(client: Client, callback: CallbackQuery):
@@ -534,10 +662,17 @@ def register_wallet_handlers(app: Client):
                 invoice_text = t(
                     "invoice_title",
                     lang,
-                    exact_val=f"{exact_val:.4f}",
-                    wallet=settings.ADMIN_WALLET_BSC
+                    exact_val=f"{exact_val:.6f}",
+                    wallet=settings.ADMIN_WALLET_BSC,
+                    expiry_minutes=settings.DEPOSIT_EXPIRY_MINUTES,
                 )
-                await render_screen(client, user_id, invoice_text, get_invoice_keyboard(active_dep.id, lang))
+                invoice_message = await render_screen(
+                    client, user_id, invoice_text, get_invoice_keyboard(active_dep.id, lang)
+                )
+                if invoice_message:
+                    active_dep.user_message_id = invoice_message.id
+                    active_dep.user_message_is_media = False
+                    await session.commit()
                 return
 
         coupon_info = ""
@@ -547,7 +682,7 @@ def register_wallet_handlers(app: Client):
                 f"<i>(Se aplicará automáticamente un descuento en tu próxima compra del catálogo)</i>"
             )
 
-        text = t("wallet_title", lang, balance=f"{balance:.4f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}") + coupon_info
+        text = t("wallet_title", lang, balance=f"{balance:.6f}", min_dep=f"{settings.MIN_DEPOSIT_USDT:.2f}") + coupon_info
         await render_screen(client, user_id, text, get_deposit_menu_keyboard(lang, active_coupon))
 
     @app.on_message(filters.private & filters.text & ~filters.command(["start", "admin", "orderresolve", "vnumresolve", "buscar", "search", "catalogo", "catalog", "pedidos", "orders", "depositar", "deposit", "saldo", "wallet", "soporte", "support", "ayuda", "help", "del", "dep"]), group=2)
@@ -783,7 +918,7 @@ def register_wallet_handlers(app: Client):
                 log_message_id=log_msg_id
             )
 
-            success_text = t("deposit_success_title", lang, amount=f"{float(credited_amount):.4f}", balance=f"{new_balance:.4f}")
+            success_text = t("deposit_success_title", lang, amount=f"{float(credited_amount):.6f}", balance=f"{new_balance:.6f}")
             keyboard = InlineKeyboardMarkup([
                 [InlineKeyboardButton(t("btn_catalog", lang), callback_data="catalog:disponibles:1")],
                 [InlineKeyboardButton(t("btn_main_menu", lang), callback_data="menu_main")]
@@ -937,7 +1072,7 @@ def register_wallet_handlers(app: Client):
                 "type": "deposit",
                 "date": d.confirmed_at or d.created_at,
                 "title": "Recarga de Saldo (USDT BEP-20)",
-                "amount": f"+${float(d.exact_amount):.2f} USDT",
+                "amount": f"+${float(d.exact_amount):.6f} USDT",
                 "is_credit": True
             })
 
