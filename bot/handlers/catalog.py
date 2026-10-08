@@ -487,7 +487,15 @@ def register_catalog_handlers(app: Client):
     ):
         SEARCH_LAST_QUERY[user_id] = query
         if target is None:
-            await render_screen(client, user_id, "🔎 <b>Buscando servicios...</b>")
+            progress_keyboard = InlineKeyboardMarkup([[
+                InlineKeyboardButton(t("btn_back", lang), callback_data="catalog:disponibles:1")
+            ]])
+            await render_screen(
+                client,
+                user_id,
+                "🔎 <b>Buscando servicios...</b>",
+                progress_keyboard,
+            )
         safe_query = html.escape(query)
         async with async_session() as session:
             try:
