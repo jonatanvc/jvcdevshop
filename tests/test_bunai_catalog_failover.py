@@ -5,6 +5,20 @@ from bot.services.bunai_client import BunaiAPIClient, CatalogUnavailableError
 
 
 class BunaiCatalogFailoverTests(unittest.IsolatedAsyncioTestCase):
+    async def test_product_detail_fetches_note_from_individual_endpoint(self):
+        response = Mock(status_code=200)
+        response.json.return_value = {"id": "service-1", "name": "Service", "note": "Redeem within 12 hours."}
+        client = Mock()
+        client.get = AsyncMock(return_value=response)
+        api = BunaiAPIClient()
+        api._get_client = Mock(return_value=client)
+        api._set_cache("products_variants_100", [{"id": "service-1", "name": "Service"}])
+
+        product = await api.get_product_detail("service-1")
+
+        self.assertEqual(product["note"], "Redeem within 12 hours.")
+        client.get.assert_awaited_once_with(f"{api.base_url}/products/service-1", timeout=5.0)
+
     async def test_empty_success_is_valid_catalog_data(self):
         response = Mock(status_code=200)
         response.json.return_value = []

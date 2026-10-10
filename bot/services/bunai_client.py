@@ -162,6 +162,31 @@ class BunaiAPIClient:
             print(f"[BunaiAPIClient Error] get_product_groups: {e}")
             return []
 
+    async def get_product_detail(self, product_id: str, force_refresh: bool = False) -> Optional[Dict[str, Any]]:
+        """Fetches the provider's individual product record, including its note field."""
+        cache_key = f"product_full_detail_{product_id}"
+        if not force_refresh:
+            cached = self._get_from_cache(cache_key)
+            if cached is not None:
+                return cached
+
+        try:
+            client = self._get_client()
+            response = await client.get(f"{self.base_url}/products/{product_id}", timeout=5.0)
+            if response.status_code == 200:
+                data = response.json()
+                if isinstance(data, dict):
+                    if data.get("name"):
+                        data["name"] = adjust_warranty_in_name(data["name"])
+                    if data.get("display_name"):
+                        data["display_name"] = adjust_warranty_in_name(data["display_name"])
+                    self._set_cache(cache_key, data, ttl=60)
+                    return data
+        except Exception as exc:
+            print(f"[BunaiAPIClient Error] get_product_detail: {type(exc).__name__}")
+
+        return await self.get_product(product_id)
+
     async def get_product(self, product_id: str) -> Optional[Dict[str, Any]]:
         """Obtiene el detalle completo de un producto específico con resolución inmediata por caché"""
         cache_key = f"product_detail_{product_id}"

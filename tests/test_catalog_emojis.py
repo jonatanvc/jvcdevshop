@@ -87,6 +87,17 @@ class ProductNoteButtonTests(unittest.TestCase):
         self.assertEqual(len(note_buttons), 1)
         self.assertEqual(note_buttons[0].text, t("btn_view_note", "es"))
         self.assertEqual(note_buttons[0].callback_data, "pnote:product-1:disponibles:1:1")
+        note_row = next(row for row in keyboard.inline_keyboard if note_buttons[0] in row)
+        custom_qty_button = next(
+            button for row in keyboard.inline_keyboard for button in row
+            if button.callback_data.startswith("pqty_custom:")
+        )
+        self.assertIn(custom_qty_button, note_row)
+        buy_button = next(
+            button for row in keyboard.inline_keyboard for button in row
+            if button.callback_data.startswith("checkout:confirm:")
+        )
+        self.assertNotIn("$", buy_button.text)
 
     def test_note_button_is_available_without_stock(self):
         keyboard = build_product_calculator_keyboard(

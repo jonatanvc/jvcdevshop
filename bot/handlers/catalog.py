@@ -174,16 +174,17 @@ def build_product_calculator_keyboard(
             preset_row.append(InlineKeyboardButton(lbl, callback_data=f"pqty:{product_id}:{filter_mode}:{page}:{p}"))
         buttons.append(preset_row)
 
-    # Fila 3: Botón para ingresar cualquier cantidad personalizada
+    # Fila 3: Cantidad personalizada y nota del producto
     buttons.append([
-        InlineKeyboardButton("📝 Ingresar Cantidad Personalizada", callback_data=f"pqty_custom:{product_id}:{filter_mode}:{page}:{calc_qty}")
+        InlineKeyboardButton("📝 Ingresar Cantidad Personalizada", callback_data=f"pqty_custom:{product_id}:{filter_mode}:{page}:{calc_qty}"),
+        InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{calc_qty}")
     ])
 
     # Fila 4: Botones de acción principal (compra)
     if can_buy:
         buttons.append([
             InlineKeyboardButton(
-                f"🛍️ Comprar {calc_qty} (${total_price:.2f} USDT)",
+                f"🛍️ Comprar {calc_qty}",
                 callback_data=f"checkout:confirm:{product_id}:{calc_qty}"
             )
         ])
@@ -192,12 +193,7 @@ def build_product_calculator_keyboard(
             InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet:deposit_menu")
         ])
 
-    # Fila 5: Ver Nota
-    buttons.append([
-        InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{calc_qty}")
-    ])
-
-    # Fila 6: Botón Volver
+    # Fila 5: Botón Volver
     buttons.append([
         InlineKeyboardButton(t("btn_back", lang), callback_data=f"catalog:{filter_mode}:{page}")
     ])
@@ -581,7 +577,7 @@ def register_catalog_handlers(app: Client):
 
         async with async_session() as session:
             try:
-                p_data = await bunai_api.get_product(product_id)
+                p_data = await bunai_api.get_product_detail(product_id)
                 if not p_data:
                     cached_items = pricing_service._cached_catalog or []
                     p_data = next((
@@ -820,7 +816,7 @@ def register_catalog_handlers(app: Client):
         page = int(callback.matches[0].group(3))
         qty = int(callback.matches[0].group(4))
 
-        p_data = await bunai_api.get_product(product_id)
+        p_data = await bunai_api.get_product_detail(product_id)
         if not p_data:
             cached_items = pricing_service._cached_catalog or []
             p_data = next((item for item in cached_items if str(item.get("product_id") or item.get("id")) == str(product_id)), None)
@@ -915,7 +911,7 @@ def register_catalog_handlers(app: Client):
             user = user_res.scalar_one_or_none()
             lang = getattr(user, "language", "es") or "es"
 
-        p_data = await bunai_api.get_product(product_id)
+        p_data = await bunai_api.get_product_detail(product_id)
         raw_note = get_product_note(p_data, product_id)
         if raw_note and str(raw_note).strip():
             note = html.escape(await translate_note_or_original(str(raw_note), lang))
