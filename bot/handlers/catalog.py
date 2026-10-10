@@ -37,6 +37,18 @@ async def translate_note_or_original(raw_note: str, lang: str) -> str:
 
     return translated_note.strip() if translated_note and translated_note.strip() else original_note
 
+def get_product_note(p_data: Optional[Dict], product_id: str) -> str:
+    raw_note = p_data.get("note") if p_data else ""
+    if raw_note and str(raw_note).strip():
+        return str(raw_note).strip()
+
+    cached_product = next((
+        item for item in pricing_service._cached_catalog
+        if str(item.get("product_id") or item.get("id")) == str(product_id)
+    ), None)
+    cached_note = cached_product.get("note") if cached_product else ""
+    return str(cached_note).strip() if cached_note and str(cached_note).strip() else ""
+
 def get_product_icon(name: str, for_html: bool = False) -> str:
     """Asigna un icono representativo según el catálogo de servicios"""
     return get_service_icon(name, for_html=for_html)
@@ -912,7 +924,7 @@ def register_catalog_handlers(app: Client):
             lang = getattr(user, "language", "es") or "es"
 
         p_data = await bunai_api.get_product(product_id)
-        raw_note = p_data.get("note") if p_data else ""
+        raw_note = get_product_note(p_data, product_id)
         if raw_note and str(raw_note).strip():
             note = html.escape(await translate_note_or_original(str(raw_note), lang))
         else:

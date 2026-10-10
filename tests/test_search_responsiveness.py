@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from bot.handlers.catalog import build_catalog_keyboard, translate_note_or_original
+from bot.handlers.catalog import build_catalog_keyboard, get_product_note, translate_note_or_original
 from bot.handlers.virtual_numbers import execute_vnum_search
 
 
@@ -49,6 +49,16 @@ class SearchResponsivenessTests(unittest.IsolatedAsyncioTestCase):
             translated = await translate_note_or_original("Redeem the code within 12 hours.", "es")
 
         self.assertEqual(translated, "Canjea el código en 12 horas.")
+
+    def test_product_note_uses_catalog_cache_when_provider_returns_no_data(self):
+        cached_catalog = [{"product_id": "svc-1", "note": "Original provider note."}]
+        with patch("bot.handlers.catalog.pricing_service._cached_catalog", cached_catalog):
+            self.assertEqual(get_product_note(None, "svc-1"), "Original provider note.")
+
+    def test_product_note_prefers_fresh_provider_data_over_cache(self):
+        cached_catalog = [{"product_id": "svc-1", "note": "Old note."}]
+        with patch("bot.handlers.catalog.pricing_service._cached_catalog", cached_catalog):
+            self.assertEqual(get_product_note({"note": "Current note."}, "svc-1"), "Current note.")
 
     async def test_fivesim_search_page_uses_cached_offers(self):
         cached_offers = [{
