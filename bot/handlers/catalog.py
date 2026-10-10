@@ -724,8 +724,7 @@ def register_catalog_handlers(app: Client):
                 total_line = f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT{vip_tag}{coupon_line}"
                 balance_line = f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {effective_balance:.2f} USDT"
 
-            raw_note = p_data.get("note", "")
-            has_note = bool(raw_note and str(raw_note).strip())
+            has_note = bool(get_product_note(p_data, product_id))
 
             if not has_stock:
                 text = (

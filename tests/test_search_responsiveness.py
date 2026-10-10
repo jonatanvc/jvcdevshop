@@ -55,6 +55,11 @@ class SearchResponsivenessTests(unittest.IsolatedAsyncioTestCase):
         with patch("bot.handlers.catalog.pricing_service._cached_catalog", cached_catalog):
             self.assertEqual(get_product_note(None, "svc-1"), "Original provider note.")
 
+    def test_product_note_uses_catalog_cache_when_provider_omits_note_field(self):
+        cached_catalog = [{"product_id": "svc-1", "note": "Original provider note."}]
+        with patch("bot.handlers.catalog.pricing_service._cached_catalog", cached_catalog):
+            self.assertEqual(get_product_note({"id": "svc-1"}, "svc-1"), "Original provider note.")
+
     def test_product_note_prefers_fresh_provider_data_over_cache(self):
         cached_catalog = [{"product_id": "svc-1", "note": "Old note."}]
         with patch("bot.handlers.catalog.pricing_service._cached_catalog", cached_catalog):
