@@ -116,7 +116,6 @@ def build_product_calculator_keyboard(
     is_alert_active: bool,
     total_price: float,
     bot_username: str,
-    has_note: bool = False,
     lang: str = "es",
     is_owner: bool = False,
     api_balance: float = 0.0,
@@ -140,11 +139,9 @@ def build_product_calculator_keyboard(
                 InlineKeyboardButton(t("btn_notify_stock", lang), callback_data=f"stock_alert:sub:{product_id}:{filter_mode}:{page}:{qty}")
             ])
 
-        # Ver Nota si existe
-        if has_note:
-            buttons.append([
-                InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{qty}")
-            ])
+        buttons.append([
+            InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{qty}")
+        ])
 
         # Botón Volver
         buttons.append([
@@ -195,11 +192,10 @@ def build_product_calculator_keyboard(
             InlineKeyboardButton(t("btn_recharge_balance", lang), callback_data="wallet:deposit_menu")
         ])
 
-    # Fila 5: Ver Nota (solo si el producto tiene nota configurada)
-    if has_note:
-        buttons.append([
-            InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{calc_qty}")
-        ])
+    # Fila 5: Ver Nota
+    buttons.append([
+        InlineKeyboardButton(t("btn_view_note", lang), callback_data=f"pnote:{product_id}:{filter_mode}:{page}:{calc_qty}")
+    ])
 
     # Fila 6: Botón Volver
     buttons.append([
@@ -724,8 +720,6 @@ def register_catalog_handlers(app: Client):
                 total_line = f"{EMOJI_MONEY} <b>{t('total_amount', lang)}:</b> {total_price:.2f} USDT{vip_tag}{coupon_line}"
                 balance_line = f"{EMOJI_WALLET} <b>{t('your_balance', lang)}:</b> {effective_balance:.2f} USDT"
 
-            has_note = bool(get_product_note(p_data, product_id))
-
             if not has_stock:
                 text = (
                     f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
@@ -760,7 +754,6 @@ def register_catalog_handlers(app: Client):
                 is_alert_active=is_alert_active,
                 total_price=total_price,
                 bot_username=bot_username,
-                has_note=has_note,
                 lang=lang,
                 is_owner=is_owner,
                 api_balance=api_balance,

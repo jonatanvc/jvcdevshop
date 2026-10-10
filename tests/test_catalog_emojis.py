@@ -67,29 +67,44 @@ class CatalogStockCategoryEmojiTests(unittest.TestCase):
 
 
 class ProductNoteButtonTests(unittest.TestCase):
-    def test_note_button_is_available_only_when_product_has_a_note(self):
-        for has_note in (True, False):
-            with self.subTest(has_note=has_note):
-                keyboard = build_product_calculator_keyboard(
-                    product_id="product-1",
-                    filter_mode="disponibles",
-                    page=1,
-                    qty=1,
-                    can_buy=True,
-                    has_stock=True,
-                    is_alert_active=False,
-                    total_price=2.0,
-                    bot_username="shop_bot",
-                    has_note=has_note,
-                    lang="es",
-                    stock_count=5,
-                )
-                buttons = [button for row in keyboard.inline_keyboard for button in row]
-                note_buttons = [button for button in buttons if button.callback_data.startswith("pnote:")]
+    def test_note_button_is_always_available_in_product_menu(self):
+        keyboard = build_product_calculator_keyboard(
+            product_id="product-1",
+            filter_mode="disponibles",
+            page=1,
+            qty=1,
+            can_buy=True,
+            has_stock=True,
+            is_alert_active=False,
+            total_price=2.0,
+            bot_username="shop_bot",
+            lang="es",
+            stock_count=5,
+        )
+        buttons = [button for row in keyboard.inline_keyboard for button in row]
+        note_buttons = [button for button in buttons if button.callback_data.startswith("pnote:")]
 
-                self.assertEqual(bool(note_buttons), has_note)
-                if has_note:
-                    self.assertEqual(note_buttons[0].text, t("btn_view_note", "es"))
+        self.assertEqual(len(note_buttons), 1)
+        self.assertEqual(note_buttons[0].text, t("btn_view_note", "es"))
+        self.assertEqual(note_buttons[0].callback_data, "pnote:product-1:disponibles:1:1")
+
+    def test_note_button_is_available_without_stock(self):
+        keyboard = build_product_calculator_keyboard(
+            product_id="product-1",
+            filter_mode="agotados",
+            page=1,
+            qty=0,
+            can_buy=False,
+            has_stock=False,
+            is_alert_active=False,
+            total_price=0.0,
+            bot_username="shop_bot",
+            lang="es",
+        )
+        buttons = [button for row in keyboard.inline_keyboard for button in row]
+        note_buttons = [button for button in buttons if button.callback_data.startswith("pnote:")]
+
+        self.assertEqual(len(note_buttons), 1)
 
 
 if __name__ == "__main__":

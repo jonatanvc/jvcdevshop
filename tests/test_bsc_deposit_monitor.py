@@ -3,7 +3,7 @@ from datetime import datetime, timedelta
 from decimal import Decimal
 
 from bot.services.blockchain import parse_incoming_usdt_transfer
-from bot.services.deposit_monitor import payment_requires_admin_review
+from bot.services.deposit_monitor import payment_requires_admin_review, safe_scanner_error_detail
 from bot.database.models import DepositStatus
 from bot.main import scanner_heartbeat_is_healthy
 from bot.utils.i18n import t
@@ -82,6 +82,18 @@ class DepositExpiryPolicyTests(unittest.TestCase):
             created_at,
             created_at + timedelta(minutes=30),
         ))
+
+
+class ScannerErrorLoggingTests(unittest.TestCase):
+    def test_error_detail_redacts_rpc_urls_and_inline_secrets(self):
+        detail = safe_scanner_error_detail(RuntimeError(
+            "RPC failed at https://node.example/api/key?token=secret status=503 api_key=other-secret"
+        ))
+
+        self.assertNotIn("node.example", detail)
+        self.assertNotIn("secret", detail)
+        self.assertIn("<RPC endpoint>", detail)
+        self.assertIn("status=503", detail)
 
 
 class DepositTranslationTests(unittest.TestCase):

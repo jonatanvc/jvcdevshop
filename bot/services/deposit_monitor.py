@@ -1,4 +1,5 @@
 import asyncio
+import re
 import time
 from datetime import datetime, timezone
 from decimal import Decimal, ROUND_DOWN
@@ -27,6 +28,16 @@ scanner_scan_started_at: Optional[float] = None
 scanner_scan_phase = "idle"
 scanner_last_error_type: Optional[str] = None
 scanner_last_error_phase: Optional[str] = None
+
+def safe_scanner_error_detail(exc: Exception) -> str:
+    detail = str(exc).strip()
+    detail = re.sub(r"https?://[^\s\"'<>]+", "<RPC endpoint>", detail, flags=re.IGNORECASE)
+    detail = re.sub(
+        r"(?i)\b(authorization|api[_-]?key|token|password)\b\s*[:=]\s*[^\s,&;]+",
+        r"\1=[redacted]",
+        detail,
+    )
+    return detail[:240]
 
 
 def payment_requires_admin_review(
@@ -302,9 +313,10 @@ async def deposit_monitor_worker(client: Client) -> None:
             response = getattr(exc, "response", None)
             status_code = getattr(response, "status_code", None)
             status_detail = f" status={status_code}" if status_code is not None else ""
+            error_detail = safe_scanner_error_detail(exc)
             print(
                 f"[Deposit monitor error] phase={scanner_scan_phase} "
-                f"type={scanner_last_error_type}{status_detail}"
+                f"type={scanner_last_error_type}{status_detail} detail={error_detail}"
             )
         finally:
             scanner_scan_in_progress = False
