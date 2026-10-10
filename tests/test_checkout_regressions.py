@@ -7,6 +7,7 @@ from bot.handlers.checkout import has_sufficient_stock, is_definitively_rejected
 from bot.services.pricing import pricing_service
 from bot.services.promos import promo_service
 from bot.config import settings
+from bot.utils.i18n import t
 
 
 class FakeResult:
@@ -48,6 +49,30 @@ class CheckoutRegressionTests(unittest.TestCase):
         for status_code in (408, 409, 425, 429, 500, None):
             with self.subTest(status_code=status_code):
                 self.assertFalse(is_definitively_rejected(status_code))
+
+    def test_purchase_templates_format_without_provider_notes(self):
+        for language in ("es", "en", "pt"):
+            with self.subTest(language=language):
+                purchase_text = t(
+                    "purchase_success_title",
+                    language,
+                    product="Product",
+                    qty=1,
+                    total="2.00",
+                    order_id=1,
+                    warranty_text="",
+                    items="credential",
+                )
+                vip_text = t(
+                    "vip_client_template",
+                    language,
+                    product="Product",
+                    items="credential",
+                    warranty_text="",
+                )
+
+                self.assertNotIn("{after_note}", purchase_text)
+                self.assertNotIn("{after_note}", vip_text)
 
 
 class CatalogAndPromotionRegressionTests(unittest.IsolatedAsyncioTestCase):

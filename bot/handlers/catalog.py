@@ -702,22 +702,13 @@ def register_catalog_handlers(app: Client):
 
             raw_note = p_data.get("note", "")
             has_note = bool(raw_note and str(raw_note).strip())
-            note_section = ""
-            if has_note:
-                clean_raw_note = str(raw_note).strip()
-                translated_note = await translate_text(clean_raw_note, lang, fallback_to_source=False)
-                if not translated_note:
-                    translated_note = t("provider_note_unavailable", lang)
-                safe_note = html.escape(translated_note)
-                note_section = f"\n\n📝 <b>{t('product_note_label', lang)}:</b>\n<blockquote>{safe_note}</blockquote>"
 
             if not has_stock:
                 text = (
                     f"{icon} <b>{t('product_label', lang)}:</b> {name}\n"
                     f"{price_line}\n"
                     f"{EMOJI_DICE} <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
-                    f"{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
-                    f"{note_section}\n\n"
+                    f"{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> {warranty_display}\n\n"
                     f"{total_line}\n"
                     f"{balance_line}\n\n"
                     f"<i>{EMOJI_BELL} Toca el botón de abajo para que el bot te notifique de inmediato cuando este servicio tenga stock disponible.</i>"
@@ -728,8 +719,7 @@ def register_catalog_handlers(app: Client):
                     f"{price_line}\n"
                     f"{EMOJI_DICE} <b>{t('available_stock_label', lang)}:</b> {stock_display}\n"
                     f"{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> {warranty_display}"
-                    f"{offer_line}"
-                    f"{note_section}\n\n"
+                    f"{offer_line}\n\n"
                     f"{EMOJI_CALC} <b>{t('selected_qty', lang)}:</b> {qty}\n"
                     f"{total_line}\n"
                     f"{balance_line}"
@@ -747,7 +737,7 @@ def register_catalog_handlers(app: Client):
                 is_alert_active=is_alert_active,
                 total_price=total_price,
                 bot_username=bot_username,
-                has_note=False,
+                has_note=has_note,
                 lang=lang,
                 is_owner=is_owner,
                 api_balance=api_balance,

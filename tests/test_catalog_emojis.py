@@ -1,6 +1,6 @@
 import unittest
 
-from bot.handlers.catalog import build_catalog_keyboard
+from bot.handlers.catalog import build_catalog_keyboard, build_product_calculator_keyboard
 from bot.handlers.wallet import get_movement_emoji
 from bot.utils.emojis import get_service_custom_emoji_id, parse_emojis, parse_keyboard
 from bot.utils.i18n import t
@@ -64,6 +64,32 @@ class CatalogStockCategoryEmojiTests(unittest.TestCase):
                 self.assertIn("<emoji id=5208429100951159058>🔴</emoji>", out_of_stock_header)
                 self.assertIn("<emoji id=5211182849297762045>🟢</emoji>", available_option)
                 self.assertIn("<emoji id=5208429100951159058>🔴</emoji>", out_of_stock_option)
+
+
+class ProductNoteButtonTests(unittest.TestCase):
+    def test_note_button_is_available_only_when_product_has_a_note(self):
+        for has_note in (True, False):
+            with self.subTest(has_note=has_note):
+                keyboard = build_product_calculator_keyboard(
+                    product_id="product-1",
+                    filter_mode="disponibles",
+                    page=1,
+                    qty=1,
+                    can_buy=True,
+                    has_stock=True,
+                    is_alert_active=False,
+                    total_price=2.0,
+                    bot_username="shop_bot",
+                    has_note=has_note,
+                    lang="es",
+                    stock_count=5,
+                )
+                buttons = [button for row in keyboard.inline_keyboard for button in row]
+                note_buttons = [button for button in buttons if button.callback_data.startswith("pnote:")]
+
+                self.assertEqual(bool(note_buttons), has_note)
+                if has_note:
+                    self.assertEqual(note_buttons[0].text, t("btn_view_note", "es"))
 
 
 if __name__ == "__main__":

@@ -14,8 +14,7 @@ from bot.services.audit_logger import audit_logger
 from bot.utils.navigation import render_screen
 from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
-from bot.utils.translator import translate_text
-from bot.utils.emojis import EMOJI_STAR, EMOJI_PIN, receipt_logo_for_user
+from bot.utils.emojis import EMOJI_STAR, receipt_logo_for_user
 from bot.utils.formatters import adjust_warranty_in_name, format_delivered_credentials
 from bot.services.promos import promo_service
 from bot.services.vouchers import voucher_service
@@ -330,13 +329,6 @@ def register_checkout_handlers(app: Client):
             if note_text and note_text not in provider_notes:
                 provider_notes.append(note_text)
         provider_note = "\n\n".join(provider_notes)
-        if provider_note:
-            after_note = await translate_text(provider_note, lang, fallback_to_source=False)
-            if not after_note:
-                after_note = t("provider_note_unavailable", lang)
-        else:
-            after_note = ""
-
         delivered_text = ""
         if raw_items:
             delivered_text = format_delivered_credentials(raw_items)
@@ -415,9 +407,6 @@ def register_checkout_handlers(app: Client):
         else:
             warranty_label = t("warranty_hours", lang, hours=warranty_hours)
             warranty_text = f"\n{EMOJI_STAR} <b>{t('warranty_label', lang)}:</b> <code>{warranty_label}</code>"
-        safe_after_note = html.escape(after_note)
-        after_note_block = f"\n\n{EMOJI_PIN} <b>Info:</b>\n<i>{safe_after_note}</i>" if safe_after_note else ""
-
         safe_pname = html.escape(product_name)
         safe_items = html.escape(delivered_text)
         if is_owner:
@@ -431,7 +420,7 @@ def register_checkout_handlers(app: Client):
                 f"{balance_tag}\n"
                 f"🆔 <b>Orden #:</b> <code>ORD_{internal_order_id}</code>{warranty_text}\n"
                 f"🌐 <b>ID Proveedor:</b> <code>{html.escape(provider_order_id or 'N/A')}</code>\n\n"
-                f"🔑 <b>DATOS DE TU SERVICIO:</b>\n<pre>{safe_items}</pre>{after_note_block}\n\n"
+                f"🔑 <b>DATOS DE TU SERVICIO:</b>\n<pre>{safe_items}</pre>\n\n"
                 f"{footer_note}"
             )
         else:
@@ -443,8 +432,7 @@ def register_checkout_handlers(app: Client):
                 total=f"{total_price:.2f}",
                 order_id=internal_order_id,
                 warranty_text=warranty_text,
-                items=safe_items,
-                after_note=after_note_block
+                items=safe_items
             )
 
         receipt_logo = receipt_logo_for_user(is_active_vip, is_owner)

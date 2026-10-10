@@ -10,7 +10,6 @@ from bot.utils.rate_limit import rate_limiter
 from bot.utils.i18n import t
 from bot.utils.time_utils import format_dt
 from bot.utils.formatters import adjust_warranty_in_name, format_delivered_credentials
-from bot.utils.translator import translate_text
 
 ORDERS_PER_PAGE = 6
 
@@ -218,12 +217,6 @@ def register_orders_handlers(app: Client):
                 prov_id=html.escape(order.provider_order_id or "N/A"),
                 items=html.escape(format_delivered_credentials(order.delivered_items))
             )
-            if order.provider_note:
-                translated_note = await translate_text(order.provider_note, lang, fallback_to_source=False)
-                if not translated_note:
-                    translated_note = t("provider_note_unavailable", lang)
-                text += f"\n\n📝 <b>{t('product_note_label', lang)}:</b>\n<i>{html.escape(translated_note)}</i>"
-
             keyboard_buttons = []
             if order.rating:
                 keyboard_buttons.append([InlineKeyboardButton(f"✅ Calificaste con {'⭐' * order.rating} ({order.rating}/5)", callback_data="noop")])

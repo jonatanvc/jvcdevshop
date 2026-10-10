@@ -118,7 +118,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "processing_order": f"{EMOJI_HOURGLASS} <b>Procesando tu orden de {{qty}}x {{product}}...</b>\n<i>Por favor espera unos segundos.</i>",
         "purchase_fail_title": f"{EMOJI_CROSS} <b>NO SE PUDO COMPLETAR LA COMPRA</b>\n\nEl proveedor rechazó la solicitud (posiblemente sin stock suficiente).\n\n{EMOJI_SHIELD} <b>Tu saldo de ${{total}} USDT ha sido reembolsado intacto a tu cuenta.</b>",
         "purchase_review_title": "⏳ <b>COMPRA EN REVISIÓN</b>\n\nEl proveedor no confirmó el resultado. Tu saldo permanece reservado para evitar un doble cobro o una compra duplicada. No vuelvas a enviar el pedido; soporte revisará la orden #ORD_{order_id}.",
-        "purchase_success_title": f"{EMOJI_PARTY} <b>¡COMPRA REALIZADA CON ÉXITO!</b>\n\n{EMOJI_BOX} <b>Producto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Pagado:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Orden #:</b> <code>ORD_{{order_id}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>DATOS DE TU SERVICIO:</b>\n<pre>{{items}}</pre>{{after_note}}\n\n<i>{EMOJI_IDEA} Puedes consultar tus compras y garantías en cualquier momento desde 'Mis Pedidos'.</i>",
+        "purchase_success_title": f"{EMOJI_PARTY} <b>¡COMPRA REALIZADA CON ÉXITO!</b>\n\n{EMOJI_BOX} <b>Producto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Pagado:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Orden #:</b> <code>ORD_{{order_id}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>DATOS DE TU SERVICIO:</b>\n<pre>{{items}}</pre>\n\n<i>{EMOJI_IDEA} Puedes consultar tus compras y garantías en cualquier momento desde 'Mis Pedidos'.</i>",
         "btn_view_in_orders": "💼 Ver en 'Mis Pedidos'",
         "btn_continue_shopping": "👆 Seguir Comprando",
 
@@ -213,7 +213,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
             "📦 <b>Producto:</b> {product}\n"
             "🔑 <b>Datos de Acceso:</b>\n<pre>{items}</pre>"
             "{warranty_text}"
-            "{after_note}\n\n"
             "<i>¡Gracias por tu compra! Si necesitas soporte contáctanos.</i>"
         )
     },
@@ -319,7 +318,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "processing_order": f"{EMOJI_HOURGLASS} <b>Processing your order for {{qty}}x {{product}}...</b>\n<i>Please wait a few seconds.</i>",
         "purchase_fail_title": f"{EMOJI_CROSS} <b>PURCHASE COULD NOT BE COMPLETED</b>\n\nThe provider rejected the request (likely out of stock).\n\n{EMOJI_SHIELD} <b>Your balance of ${{total}} USDT has been fully refunded to your account.</b>",
         "purchase_review_title": "⏳ <b>PURCHASE UNDER REVIEW</b>\n\nThe provider did not confirm the result. Your balance remains reserved to prevent duplicate charges or orders. Do not submit the order again; support will review order #ORD_{order_id}.",
-        "purchase_success_title": f"{EMOJI_PARTY} <b>PURCHASE COMPLETED SUCCESSFULLY!</b>\n\n{EMOJI_BOX} <b>Product:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Paid:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Order #:</b> <code>ORD_{{order_id}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>YOUR SERVICE CREDENTIALS:</b>\n<pre>{{items}}</pre>{{after_note}}\n\n<i>{EMOJI_IDEA} You can view your purchased credentials anytime under 'My Orders'.</i>",
+        "purchase_success_title": f"{EMOJI_PARTY} <b>PURCHASE COMPLETED SUCCESSFULLY!</b>\n\n{EMOJI_BOX} <b>Product:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Paid:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Order #:</b> <code>ORD_{{order_id}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>YOUR SERVICE CREDENTIALS:</b>\n<pre>{{items}}</pre>\n\n<i>{EMOJI_IDEA} You can view your purchased credentials anytime under 'My Orders'.</i>",
         "btn_view_in_orders": "💼 View in 'My Orders'",
         "btn_continue_shopping": "👆 Continue Shopping",
 
@@ -414,7 +413,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
             "📦 <b>Product:</b> {product}\n"
             "🔑 <b>Login Details:</b>\n<pre>{items}</pre>"
             "{warranty_text}"
-            "{after_note}\n\n"
             "<i>Thank you for your purchase!</i>"
         )
     },
@@ -520,7 +518,7 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
         "processing_order": f"{EMOJI_HOURGLASS} <b>Processando seu pedido de {{qty}}x {{product}}...</b>\n<i>Por favor, aguarde alguns segundos.</i>",
         "purchase_fail_title": f"{EMOJI_CROSS} <b>NÃO FOI POSSÍVEL CONCLUIR A COMPRA</b>\n\nO provedor recusou o pedido (provavelmente sem estoque).\n\n{EMOJI_SHIELD} <b>Seu saldo de ${{total}} USDT foi estornado integralmente para sua conta.</b>",
         "purchase_review_title": "⏳ <b>COMPRA EM REVISÃO</b>\n\nO provedor não confirmou o resultado. Seu saldo permanece reservado para evitar cobrança ou pedido duplicado. Não envie o pedido novamente; o suporte revisará o pedido #ORD_{order_id}.",
-        "purchase_success_title": f"{EMOJI_PARTY} <b>COMPRA REALIZADA COM SUCESSO!</b>\n\n{EMOJI_BOX} <b>Produto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Pago:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Pedido #:</b> <code>ORD_{{order_id}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>DADOS DO SEU SERVIÇO:</b>\n<pre>{{items}}</pre>{{after_note}}\n\n<i>{EMOJI_IDEA} Você pode consultar suas compras e credenciais a qualquer momento em 'Meus Pedidos'.</i>",
+        "purchase_success_title": f"{EMOJI_PARTY} <b>COMPRA REALIZADA COM SUCESSO!</b>\n\n{EMOJI_BOX} <b>Produto:</b> <code>{{product}}</code> (x{{qty}})\n{EMOJI_MONEY} <b>Total Pago:</b> <code>${{total}} USDT</code>\n{EMOJI_ID} <b>Pedido #:</b> <code>ORD_{{order_id}}</code>{{warranty_text}}\n\n{EMOJI_KEY} <b>DADOS DO SEU SERVIÇO:</b>\n<pre>{{items}}</pre>\n\n<i>{EMOJI_IDEA} Você pode consultar suas compras e credenciais a qualquer momento em 'Meus Pedidos'.</i>",
         "btn_view_in_orders": "💼 Ver em 'Meus Pedidos'",
         "btn_continue_shopping": "👆 Continuar Comprando",
 
@@ -615,7 +613,6 @@ TRANSLATIONS: Dict[str, Dict[str, str]] = {
             "📦 <b>Produto:</b> {product}\n"
             "🔑 <b>Dados de Acesso:</b>\n<pre>{items}</pre>"
             "{warranty_text}"
-            "{after_note}\n\n"
             "<i>Obrigado pela sua compra!</i>"
         )
     }

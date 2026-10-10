@@ -26,7 +26,7 @@ from bot.utils.emojis import parse_emojis, parse_keyboard
 
 USER_STATES: Dict[int, Dict[str, Any]] = {}
 _ACTIVE_HASH_VERIFICATIONS: Set[str] = set()
-DEPOSIT_AMOUNT_SUFFIX_MAX = 1_000_000
+DEPOSIT_AMOUNT_SUFFIX_MAX = 10_000
 
 def get_movement_emoji(is_credit: bool) -> str:
     return "🟢" if is_credit else "🔴"
