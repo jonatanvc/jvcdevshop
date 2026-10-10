@@ -25,6 +25,18 @@ SEARCH_STATES = {}
 SEARCH_LAST_QUERY: Dict[int, str] = {}
 CUSTOM_QTY_STATES = {}
 
+async def translate_note_or_original(raw_note: str, lang: str) -> str:
+    original_note = str(raw_note or "").strip()
+    if not original_note:
+        return ""
+
+    try:
+        translated_note = await translate_text(original_note, lang, fallback_to_source=True)
+    except Exception:
+        return original_note
+
+    return translated_note.strip() if translated_note and translated_note.strip() else original_note
+
 def get_product_icon(name: str, for_html: bool = False) -> str:
     """Asigna un icono representativo según el catálogo de servicios"""
     return get_service_icon(name, for_html=for_html)
@@ -901,9 +913,8 @@ def register_catalog_handlers(app: Client):
 
         p_data = await bunai_api.get_product(product_id)
         raw_note = p_data.get("note") if p_data else ""
-        if raw_note and raw_note.strip():
-            translated_note = await translate_text(str(raw_note), lang, fallback_to_source=False)
-            note = html.escape(translated_note or t("provider_note_unavailable", lang))
+        if raw_note and str(raw_note).strip():
+            note = html.escape(await translate_note_or_original(str(raw_note), lang))
         else:
             note = t("no_admin_note", lang)
 

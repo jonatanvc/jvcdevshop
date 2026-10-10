@@ -2,7 +2,7 @@ import unittest
 from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
-from bot.handlers.catalog import build_catalog_keyboard
+from bot.handlers.catalog import build_catalog_keyboard, translate_note_or_original
 from bot.handlers.virtual_numbers import execute_vnum_search
 
 
@@ -35,6 +35,20 @@ class SearchResponsivenessTests(unittest.IsolatedAsyncioTestCase):
         self.assertEqual(keyboard.inline_keyboard[1][0].callback_data, "catalog_search_page:1")
         self.assertEqual(keyboard.inline_keyboard[1][2].callback_data, "catalog_search_page:3")
         self.assertEqual(keyboard.inline_keyboard[2][0].callback_data, "catalog_search_refresh:2")
+
+    async def test_product_note_falls_back_to_original_when_translation_is_unavailable(self):
+        original_note = "Redeem the code within 12 hours."
+        with patch("bot.handlers.catalog.translate_text", new=AsyncMock(return_value="")):
+            self.assertEqual(await translate_note_or_original(original_note, "es"), original_note)
+
+        with patch("bot.handlers.catalog.translate_text", new=AsyncMock(side_effect=RuntimeError("offline"))):
+            self.assertEqual(await translate_note_or_original(original_note, "es"), original_note)
+
+    async def test_product_note_uses_translation_when_available(self):
+        with patch("bot.handlers.catalog.translate_text", new=AsyncMock(return_value="Canjea el código en 12 horas.")):
+            translated = await translate_note_or_original("Redeem the code within 12 hours.", "es")
+
+        self.assertEqual(translated, "Canjea el código en 12 horas.")
 
     async def test_fivesim_search_page_uses_cached_offers(self):
         cached_offers = [{
