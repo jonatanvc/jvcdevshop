@@ -2,6 +2,7 @@ import math
 import html
 import unicodedata
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Dict, Any, List, Optional, Tuple
 from pyrogram import Client, filters
 from pyrogram.types import CallbackQuery, Message, InlineKeyboardMarkup
@@ -24,6 +25,12 @@ COUNTRIES_PER_PAGE = 6
 VNUM_SEARCH_STATES: Dict[int, str] = {}
 VNUM_LAST_SEARCH: Dict[int, Tuple[str, str]] = {}
 VNUM_SEARCH_OFFERS: Dict[int, Tuple[str, str, List[Dict[str, Any]]]] = {}
+
+def get_virtual_voucher_price_for_rating(order: VirtualNumberOrder, is_owner: bool) -> Optional[float]:
+    voucher_price = order.voucher_total_price
+    if voucher_price is None and not is_owner:
+        voucher_price = order.price_usdt
+    return float(voucher_price) if voucher_price is not None else None
 
 def normalize_text(text: str) -> str:
     """Normaliza texto removiendo acentos y convirtiendo a minúsculas para búsquedas flexibles"""
@@ -624,6 +631,7 @@ def register_virtual_numbers_handlers(app: Client):
                     )
                     if v_id:
                         v_ord.voucher_message_id = v_id
+                        v_ord.voucher_total_price = Decimal(str(pub_vnum_price))
                         v_ord.rating = 5
                         await session.commit()
 
@@ -927,10 +935,10 @@ def register_virtual_numbers_handlers(app: Client):
             service_name = order.service_name
             country = order.country
             phone = order.phone
-            price_usdt = float(order.price_usdt)
+            voucher_price = get_virtual_voucher_price_for_rating(order, settings.is_owner(user_id))
             await session.commit()
 
-        if voucher_msg_id:
+        if voucher_msg_id and voucher_price is not None:
             await voucher_service.update_virtual_number_voucher_rating(
                 client=client,
                 voucher_msg_id=voucher_msg_id,
@@ -938,7 +946,7 @@ def register_virtual_numbers_handlers(app: Client):
                 service_name=service_name,
                 country_code=country,
                 phone=phone,
-                price_usdt=price_usdt,
+                price_usdt=voucher_price,
                 user_id=user_id,
                 username=callback.from_user.username,
                 first_name=callback.from_user.first_name,

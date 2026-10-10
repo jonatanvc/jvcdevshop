@@ -1,5 +1,5 @@
 import html
-from typing import Set
+from typing import Optional, Set
 from datetime import datetime, timezone
 from decimal import Decimal
 from pyrogram import Client, filters
@@ -20,6 +20,13 @@ from bot.services.promos import promo_service
 from bot.services.vouchers import voucher_service
 
 _ACTIVE_CHECKOUT_USERS: Set[int] = set()
+
+def get_voucher_price_for_rating(order: Order, is_owner: bool) -> Optional[float]:
+    if order.voucher_total_price is not None:
+        return float(order.voucher_total_price)
+    if is_owner:
+        return None
+    return float(order.total_price)
 
 def is_definitively_rejected(status_code) -> bool:
     return (
@@ -161,6 +168,7 @@ def register_checkout_handlers(app: Client):
 
             total_price = round(subtotal, 2)
             total_price_dec = Decimal(str(total_price))
+            voucher_price = public_total_price if is_owner else total_price
 
             product_name = adjust_warranty_in_name(p_data.get("display_name") or p_data.get("name") or "Servicio Digital")
             stock_count = int(p_data.get("stock_count", 0))
@@ -208,6 +216,7 @@ def register_checkout_handlers(app: Client):
                 quantity=qty,
                 unit_price=Decimal(str(unit_price)),
                 total_price=total_price_dec,
+                voucher_total_price=Decimal(str(voucher_price)),
                 delivered_items="Pendiente de confirmación del proveedor",
                 provider_note="",
                 status="PROCESSING",
@@ -379,7 +388,6 @@ def register_checkout_handlers(app: Client):
 
         # Publicar comprobante en el canal público de vouchers (si está configurado)
         # Si es el Owner, en el canal de reseñas se muestra siempre el precio público del bot
-        voucher_price = public_total_price if is_owner else total_price
         voucher_msg_id = await voucher_service.publish_product_voucher(
             client=client,
             order_id=internal_order_id,
@@ -478,17 +486,17 @@ def register_checkout_handlers(app: Client):
             voucher_msg_id = order.voucher_message_id
             product_name = order.product_name
             qty = order.quantity
-            total_price = float(order.total_price)
+            voucher_price = get_voucher_price_for_rating(order, settings.is_owner(user_id))
             await session.commit()
 
-        if voucher_msg_id:
+        if voucher_msg_id and voucher_price is not None:
             await voucher_service.update_product_voucher_rating(
                 client=client,
                 voucher_msg_id=voucher_msg_id,
                 order_id=order_id,
                 product_name=product_name,
                 qty=qty,
-                total_price=total_price,
+                total_price=voucher_price,
                 user_id=user_id,
                 username=callback.from_user.username,
                 first_name=callback.from_user.first_name,

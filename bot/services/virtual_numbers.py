@@ -947,7 +947,11 @@ async def check_and_notify_pending_virtual_orders(app: Client):
                             await s2.execute(
                                 update(VirtualNumberOrder)
                                 .where(VirtualNumberOrder.id == order.id)
-                                .values(voucher_message_id=v_msg_id, rating=5)
+                                .values(
+                                    voucher_message_id=v_msg_id,
+                                    voucher_total_price=Decimal(str(pub_vnum_price)),
+                                    rating=5,
+                                )
                             )
                             await s2.commit()
 

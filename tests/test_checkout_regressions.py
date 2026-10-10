@@ -3,7 +3,7 @@ from types import SimpleNamespace
 import unittest
 from unittest.mock import AsyncMock, patch
 
-from bot.handlers.checkout import has_sufficient_stock, is_definitively_rejected
+from bot.handlers.checkout import get_voucher_price_for_rating, has_sufficient_stock, is_definitively_rejected
 from bot.services.pricing import pricing_service
 from bot.services.promos import promo_service
 from bot.config import settings
@@ -49,6 +49,21 @@ class CheckoutRegressionTests(unittest.TestCase):
         for status_code in (408, 409, 425, 429, 500, None):
             with self.subTest(status_code=status_code):
                 self.assertFalse(is_definitively_rejected(status_code))
+
+    def test_rating_uses_stored_public_voucher_price_for_owner(self):
+        order = SimpleNamespace(voucher_total_price=12.5, total_price=3.0)
+
+        self.assertEqual(get_voucher_price_for_rating(order, is_owner=True), 12.5)
+
+    def test_legacy_owner_rating_does_not_replace_public_price_with_cost(self):
+        order = SimpleNamespace(voucher_total_price=None, total_price=3.0)
+
+        self.assertIsNone(get_voucher_price_for_rating(order, is_owner=True))
+
+    def test_non_owner_legacy_rating_keeps_order_total(self):
+        order = SimpleNamespace(voucher_total_price=None, total_price=4.25)
+
+        self.assertEqual(get_voucher_price_for_rating(order, is_owner=False), 4.25)
 
     def test_purchase_templates_format_without_provider_notes(self):
         for language in ("es", "en", "pt"):

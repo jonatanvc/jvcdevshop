@@ -101,6 +101,7 @@ class Order(Base):
     quantity = Column(Integer, default=1, nullable=False)
     unit_price = Column(Numeric(12, 4), nullable=False)
     total_price = Column(Numeric(12, 4), nullable=False)
+    voucher_total_price = Column(Numeric(12, 4), nullable=True)
     provider_order_id = Column(String(128), nullable=True)
     delivered_items = Column(Text, nullable=False)
     provider_note = Column(Text, nullable=False, default="")
@@ -202,6 +203,7 @@ class VirtualNumberOrder(Base):
     operator = Column(String(64), nullable=False, default="any")
     cost_usd = Column(Numeric(10, 4), nullable=False)
     price_usdt = Column(Numeric(10, 4), nullable=False)
+    voucher_total_price = Column(Numeric(10, 4), nullable=True)
     sms_code = Column(String(32), nullable=True)
     sms_full_text = Column(Text, nullable=True)
     status = Column(String(20), default="PROCESSING", nullable=False, index=True)  # PROCESSING, REVIEW, PENDING, RECEIVED, FINISHED, FAILED, CANCELLED, TIMEOUT

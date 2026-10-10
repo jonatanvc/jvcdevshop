@@ -3,7 +3,7 @@ from types import SimpleNamespace
 from unittest.mock import AsyncMock, patch
 
 from bot.handlers.catalog import build_catalog_keyboard, get_product_note, translate_note_or_original
-from bot.handlers.virtual_numbers import execute_vnum_search
+from bot.handlers.virtual_numbers import execute_vnum_search, get_virtual_voucher_price_for_rating
 
 
 class FakeResult:
@@ -59,6 +59,21 @@ class SearchResponsivenessTests(unittest.IsolatedAsyncioTestCase):
         cached_catalog = [{"product_id": "svc-1", "note": "Old note."}]
         with patch("bot.handlers.catalog.pricing_service._cached_catalog", cached_catalog):
             self.assertEqual(get_product_note({"note": "Current note."}, "svc-1"), "Current note.")
+
+        def test_virtual_voucher_rating_uses_stored_public_price(self):
+            order = SimpleNamespace(voucher_total_price=9.99, price_usdt=3.0)
+
+            self.assertEqual(get_virtual_voucher_price_for_rating(order, is_owner=True), 9.99)
+
+        def test_legacy_owner_virtual_voucher_is_not_rewritten_at_cost(self):
+            order = SimpleNamespace(voucher_total_price=None, price_usdt=3.0)
+
+            self.assertIsNone(get_virtual_voucher_price_for_rating(order, is_owner=True))
+
+        def test_non_owner_legacy_virtual_voucher_uses_paid_price(self):
+            order = SimpleNamespace(voucher_total_price=None, price_usdt=4.25)
+
+            self.assertEqual(get_virtual_voucher_price_for_rating(order, is_owner=False), 4.25)
 
     async def test_fivesim_search_page_uses_cached_offers(self):
         cached_offers = [{
